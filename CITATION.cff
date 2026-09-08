@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use secfoo in your research or tooling, please cite it as below."
+title: "secfoo"
+abstract: "Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them."
+authors:
+  - name: "RakFort"
+repository-code: "https://github.com/secfoo-com/secfoo"
+url: "https://secfoo.com"
+license: "Apache-2.0"
