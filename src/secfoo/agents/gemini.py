@@ -28,7 +28,10 @@ class GeminiAdapter(AgentAdapter):
         # auto-approved write access, and we'd rather a blocked tool call
         # show up as a lower-quality report than silently grant it edit
         # rights.
-        return [self.binary, "-p", prompt, "--output-format", "json"]
+        # --skip-trust: secfoo always runs headless against arbitrary
+        # targets (cloned repos, user paths) — without this, Gemini CLI
+        # exits immediately in non-interactive mode on an untrusted cwd.
+        return [self.binary, "-p", prompt, "--output-format", "json", "--skip-trust"]
 
     def extract_report(self, stdout: str) -> str:
         try:

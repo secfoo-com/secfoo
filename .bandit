@@ -1,0 +1,5 @@
+# Traditional SAST config (bandit). Run: bandit -r src -c .bandit
+exclude_dirs: [".venv", "tests", "node_modules", "dist", "build", "secfoo-design-system"]
+
+# git clone via subprocess — argv list, no shell, URL validated upstream
+skips: ["B404", "B603", "B607"]

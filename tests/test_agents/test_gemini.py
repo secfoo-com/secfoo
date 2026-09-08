@@ -9,6 +9,7 @@ def test_build_command_no_yolo_flag(tmp_path):
     adapter = GeminiAdapter()
     cmd = adapter.build_command("hi", workdir=tmp_path)
     assert "--yolo" not in cmd
+    assert "--skip-trust" in cmd
     assert "--output-format" in cmd
     assert "json" in cmd
 

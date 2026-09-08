@@ -596,7 +596,7 @@ class RunRepository:
             raise ValueError(f"Unknown assessment field(s): {sorted(unknown)}")
         set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = ?"
         params = [*fields.values(), _now(), assessment_id]
-        self._conn.execute(f"UPDATE assessments SET {set_clause} WHERE id = ?", params)
+        self._conn.execute(f"UPDATE assessments SET {set_clause} WHERE id = ?", params)  # nosec B608 -- column names from _ASSESSMENT_UPDATE_FIELDS whitelist above
         self._conn.commit()
 
     def get_assessment(self, assessment_id: int) -> AssessmentRecord | None:
@@ -782,7 +782,7 @@ class RunRepository:
             raise ValueError(f"Unknown exception field(s): {sorted(unknown)}")
         set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = ?"
         params = [*fields.values(), _now(), exception_id]
-        self._conn.execute(f"UPDATE exceptions SET {set_clause} WHERE id = ?", params)
+        self._conn.execute(f"UPDATE exceptions SET {set_clause} WHERE id = ?", params)  # nosec B608 -- column names from allowed whitelist above
         self._conn.commit()
 
     def get_exception(self, exception_id: int) -> ExceptionRecord | None:
@@ -1070,7 +1070,7 @@ class RunRepository:
             raise ValueError(f"Unknown threat acceptance field(s): {sorted(unknown)}")
         set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = ?"
         params = [*fields.values(), _now(), acceptance_id]
-        self._conn.execute(f"UPDATE threat_acceptances SET {set_clause} WHERE id = ?", params)
+        self._conn.execute(f"UPDATE threat_acceptances SET {set_clause} WHERE id = ?", params)  # nosec B608 -- column names from allowed whitelist above
         self._conn.commit()
 
     def delete_threat_acceptance(self, acceptance_id: int) -> None:
@@ -1179,7 +1179,7 @@ class RunRepository:
             placeholders = ",".join("?" * len(seen_fingerprints))
             query = (
                 "UPDATE sast_findings SET status = 'closed', closed_in_run_id = ?, closed_at = ? "
-                f"WHERE project_id = ? AND status = 'open' AND fingerprint NOT IN ({placeholders})"
+                f"WHERE project_id = ? AND status = 'open' AND fingerprint NOT IN ({placeholders})"  # nosec B608 -- placeholders are ? binds, not user SQL
             )
             params: list[object] = [run_id, closed_at, project_id, *seen_fingerprints]
         else:

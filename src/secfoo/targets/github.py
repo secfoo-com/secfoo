@@ -27,7 +27,14 @@ def clone_shallow(url: str, *, timeout: int = 600) -> Iterator[Path]:
                 timeout=timeout,
             )
         except subprocess.CalledProcessError as exc:
-            raise TargetResolutionError(f"git clone failed for {url}: {exc.stderr}") from exc
+            stderr = exc.stderr or ""
+            if "No space left on device" in stderr:
+                raise TargetResolutionError(
+                    f"git clone failed for {url}: disk full — free space on your "
+                    f"system drive (or clone the repo locally and pass the directory "
+                    f"as --target instead of a GitHub URL). Original error: {stderr}"
+                ) from exc
+            raise TargetResolutionError(f"git clone failed for {url}: {stderr}") from exc
         except subprocess.TimeoutExpired as exc:
             raise TargetResolutionError(f"git clone timed out after {timeout}s for {url}") from exc
         yield tmp_dir
