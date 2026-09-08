@@ -29,6 +29,65 @@ assessment ever run, across every project, in a local web dashboard.
 > and lives in a separate private repository — `secfoo cloud login` connects
 > this CLI to it, but nothing about the portal itself is in this repo.
 
+## Quick Start
+
+Requires Python 3.10+ for `pip install` — or skip Python entirely with
+npm, a standalone binary, or Docker (see [Install](#install) below).
+
+```bash
+pip install secfoo
+secfoo run --skill security-architecture-review --agent claude
+```
+
+You'll need an agent CLI already installed and authenticated — Claude
+Code, Cursor, Antigravity, or Gemini CLI (`--agent claude|agent|agy|gemini`).
+On a real terminal, that first run prompts for a project name and
+application ID, then browse every result in the dashboard:
+
+```bash
+secfoo run --skill sast --skill threat-modeling \
+  --target https://github.com/org/repo --agent claude
+secfoo serve
+```
+
+See [Getting Started](https://secfoo.com/docs/index.html#quickstart) or
+the [CLI reference](https://secfoo.com/docs/cli.html) for more.
+
+## What can you do with secfoo?
+
+- **Review architecture and threat-model a system** against secure
+  design principles, STRIDE/LINDDUN, and CSA CCM v4 domain conformance
+- **Find code and dependency vulnerabilities** — SAST and SCA reachability
+  triage, tracked as an Open/Closed Findings register across rescans, not
+  just a one-off report
+- **Catch exposed credentials** across source, config, git history, and
+  linked Confluence pages
+- **Review LLM prompts and agent tool definitions** for injection and
+  over-permissioning risk
+- **Track third-party/vendor risk** with AI-BOM inventories and a
+  dedicated third-party review workflow
+- **Run it in CI**, non-interactively, with the same commands you'd use
+  locally
+- **Browse every assessment across every project** in a local dashboard,
+  or sync to your org's enterprise portal
+
+## Why secfoo?
+
+- **Agent-native, not another parser**: a skill is a structured prompt,
+  not a bespoke rules engine — secfoo hands your existing coding-agent
+  CLI a brief and a target and lets it actually read the code, the way
+  a human reviewer would.
+- **Local-first**: `secfoo serve` and every run stay on your machine
+  unless you explicitly connect `secfoo cloud login` to your org's portal.
+- **One case file per system**: assessments consolidate repeat runs
+  under the same application ID instead of fragmenting into a new
+  record every rescan.
+- **Concurrent by default**: multiple `--skill` flags run at the same
+  time, not one after another.
+- **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
+  CLI — pick whichever you already use and trust.
+- **Open source CLI**: Apache-2.0 licensed.
+
 ## Activity catalog
 
 Each activity is a self-contained security engagement with its own report
@@ -435,3 +494,21 @@ Homebrew is a planned follow-up (a tap formula in a separate
 
 See [`design-system/README.md`](design-system/README.md) for the design
 system used by the dashboard.
+
+## Learn More
+
+- [Getting Started](https://secfoo.com/docs/index.html#quickstart)
+- [Full Documentation](https://secfoo.com/docs/index.html)
+- [CLI Reference](https://secfoo.com/docs/cli.html)
+- [Running an assessment](https://secfoo.com/docs/guide-running-an-assessment.html)
+- [Excluding paths from a scan](https://secfoo.com/docs/guide-excluding-paths.html)
+- [Rendering architecture diagrams](https://secfoo.com/docs/guide-architecture-diagrams.html)
+- [Connecting agent CLIs (MCP)](https://secfoo.com/docs/guide-connecting-mcp.html)
+- [Editions & pricing](https://secfoo.com/editions.html)
+
+## Contributing
+
+We welcome contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) to get
+started, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community
+expectations. Found a security issue? See [SECURITY.md](SECURITY.md)
+instead of opening a public issue.
