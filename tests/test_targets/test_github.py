@@ -52,3 +52,18 @@ def test_clone_shallow_raises_target_resolution_error_on_git_failure(monkeypatch
     with pytest.raises(TargetResolutionError):
         with clone_shallow("https://github.com/org/nope"):
             pass
+
+
+def test_clone_shallow_surfaces_disk_full_with_actionable_message(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(
+            returncode=128,
+            cmd=cmd,
+            stderr="error: unable to create file foo.ts: No space left on device",
+        )
+
+    monkeypatch.setattr("secfoo.targets.github.subprocess.run", fake_run)
+
+    with pytest.raises(TargetResolutionError, match="disk full"):
+        with clone_shallow("https://github.com/org/repo"):
+            pass
