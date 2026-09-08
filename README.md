@@ -1,9 +1,4 @@
-# Secfoo 
-Everyone's a security professional.
-
-<p align="center">
-  Secfoo turns any AI coding agent into a disciplined security reviewer — same standards, same report, every run.
-</p>
+# Secfoo - Everyone's a security professional.
 
 <p align="center">
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
@@ -13,7 +8,8 @@ Everyone's a security professional.
 </p>
 
 <p align="center">
-  Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them.
+    Secfoo turns any AI coding agent into a disciplined security reviewer — same standards, same report, every run.
+Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them.
 </p>
 
 <p align="center">
