@@ -1,4 +1,9 @@
-# secfoo
+# Secfoo 
+Everyone's a security professional.
+
+<p align="center">
+  Secfoo turns any AI coding agent into a disciplined security reviewer — same standards, same report, every run.
+</p>
 
 <p align="center">
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
