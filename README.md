@@ -1,12 +1,33 @@
 # secfoo
 
-Context-based security architectural assessment orchestrator.
+<p align="center">
+  <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
+  <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/dm/secfoo" alt="PyPI downloads"></a>
+  <a href="https://github.com/secfoo-com/secfoo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/secfoo-com/secfoo/ci.yml" alt="CI"></a>
+  <a href="https://github.com/secfoo-com/secfoo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/secfoo-com/secfoo" alt="Apache 2.0 license"></a>
+</p>
+
+<p align="center">
+  Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them.
+</p>
+
+<p align="center">
+  <a href="https://secfoo.com">Website</a> ·
+  <a href="https://secfoo.com/docs/index.html#install">Getting Started</a> ·
+  <a href="https://secfoo.com/docs/cli.html">CLI Reference</a> ·
+  <a href="https://secfoo.com/docs/index.html">Documentation</a>
+</p>
 
 Pick one or more security **activities** (see the catalog below), point them
 at a **target** (a public GitHub URL, a local directory, plus optional
 Confluence links for extra context), choose which coding-agent CLI runs them
 (Claude Code, Cursor, Antigravity, or Gemini CLI), and browse every
 assessment ever run, across every project, in a local web dashboard.
+
+> This repository is the open-source CLI and local dashboard. secfoo's
+> enterprise portal (multi-tenant cloud sync, admin console) is closed-source
+> and lives in a separate private repository — `secfoo cloud login` connects
+> this CLI to it, but nothing about the portal itself is in this repo.
 
 ## Activity catalog
 
