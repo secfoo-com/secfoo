@@ -1,0 +1,38 @@
+/*
+  Tables
+  ------
+*/
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--text-body-sm);
+}
+
+.table th {
+  text-align: left;
+  background-color: var(--color-primary-800);
+  color: var(--color-white);
+  font-weight: var(--font-weight-bold);
+  padding: var(--space-3) var(--space-4);
+}
+
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.table tbody tr:nth-child(even) {
+  background-color: var(--color-primary-50);
+}
+
+.table tbody tr:hover {
+  background-color: var(--color-teal-100);
+}

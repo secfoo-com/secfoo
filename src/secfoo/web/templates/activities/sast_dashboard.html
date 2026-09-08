@@ -1,0 +1,114 @@
+{# SAST program dashboard: a findings funnel, a CVSS-band breakdown, a
+   "Top Vulnerability Types" (CWE) breakdown, and a short "Top findings"
+   preview linking out to the full, filterable findings register at
+   /activities/sast/findings (sast_findings_list.html) -- the one
+   dashboard in this app backed by a stored table (sast_findings) instead
+   of report text re-parsed on every request. See web/sast_dashboard.py's
+   module docstring for why. #}
+
+<span class="ds-overline" style="display:block;margin-top:var(--space-8)">Program dashboard</span>
+
+<div class="stat-card-grid" style="margin-top:var(--space-4)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sast_dash.funnel.findings }}</span>
+    <span class="stat-card__label">Open findings</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sast_dash.funnel.exploitable }}</span>
+    <span class="stat-card__label">Exploitable (not Latent)</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sast_dash.funnel.verified }}</span>
+    <span class="stat-card__label">Verified (Confirmed verdict)</span>
+  </div>
+  <div class="stat-card" style="{% if sast_dash.funnel.severe %}border-top-color:var(--color-error){% endif %}">
+    <span class="stat-card__value" style="{% if sast_dash.funnel.severe %}color:var(--color-error){% endif %}">{{ sast_dash.funnel.severe }}</span>
+    <span class="stat-card__label">Severe (CVSS High/Critical)</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-8)">
+  <div class="card">
+    <h4 class="card__title">CVSS severity</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      Computed by secfoo from each finding's own CVSS v3.1 vector -- never asserted directly by the model.
+    </p>
+    <div class="donut-row" style="margin-top:var(--space-4)">
+      <div class="donut" style="--donut-gradient: {{ sast_cvss_gradient }}">
+        <div class="donut__hole">{{ sast_dash.funnel.findings }}</div>
+      </div>
+      <div class="donut-legend">
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-error)"></span>Critical ({{ sast_dash.cvss_band_counts.critical }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-error)"></span>High ({{ sast_dash.cvss_band_counts.high }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-warning)"></span>Medium ({{ sast_dash.cvss_band_counts.medium }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-teal-500)"></span>Low ({{ sast_dash.cvss_band_counts.low }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-gray-400)"></span>None ({{ sast_dash.cvss_band_counts.none }})</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Top vulnerability types</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      Open findings by CWE. Findings without a specific CWE ("unverified") are excluded from this breakdown.
+    </p>
+    {% if sast_dash.top_cwe_counts %}
+    {% for cwe, count in sast_dash.top_cwe_counts %}
+    <div class="severity-bar">
+      <span class="severity-bar__dot severity-bar__dot--high"></span>
+      <span class="severity-bar__label" style="width:8rem">{{ cwe }}</span>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--high" style="width:{{ (count / sast_dash.top_cwe_counts[0][1] * 100) }}%"></div></div>
+      <span class="severity-bar__count">{{ count }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">No findings with a specific CWE yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% set top_findings = sast_dash.open_findings[:5] %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-10)">
+  <div>
+    <h2 style="margin:0">Top findings</h2>
+    <p class="ds-body" style="color:var(--color-text-muted);margin-top:var(--space-1)">The highest-CVSS open findings across all projects.</p>
+  </div>
+  <a class="btn btn--outline btn--sm" href="/activities/sast/findings">View all findings ({{ sast_dash.open_findings | length }} open, {{ sast_dash.closed_findings | length }} closed) &rarr;</a>
+</div>
+
+{% if top_findings %}
+<div class="table-wrap" style="margin-top:var(--space-4)">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Project</th><th>Access</th><th>Title</th><th>Source location</th><th>Last seen</th><th>CVSS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in top_findings %}
+      <tr class="run-row" data-href="/activities/sast/findings/{{ f.fingerprint }}">
+        <td>{{ f.project_display_name }}</td>
+        <td>
+          {% if f.verdict and f.verdict.lower() == 'confirmed' %}<span class="badge badge--success">Verified</span>{% endif %}
+          {% if f.cvss_vector | cvss_network_reachable %}<span class="badge badge--neutral">External</span>{% endif %}
+        </td>
+        <td>{{ f.title }} <br><span class="ds-caption">{{ f.cwe or "unverified" }}</span></td>
+        <td><code>{{ f.location_file }}{% if f.location_line %}:{{ f.location_line }}{% endif %}</code></td>
+        <td>{{ f.last_seen_at | fmt_time }}</td>
+        <td>
+          {% if f.cvss_score is not none %}
+          <span class="badge {{ f.cvss_score | cvss_rating_label | cvss_badge }}">{{ f.cvss_score | cvss_rating_label | capitalize }} {{ "%.1f"|format(f.cvss_score) }}</span>
+          {% else %}
+          <span class="badge badge--neutral">No vector</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-4)"><div>No open findings yet.</div></div>
+{% endif %}
+
+<div style="border-bottom:1px solid var(--color-border);margin-top:var(--space-8)"></div>

@@ -1,0 +1,40 @@
+/*
+  Segmented control
+  -----------------
+  A rounded pill-tab group (e.g. All / Internal / Third-Party), visually
+  distinct from the underline-style .tabs__tab in tabs.css.
+*/
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background-color: var(--color-gray-100);
+  border-radius: var(--radius-pill);
+}
+
+.segmented__option {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-pill);
+  font: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  display: inline-flex;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.segmented__option:hover {
+  color: var(--color-text);
+}
+
+.segmented__option[aria-selected="true"] {
+  background-color: var(--color-primary-700);
+  color: var(--color-text-on-primary);
+}

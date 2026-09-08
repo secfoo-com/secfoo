@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design System — Style Guide</title>
+<link rel="stylesheet" href="./design-system.css" />
+<style>
+  .swatch { display: inline-flex; flex-direction: column; align-items: center; gap: .5rem; width: 6rem; margin-bottom: 1rem; }
+  .swatch__color { width: 4rem; height: 4rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .section { padding-block: var(--space-16); border-bottom: 1px solid var(--color-border); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; margin-bottom: var(--space-4); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav__inner">
+    <a class="nav__brand" href="#">Brandmark</a>
+    <ul class="nav__links">
+      <li><a class="nav__link" href="#" aria-current="page">Home</a></li>
+      <li><a class="nav__link" href="#">Products</a></li>
+      <li><a class="nav__link" href="#">Pricing</a></li>
+      <li><a class="nav__link" href="#">About</a></li>
+    </ul>
+    <div class="nav__actions">
+      <button class="btn btn--outline btn--sm">Sign in</button>
+      <button class="btn btn--primary btn--sm">Get started</button>
+    </div>
+  </div>
+</nav>
+
+<div class="ds-container">
+
+  <section class="section">
+    <span class="ds-overline">Foundations</span>
+    <h1 class="ds-display" style="margin-top:.5rem">Design System</h1>
+    <p class="ds-body-lg" style="max-width:40rem;color:var(--color-text-muted)">
+      An original component library and token set — colors, type, spacing, and
+      components — ready to theme any product surface.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Color</h2>
+    <p class="ds-caption" style="margin-bottom:1rem">Primary</p>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-primary-100)"></div>100</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-primary-300)"></div>300</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-primary-500)"></div>500</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-primary-700)"></div>700</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-primary-900)"></div>900</div>
+    </div>
+    <p class="ds-caption" style="margin:1rem 0">Accents</p>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-teal-500)"></div>Teal</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-amber-500)"></div>Amber</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-success)"></div>Success</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-warning)"></div>Warning</div>
+      <div class="swatch"><div class="swatch__color" style="background:var(--color-error)"></div>Error</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Typography</h2>
+    <p class="ds-display">Display heading</p>
+    <h1>Heading 1</h1>
+    <h2>Heading 2</h2>
+    <h3>Heading 3</h3>
+    <h4>Heading 4</h4>
+    <p class="ds-body-lg">Body large — used for lead paragraphs and intros.</p>
+    <p class="ds-body">Body — the default paragraph style across the product.</p>
+    <p class="ds-body-sm">Body small — secondary text, dense UI.</p>
+    <p class="ds-caption">Caption — timestamps, helper text, metadata.</p>
+  </section>
+
+  <section class="section">
+    <h2>Buttons</h2>
+    <div class="row">
+      <button class="btn btn--primary btn--lg">Primary</button>
+      <button class="btn btn--secondary btn--lg">Secondary</button>
+      <button class="btn btn--outline btn--lg">Outline</button>
+      <button class="btn btn--ghost btn--lg">Ghost</button>
+      <button class="btn btn--dark btn--lg">Dark</button>
+    </div>
+    <div class="row">
+      <button class="btn btn--primary btn--md">Medium</button>
+      <button class="btn btn--primary btn--sm">Small</button>
+      <button class="btn btn--primary btn--lg" disabled>Disabled</button>
+      <button class="btn btn--primary btn--lg btn--loading">Loading</button>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Badges &amp; Chips</h2>
+    <div class="row">
+      <span class="badge badge--primary">Primary</span>
+      <span class="badge badge--teal">Teal</span>
+      <span class="badge badge--amber">Amber</span>
+      <span class="badge badge--success">Success</span>
+      <span class="badge badge--warning">Warning</span>
+      <span class="badge badge--error">Error</span>
+    </div>
+    <div class="row">
+      <span class="chip">Fintech <button class="chip__remove" aria-label="Remove">&times;</button></span>
+      <span class="chip">B2B <button class="chip__remove" aria-label="Remove">&times;</button></span>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Alerts</h2>
+    <div class="row" style="flex-direction:column;align-items:stretch">
+      <div class="alert alert--info"><div><div class="alert__title">Heads up</div>New data refresh available for your workspace.</div></div>
+      <div class="alert alert--success"><div><div class="alert__title">Success</div>Your changes have been saved.</div></div>
+      <div class="alert alert--warning"><div><div class="alert__title">Warning</div>Your session will expire in 5 minutes.</div></div>
+      <div class="alert alert--error"><div><div class="alert__title">Error</div>Unable to reach the server. Please retry.</div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Forms</h2>
+    <div style="max-width:24rem">
+      <div class="field">
+        <label class="field__label" for="name">Full name</label>
+        <input class="input" id="name" type="text" placeholder="Ada Lovelace" />
+      </div>
+      <div class="field">
+        <label class="field__label" for="email">Email</label>
+        <input class="input" id="email" type="email" aria-invalid="true" placeholder="you@company.com" />
+        <span class="field__error">Enter a valid email address.</span>
+      </div>
+      <div class="field">
+        <label class="field__label" for="plan">Plan</label>
+        <select class="select" id="plan">
+          <option>Starter</option>
+          <option>Growth</option>
+          <option>Enterprise</option>
+        </select>
+        <span class="field__helper">You can change this later.</span>
+      </div>
+      <label class="checkbox"><input type="checkbox" checked /> Send me product updates</label>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Tabs</h2>
+    <div role="tablist" class="tabs__list">
+      <button class="tabs__tab" role="tab" aria-selected="true">Overview</button>
+      <button class="tabs__tab" role="tab" aria-selected="false">Activity</button>
+      <button class="tabs__tab" role="tab" aria-selected="false">Settings</button>
+    </div>
+    <div class="tabs__panel">Panel content for the selected tab.</div>
+  </section>
+
+  <section class="section">
+    <h2>Cards</h2>
+    <div class="card-grid">
+      <div class="card card--interactive">
+        <span class="card__eyebrow">Category</span>
+        <h4 class="card__title">Card title</h4>
+        <p class="card__body">Supporting copy describing this card's content in one or two lines.</p>
+        <div class="card__footer">
+          <span class="badge badge--neutral">Tag</span>
+          <a href="#">Learn more →</a>
+        </div>
+      </div>
+      <div class="card card--interactive">
+        <span class="card__eyebrow">Category</span>
+        <h4 class="card__title">Another card</h4>
+        <p class="card__body">Cards use the same radius and shadow tokens as the rest of the system.</p>
+        <div class="card__footer">
+          <span class="badge badge--teal">New</span>
+          <a href="#">Learn more →</a>
+        </div>
+      </div>
+      <div class="card card--interactive">
+        <span class="card__eyebrow">Category</span>
+        <h4 class="card__title">Third card</h4>
+        <p class="card__body">Grid auto-wraps responsively via CSS grid auto-fit.</p>
+        <div class="card__footer">
+          <span class="badge badge--amber">Beta</span>
+          <a href="#">Learn more →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Table</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Company</th><th>Sector</th><th>Risk score</th></tr></thead>
+        <tbody>
+          <tr><td>Acme Corp</td><td>Manufacturing</td><td><span class="badge badge--success">Low</span></td></tr>
+          <tr><td>Globex Ltd</td><td>Retail</td><td><span class="badge badge--warning">Medium</span></td></tr>
+          <tr><td>Initech</td><td>Software</td><td><span class="badge badge--error">High</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Code</h2>
+    <p class="ds-body">Inline code like <code>npm install</code> uses the mono font token with a subtle background.</p>
+    <pre><code>[Browser] --HTTPS--> [API :3001] --JWT--> [MongoDB]
+                          |
+                          +--> [Agent service :8000] --> [LLM provider]</code></pre>
+    <pre><code class="language-diff">--- a/backend/routes/assets.js
++++ b/backend/routes/assets.js
+@@
+ const router = express.Router();
+<span class="diff-add">+router.use(authenticateToken);</span>
+<span class="diff-del">-// PUBLIC FOR TESTING</span></code></pre>
+  </section>
+
+  <section class="section" style="border-bottom:none">
+    <h2>Modal</h2>
+    <button class="btn btn--primary" onclick="document.getElementById('demo-modal').style.display='flex'">Open modal</button>
+    <div id="demo-modal" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <button class="modal__close" onclick="document.getElementById('demo-modal').style.display='none'">&times;</button>
+        <h3 class="modal__title">Confirm action</h3>
+        <p class="modal__body">This is a sample dialog built from the modal component styles.</p>
+        <div class="modal__footer">
+          <button class="btn btn--ghost" onclick="document.getElementById('demo-modal').style.display='none'">Cancel</button>
+          <button class="btn btn--primary">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

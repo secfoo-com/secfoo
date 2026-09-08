@@ -1,0 +1,45 @@
+# Copy this file to ~/.secfoo/config.toml (or run `secfoo config init`) and
+# edit it. Every section is optional -- an empty or missing config.toml is
+# fine, secfoo just falls back to its built-in defaults.
+
+[defaults]
+# Used whenever --agent / --depth / --timeout aren't passed on the command
+# line. CLI flags always win over these.
+agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini
+depth = "quick"        # quick | standard
+# timeout = 1800       # seconds; omit to use each agent's own default
+
+# Paths that are never part of a system under review -- vendored copies,
+# unrelated repos checked out inside a project, large test fixtures. These
+# are ADDED to secfoo's built-in exclusions (node_modules/, .git/, dist/,
+# ...), not a replacement for them, and --exclude adds further paths on top
+# for a single run. Excluding noise keeps reports focused and cuts token
+# cost noticeably on large trees.
+# exclude = ["vendor/", "third_party/", "some-cloned-repo/"]
+
+# Define MCP servers once here instead of wiring each agent CLI separately.
+# How this reaches an agent depends on what that agent's CLI supports:
+#   - claude: picked up automatically on every `secfoo run` (via
+#     `claude --mcp-config`, scoped to just that invocation -- your global
+#     Claude config is never touched).
+#   - gemini / agent (Cursor): run `secfoo mcp sync --agent <agent>` once
+#     to register these persistently in that tool's own config. Re-run
+#     after adding new servers here; already-registered ones are skipped.
+#   - agy (Antigravity): not supported yet -- its CLI has no MCP
+#     configuration mechanism as of this writing.
+
+# Example: Atlassian (Confluence/Jira) via the official Rovo MCP server,
+# bridged through the `mcp-remote` npm package (stdio transport: secfoo
+# just needs a command + args to run).
+[[mcp_servers]]
+name = "Atlassian-Rovo-MCP"
+command = "npx"
+args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+
+# Example: a plain remote MCP server reachable directly over HTTP/SSE
+# (no bridge needed) -- use `url` + `transport` instead of `command`.
+# [[mcp_servers]]
+# name = "example-remote"
+# url = "https://example.com/mcp"
+# transport = "http"          # http | sse
+# headers = { Authorization = "Bearer YOUR_TOKEN" }

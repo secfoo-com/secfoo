@@ -1,0 +1,96 @@
+/*
+  Code blocks
+  -----------
+  Inline `code` and fenced ```blocks — the mono font token existed but was
+  never actually wired to an element until now. Fenced ```diff blocks get
+  lightweight +/- line highlighting with no syntax-highlighter dependency.
+*/
+
+code {
+  font-family: var(--font-family-mono);
+  font-size: 0.875em;
+  background-color: var(--color-gray-100);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+}
+
+pre {
+  font-family: var(--font-family-mono);
+  font-size: var(--text-body-sm);
+  line-height: 1.6;
+  background-color: var(--color-gray-900);
+  color: var(--color-gray-50);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+pre code .diff-add {
+  display: block;
+  background-color: rgba(31, 138, 76, 0.25);
+}
+
+pre code .diff-del {
+  display: block;
+  background-color: rgba(200, 55, 47, 0.25);
+}
+
+/* ---------- Mermaid diagram ---------- */
+/*
+  Rendered client-side by mermaid.js when the optional vendored bundle is
+  present (see web/templates/run_detail.html). Without it the block stays a
+  readable code listing -- mermaid source is legible on its own, so a
+  missing bundle degrades rather than breaks.
+*/
+.mermaid-figure {
+  margin: var(--space-6) 0;
+  padding: var(--space-4);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.mermaid-figure pre.mermaid {
+  margin: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font: var(--text-body-sm);
+  font-family: var(--font-family-mono);
+  white-space: pre;
+  color: var(--color-text-muted);
+}
+
+/* Once mermaid renders, it replaces the text with an <svg> -- center it and
+   drop the monospace fallback styling. */
+.mermaid-figure pre.mermaid[data-processed="true"] {
+  display: flex;
+  justify-content: center;
+  font-family: var(--font-family-base);
+}
+
+.mermaid-figure pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-figure__fallback {
+  margin-top: var(--space-2);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+/* The caption only helps when the diagram did NOT render; hide it once
+   mermaid has swapped in an SVG. */
+.mermaid-figure:has(pre.mermaid[data-processed="true"]) .mermaid-figure__fallback {
+  display: none;
+}

@@ -1,0 +1,49 @@
+/*
+  Alerts / Inline notifications
+  -----------------------------
+*/
+
+.alert {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font: var(--text-body-sm);
+}
+
+.alert__icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.alert__title {
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-1);
+}
+
+.alert--info {
+  background-color: var(--color-info-bg);
+  border-color: var(--color-primary-200);
+  color: var(--color-primary-800);
+}
+
+.alert--success {
+  background-color: var(--color-success-bg);
+  border-color: #a9dcbb;
+  color: var(--color-success);
+}
+
+.alert--warning {
+  background-color: var(--color-warning-bg);
+  border-color: #f0d795;
+  color: var(--color-warning);
+}
+
+.alert--error {
+  background-color: var(--color-error-bg);
+  border-color: #f0b3af;
+  color: var(--color-error);
+}

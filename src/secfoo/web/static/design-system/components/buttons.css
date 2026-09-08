@@ -1,0 +1,217 @@
+/*
+  Buttons
+  -------
+  Pill-shaped, bold-label buttons. Variants: primary, secondary, outline,
+  ghost, dark. Sizes: sm, md, lg. States: hover, active, disabled, loading.
+*/
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  /* Default to --md's padding/font so a .btn used without an explicit
+     --sm/--md/--lg size modifier still looks like a button instead of
+     rendering with zero padding (text jammed against the pill edge) --
+     .btn--sm/--md/--lg below still override this for their own sizes. */
+  padding-block: var(--space-3);
+  padding-inline: var(--space-6);
+  font: var(--text-button-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Sizes ---------- */
+.btn--lg {
+  padding-block: var(--space-4);
+  padding-inline: var(--space-8);
+  font: var(--text-button);
+}
+
+.btn--md {
+  padding-block: var(--space-3);
+  padding-inline: var(--space-6);
+  font: var(--text-button-sm);
+}
+
+.btn--sm {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+  font: var(--text-button-sm);
+}
+
+/* ---------- Variants ---------- */
+/* Filled variants (primary/secondary/dark/danger) get a hover shadow-lift
+   -- box-shadow only, deliberately no hover transform, so it never fights
+   the shared .btn:active press-down transform when a hover and an active
+   state apply at once (higher-specificity hover rules would otherwise
+   win). */
+.btn--primary {
+  background-color: var(--color-primary-700);
+  color: var(--color-text-on-primary);
+}
+.btn--primary:hover:not(:disabled) {
+  background-color: var(--color-primary-800);
+  box-shadow: var(--shadow-md);
+}
+
+.btn--secondary {
+  background-color: var(--color-teal-500);
+  color: var(--color-white);
+}
+.btn--secondary:hover:not(:disabled) {
+  background-color: var(--color-teal-700);
+  box-shadow: var(--shadow-md);
+}
+
+.btn--outline {
+  background-color: transparent;
+  border-color: var(--color-primary-700);
+  color: var(--color-primary-700);
+}
+.btn--outline:hover:not(:disabled) {
+  background-color: var(--color-primary-50);
+  border-color: var(--color-primary-800);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--color-primary-700);
+}
+.btn--ghost:hover:not(:disabled) {
+  background-color: var(--color-primary-50);
+}
+
+.btn--dark {
+  background-color: var(--color-gray-900);
+  color: var(--color-white);
+}
+.btn--dark:hover:not(:disabled) {
+  background-color: var(--color-black);
+  box-shadow: var(--shadow-md);
+}
+
+.btn--danger {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--color-error);
+}
+.btn--danger:hover:not(:disabled) {
+  background-color: var(--color-error-bg);
+}
+
+/* ---------- Icon-only button ---------- */
+.btn--icon {
+  border-radius: var(--radius-circle);
+  padding: var(--space-3);
+  aspect-ratio: 1 / 1;
+}
+
+/* ---------- Loading state ---------- */
+.btn--loading {
+  color: transparent !important;
+  pointer-events: none;
+  position: relative;
+}
+.btn--loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  color: var(--color-white);
+  animation: ds-spin 0.7s linear infinite;
+}
+
+@keyframes ds-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Secfoo brand variants ---------- */
+/* Signal: the one high-emphasis action on a page ("Run assessment").
+   Teal on petrol, so it reads as the product's own accent rather than a
+   generic CTA. */
+.btn--signal {
+  background-color: var(--brand-signal);
+  color: var(--color-primary-900);
+  font-weight: var(--font-weight-bold);
+}
+.btn--signal:hover:not(:disabled) {
+  background-color: var(--color-teal-300);
+  box-shadow: var(--shadow-md);
+}
+
+/* Terminal: for copy-the-command and "run it yourself" affordances.
+   Monospace, square-ish, prompt caret baked in. */
+.btn--terminal {
+  background-color: var(--surface-terminal);
+  color: var(--surface-terminal-text);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: 0;
+}
+.btn--terminal::before {
+  content: "$";
+  color: var(--surface-terminal-prompt);
+}
+.btn--terminal:hover:not(:disabled) {
+  background-color: var(--color-primary-800);
+  box-shadow: var(--shadow-md);
+}
+
+/* Inverse: outline button on petrol / terminal grounds */
+.btn--inverse {
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.45);
+  color: var(--color-white);
+}
+.btn--inverse:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-white);
+}
+
+/* ---------- Shape modifier ---------- */
+/* Squared corners echo the bracket mark — use inside data-dense product UI
+   (toolbars, table row actions) where pills eat horizontal space. */
+.btn--squared { border-radius: var(--radius-sm); }
+
+/* ---------- Layout modifiers ---------- */
+.btn--block { display: flex; width: 100%; }
+
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.btn-group--tight { gap: var(--space-2); }
+.btn-group--stack { flex-direction: column; align-items: stretch; }

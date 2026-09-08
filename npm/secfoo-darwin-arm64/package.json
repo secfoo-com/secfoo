@@ -1,0 +1,12 @@
+{
+  "name": "@rakfortltd/secfoo-darwin-arm64",
+  "version": "0.1.1",
+  "description": "secfoo standalone binary for macOS (Apple Silicon). Installed automatically as an optionalDependency of @rakfortltd/secfoo -- do not install directly.",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rakfortltd/secfoo.git"
+  }
+}

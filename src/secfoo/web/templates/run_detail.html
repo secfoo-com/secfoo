@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ run.skill_name }} — secfoo{% endblock %}
+{% block content %}
+<a href="/projects/{{ run.project_id }}" class="ds-caption">&larr; Back to project</a>
+<h1 style="margin-top:var(--space-4)">{{ run.skill_name }}</h1>
+
+<div class="card" style="margin-bottom:var(--space-6)">
+  <div class="meta-row">
+    <div><span class="ds-caption">Status</span><br><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></div>
+    <div><span class="ds-caption">Agent</span><br>{{ run.agent_id }}</div>
+    <div><span class="ds-caption">Started</span><br>{{ run.started_at | fmt_time }}</div>
+    <div><span class="ds-caption">Duration</span><br>{{ run.duration_seconds | fmt_duration }}</div>
+    <div><span class="ds-caption">Exit code</span><br>{{ run.exit_code if run.exit_code is not none else '-' }}</div>
+  </div>
+
+  {% if run.confluence_urls %}
+  <div style="margin-top:var(--space-4)">
+    <span class="ds-caption">Confluence context</span>
+    <ul>
+      {% for url in run.confluence_urls %}<li><a href="{{ url }}" target="_blank" rel="noreferrer">{{ url }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:var(--space-4)">
+    <a class="btn btn--outline btn--sm" href="/runs/{{ run.run_uuid }}/report.md">Download raw report</a>
+  </div>
+</div>
+
+<div class="card">
+  {% if report_html %}
+    {{ report_html | safe }}
+  {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">
+      {% if run.status == 'running' %}This assessment is still running.
+      {% elif run.status == 'timeout' %}This run timed out before producing a report.
+      {% elif run.status == 'binary_not_found' %}The selected agent's CLI was not found on PATH.
+      {% else %}No report content available.{% endif %}
+    </p>
+    {% if run.stderr_excerpt %}
+    <div class="alert alert--error" style="margin-top:var(--space-4)">
+      <div>
+        <div class="alert__title">stderr</div>
+        <pre style="white-space:pre-wrap;margin:0;font:var(--text-body-sm)">{{ run.stderr_excerpt }}</pre>
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if mermaid_available %}
+{#
+  Vendored locally rather than loaded from a CDN: this is a security tool
+  whose reports are often reviewed on airgapped or restricted networks, and
+  a report viewer that phones out to a third-party host is its own finding.
+  The asset is optional (see web/app.py::mermaid_bundle_available) -- without
+  it, diagrams stay readable as Mermaid source instead of breaking.
+#}
+{# mermaid@11's dist/mermaid.min.js is an IIFE that assigns globalThis.mermaid
+   -- NOT an ES module, so it must be loaded as a classic script rather than
+   imported. #}
+<script src="/static/vendor/mermaid.min.js"></script>
+<script src="/static/js/mermaid-init.js"></script>
+{% endif %}
+{% endblock %}

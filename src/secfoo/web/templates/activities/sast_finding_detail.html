@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ finding.title }} — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/sast" class="ds-caption">&larr; Back to SAST</a>
+
+<div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-4)">
+  <span class="badge {{ finding.severity | severity_badge }}">{{ finding.severity }}</span>
+  {% if finding.cvss_score is not none %}
+  <span class="badge {{ finding.cvss_score | cvss_rating_label | cvss_badge }}">CVSS {{ "%.1f"|format(finding.cvss_score) }} ({{ finding.cvss_score | cvss_rating_label | capitalize }})</span>
+  {% endif %}
+  {% if finding.status == "closed" %}<span class="badge badge--success">Closed</span>{% else %}<span class="badge badge--error">Open</span>{% endif %}
+  <h1 style="margin:0">{{ finding.title }}</h1>
+</div>
+<p class="ds-body" style="color:var(--color-text-muted)">
+  {{ finding.cwe or "unverified" }}{% if finding.owasp and finding.owasp != "unverified" %} &middot; {{ finding.owasp }}{% endif %}
+  &middot; <code>{{ finding.location_file }}{% if finding.location_line %}:{{ finding.location_line }}{% endif %}</code>
+</p>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-6);margin-top:var(--space-6)">
+  <div>
+    {% if finding.description %}
+    <div class="card">
+      <h4 class="card__title">Description</h4>
+      <p class="ds-body">{{ finding.description }}</p>
+    </div>
+    {% endif %}
+
+    {% if finding.recommendation %}
+    <div class="card" style="margin-top:var(--space-6)">
+      <h4 class="card__title">Recommendation</h4>
+      <p class="ds-body">{{ finding.recommendation }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-top:var(--space-6)">
+      <h4 class="card__title">CVSS v3.1 vector</h4>
+      {% if finding.cvss_vector %}
+      <p class="ds-body"><code>{{ finding.cvss_vector }}</code></p>
+      <p class="ds-caption" style="color:var(--color-text-muted)">
+        Score computed by secfoo from this vector using the public CVSS v3.1 formula -- never asserted directly by the model.
+      </p>
+      {% else %}
+      <div class="alert alert--warning"><div>No usable CVSS vector was captured for this finding.</div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h4 class="card__title">Access</h4>
+      {% if finding.verdict and finding.verdict.lower() == 'confirmed' %}<span class="badge badge--success" style="margin-bottom:var(--space-2)">Verified</span>{% endif %}
+      {% if finding.cvss_vector | cvss_network_reachable %}<span class="badge badge--neutral">External (network-reachable)</span>{% endif %}
+      <p class="ds-caption" style="color:var(--color-text-muted);margin-top:var(--space-3)">Verdict: {{ finding.verdict or "unverified" }}</p>
+    </div>
+
+    <div class="card" style="margin-top:var(--space-6)">
+      <h4 class="card__title">Lifecycle</h4>
+      <p class="ds-body">First seen: {{ finding.first_seen_at | fmt_time }}</p>
+      <p class="ds-body">Last seen: {{ finding.last_seen_at | fmt_time }}</p>
+      {% if finding.status == "closed" %}
+      <p class="ds-body">Closed: {{ finding.closed_at | fmt_time }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

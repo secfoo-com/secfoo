@@ -1,0 +1,146 @@
+/*
+  Design Tokens
+  -------------
+  Single source of truth for color, type, spacing, radius, shadow and motion.
+  Framework-agnostic CSS custom properties — safe to port into Tailwind config,
+  React theme objects, Figma variables, etc. later.
+*/
+
+:root {
+  /* ---------- Color: Primary (deep petrol blue) ---------- */
+  --color-primary-50:  #eef6f8;
+  --color-primary-100: #d3e8ee;
+  --color-primary-200: #a7d1dd;
+  --color-primary-300: #78b4c6;
+  --color-primary-400: #4b93a9;
+  --color-primary-500: #2c7690;
+  --color-primary-600: #1d5c75;
+  --color-primary-700: #124a60; /* base brand color */
+  --color-primary-800: #0b3a4d;
+  --color-primary-900: #072736;
+
+  /* ---------- Color: Accent Teal ---------- */
+  --color-teal-100: #d6f5f0;
+  --color-teal-300: #6fd9cc;
+  --color-teal-500: #14a89c;
+  --color-teal-700: #0c766d;
+
+  /* ---------- Color: Accent Amber ---------- */
+  --color-amber-100: #fbe9d4;
+  --color-amber-300: #f0bd7c;
+  --color-amber-500: #d98a3d;
+  --color-amber-700: #a4631f;
+
+  /* ---------- Color: Neutrals ---------- */
+  --color-white: #ffffff;
+  --color-gray-50:  #f7f8f9;
+  --color-gray-100: #eceef0;
+  --color-gray-200: #dadde1;
+  --color-gray-300: #bcc1c7;
+  --color-gray-400: #8f969e;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4d545c;
+  --color-gray-700: #363c42;
+  --color-gray-800: #23272b;
+  --color-gray-900: #131619;
+  --color-black: #000000;
+
+  /* ---------- Color: Semantic ---------- */
+  --color-success:      #1f8a4c;
+  --color-success-bg:   #e6f5eb;
+  --color-warning:      #b5790f;
+  --color-warning-bg:   #fbf0d9;
+  --color-error:        #c8372f;
+  --color-error-bg:     #fbe8e7;
+  --color-info:         var(--color-primary-600);
+  --color-info-bg:      var(--color-primary-50);
+
+  /* ---------- Color: Semantic role mapping ---------- */
+  --color-bg: var(--color-white);
+  --color-bg-subtle: var(--color-gray-50);
+  --color-surface: var(--color-white);
+  --color-border: var(--color-gray-200);
+  --color-text: var(--color-gray-900);
+  --color-text-muted: var(--color-gray-500);
+  --color-text-on-primary: var(--color-white);
+  --color-link: var(--color-primary-700);
+  --color-link-hover: var(--color-primary-800);
+  --color-focus-ring: var(--color-teal-500);
+
+  /* ---------- Typography ---------- */
+  --font-family-base: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system,
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  --text-display:   400 3.25rem/1.1 var(--font-family-base);
+  --text-h1:        400 2.5rem/1.15 var(--font-family-base);
+  --text-h2:        400 2rem/1.2 var(--font-family-base);
+  --text-h3:        600 1.5rem/1.25 var(--font-family-base);
+  --text-h4:        600 1.25rem/1.3 var(--font-family-base);
+  --text-body-lg:   400 1.125rem/1.6 var(--font-family-base);
+  --text-body:      400 1rem/1.6 var(--font-family-base);
+  --text-body-sm:   400 0.875rem/1.5 var(--font-family-base);
+  --text-caption:   400 0.75rem/1.4 var(--font-family-base);
+  --text-button:    600 1rem/1.1 var(--font-family-base);
+  --text-button-sm: 600 0.875rem/1.1 var(--font-family-base);
+  --text-overline:  700 0.75rem/1.2 var(--font-family-base);
+  --overline-letter-spacing: 0.08em;
+
+  /* ---------- Spacing (4px base grid) ---------- */
+  --space-0: 0;
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.25rem;  /* 20px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-10: 2.5rem;  /* 40px */
+  --space-12: 3rem;    /* 48px */
+  --space-16: 4rem;    /* 64px */
+  --space-20: 5rem;    /* 80px */
+  --space-24: 6rem;    /* 96px */
+
+  /* ---------- Radius ---------- */
+  --radius-sm: 0.375rem;   /* 6px  – inputs, badges */
+  --radius-md: 0.625rem;   /* 10px – small cards */
+  --radius-lg: 1rem;       /* 16px – cards */
+  --radius-xl: 1.5rem;     /* 24px – large panels */
+  --radius-pill: 999px;    /* buttons, chips */
+  --radius-circle: 50%;
+
+  /* ---------- Shadow (soft, brand-tinted) ---------- */
+  --shadow-sm: 0 1px 3px rgba(7, 39, 54, 0.08);
+  --shadow-md: 0.25rem 0.25rem 1.25rem rgba(7, 39, 54, 0.08);
+  --shadow-lg: 0.625rem 0.625rem 2.5rem rgba(7, 39, 54, 0.10);
+  --shadow-focus: 0 0 0 3px rgba(20, 168, 156, 0.35);
+
+  /* ---------- Motion ---------- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  /* ---------- Layout ---------- */
+  --container-max: 77.5rem;
+  --nav-height: 4.5rem;
+  --z-nav: 100;
+  --z-modal-backdrop: 900;
+  --z-modal: 901;
+  --z-toast: 950;
+}
+
+/* ---------- Dark theme override (optional, opt-in via [data-theme="dark"]) ---------- */
+[data-theme="dark"] {
+  --color-bg: var(--color-gray-900);
+  --color-bg-subtle: var(--color-gray-800);
+  --color-surface: var(--color-gray-800);
+  --color-border: var(--color-gray-700);
+  --color-text: var(--color-gray-50);
+  --color-text-muted: var(--color-gray-300);
+  --color-link: var(--color-teal-300);
+  --color-link-hover: var(--color-teal-100);
+}

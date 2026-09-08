@@ -1,0 +1,50 @@
+name: CI
+
+# Runs on every push and PR so a broken build never reaches main.
+# This is the test/lint gate release.yml assumes already passed.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + dev deps
+        run: pip install -e ".[dev]"
+
+      - name: Vendor mermaid.min.js
+        # A handful of dashboard tests assert diagrams actually render,
+        # which only happens once this ~3.5MB bundle is fetched (see
+        # `secfoo vendor mermaid` in cli.py). It lives under ~/.secfoo, not
+        # the repo, so a clean checkout -- this CI runner included --
+        # doesn't have it until this step fetches it.
+        run: secfoo vendor mermaid
+
+      - name: Lint (ruff)
+        # Non-blocking for now: 102 pre-existing findings (mostly Optional[X]
+        # vs X | None style, plus a few unused test fixtures) predate this
+        # workflow. Reporting them here for visibility without turning every
+        # unrelated PR red; flip to a hard failure once that backlog is
+        # cleared (tracked separately from this CI/CD setup).
+        run: ruff check . || true
+
+      - name: Test (secfoo core)
+        run: pytest tests

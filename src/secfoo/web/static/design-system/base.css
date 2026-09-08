@@ -1,0 +1,91 @@
+/*
+  Base / Reset
+  ------------
+  Minimal modern reset + base element styling wired to design tokens.
+*/
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+h1, h2, h3, h4, h5, h6, p, figure {
+  margin: 0 0 var(--space-4) 0;
+}
+
+h1 { font: var(--text-h1); }
+h2 { font: var(--text-h2); }
+h3 { font: var(--text-h3); }
+h4 { font: var(--text-h4); }
+
+.ds-display { font: var(--text-display); }
+.ds-body-lg { font: var(--text-body-lg); }
+.ds-body { font: var(--text-body); }
+.ds-body-sm { font: var(--text-body-sm); }
+.ds-caption { font: var(--text-caption); color: var(--color-text-muted); }
+.ds-overline {
+  font: var(--text-overline);
+  letter-spacing: var(--overline-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-primary-600);
+}
+
+a {
+  color: var(--color-link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+a:hover { color: var(--color-link-hover); }
+
+ul, ol {
+  margin: 0 0 var(--space-4) 0;
+  padding-inline-start: var(--space-6);
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Consistent, visible focus state across every interactive element */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+.ds-container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+.ds-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

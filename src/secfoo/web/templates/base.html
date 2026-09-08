@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% block title %}secfoo{% endblock %}</title>
+<link rel="stylesheet" href="/static/design-system/design-system.css" />
+<style>
+  .section { padding-block: var(--space-4); }
+  .meta-row { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-bottom: var(--space-4); }
+  .meta-row > div { min-width: 8rem; }
+  tr.run-row { cursor: pointer; }
+  tr.run-row:hover { background-color: var(--color-primary-50); }
+  .findings-cell { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+</style>
+{% block head_extra %}{% endblock %}
+</head>
+<body>
+{% set path = request.url.path %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="logo logo--sm" href="/" style="padding:0; padding-inline:var(--space-2); margin-bottom:var(--space-8);">
+      <span class="logo__mark" aria-hidden="true"><i class="logo__bracket logo__bracket--left"></i><i class="logo__dot"></i><i class="logo__bracket logo__bracket--right"></i></span>
+      <span class="logo__word">secfoo</span>
+    </a>
+    <nav>
+      <ul class="sidebar__nav">
+        <li><a class="sidebar__link" href="/" {% if path == '/' %}aria-current="page"{% endif %}>Dashboard</a></li>
+        <li><a class="sidebar__link" href="/assessments" {% if path.startswith('/assessments') %}aria-current="page"{% endif %}>Assessments</a></li>
+      </ul>
+
+      <hr class="sidebar__divider">
+      <span class="sidebar__section-label">Analysis</span>
+      <ul class="sidebar__nav">
+        {% for activity in sidebar_activities %}
+        <li>
+          <a class="sidebar__link" href="/activities/{{ activity.id }}"
+             {% if path == '/activities/' + activity.id %}aria-current="page"{% endif %}>{{ activity.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+
+      <hr class="sidebar__divider">
+      <span class="sidebar__section-label">Governance</span>
+      <ul class="sidebar__nav">
+        <li><a class="sidebar__link" href="/third-party" {% if path.startswith('/third-party') %}aria-current="page"{% endif %}>Third-Party</a></li>
+        <li><a class="sidebar__link" href="/responsible-ai" {% if path.startswith('/responsible-ai') %}aria-current="page"{% endif %}>Responsible AI</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <main class="app-shell__main">
+    <div class="ds-container section">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<script src="/static/js/interactive.js"></script>
+</body>
+</html>

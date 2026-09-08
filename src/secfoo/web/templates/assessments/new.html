@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}New Assessment — secfoo{% endblock %}
+{% block content %}
+<a href="/assessments" class="ds-caption">&larr; All assessments</a>
+<span class="ds-overline" style="display:block;margin-top:var(--space-4)">Step 1 of 2</span>
+<h1>New Assessment</h1>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:36rem;margin-bottom:var(--space-6)">
+  Create the case file first. You'll pick a skill and agent to run against it next.
+</p>
+
+<div class="card" style="max-width:36rem">
+  <form method="post" action="/assessments">
+    <div class="field">
+      <label class="field__label">Project name</label>
+      <input class="input" name="project_name" required placeholder="e.g. Payments API" autofocus>
+    </div>
+    <div class="field">
+      <label class="field__label">Application ID</label>
+      <input class="input" name="application_id">
+    </div>
+    <div class="field">
+      <label class="field__label">Security Assessment Request</label>
+      <input class="input" name="sar_number">
+    </div>
+    <div class="field">
+      <label class="field__label">Project path (local directory or public GitHub URL)</label>
+      <input class="input" name="project" required placeholder="e.g. . or https://github.com/org/repo">
+      <span class="field__helper">A local path on this machine, or a public GitHub repo URL to clone and scan.</span>
+    </div>
+    <div class="field">
+      <label class="field__label">Type</label>
+      <select class="select" name="assessment_type">
+        <option value="internal">Internal</option>
+        <option value="third_party">Third-Party</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label">Status</label>
+      <select class="select" name="status">
+        <option value="ready">Ready</option>
+        <option value="in_progress">In Progress</option>
+        <option value="completed">Completed</option>
+        <option value="blocked">Blocked</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label">Reviewer</label>
+      <input class="input" name="reviewer">
+    </div>
+    <div class="field">
+      <label class="field__label">Review date</label>
+      <input class="input" type="date" name="review_date">
+    </div>
+    <div class="field">
+      <label class="field__label">Notes</label>
+      <textarea class="textarea" name="notes"></textarea>
+    </div>
+    <div class="form-actions">
+      <a class="btn btn--ghost btn--md" href="/assessments">Cancel</a>
+      <button type="submit" class="btn btn--primary btn--md">Continue to Run Assessment</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

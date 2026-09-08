@@ -1,0 +1,62 @@
+/*
+  Severity bar
+  ------------
+  One row per severity tier: colored dot, label, proportional horizontal
+  bar, count. Used for the dashboard's "Findings by severity" panel.
+*/
+
+.severity-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.severity-bar__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-circle);
+  flex-shrink: 0;
+}
+
+.severity-bar__dot--critical,
+.severity-bar__fill--critical { background-color: var(--color-error); }
+.severity-bar__dot--high,
+.severity-bar__fill--high { background-color: var(--color-error); }
+.severity-bar__dot--medium,
+.severity-bar__fill--medium { background-color: var(--color-warning); }
+.severity-bar__dot--low,
+.severity-bar__fill--low { background-color: var(--color-teal-500); }
+.severity-bar__dot--info,
+.severity-bar__fill--info { background-color: var(--color-gray-400); }
+
+.severity-bar__label {
+  width: 5.5rem;
+  flex-shrink: 0;
+  font: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.severity-bar__track {
+  flex: 1;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-gray-100);
+  overflow: hidden;
+}
+
+.severity-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+
+.severity-bar__count {
+  width: 2rem;
+  flex-shrink: 0;
+  text-align: right;
+  font: var(--text-body-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}

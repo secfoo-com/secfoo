@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+node_modules/
+npm/*/bin/secfoo
+npm/*/bin/secfoo.exe
+AI-Goverance-Health/
+cache/
+.DS_Store

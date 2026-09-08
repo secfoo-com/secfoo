@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}SCA Reachability — All Vulnerabilities — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/{{ skill_id }}" class="ds-caption">&larr; Back to SCA Reachability</a>
+<span class="ds-overline" style="display:block;margin-top:var(--space-4)">SCA Reachability</span>
+<h1>All vulnerabilities</h1>
+
+<div style="display:flex;justify-content:flex-end;margin-top:var(--space-6)">
+  <form method="get" action="/activities/{{ skill_id }}/vulnerabilities">
+    <select class="select" name="project_id" onchange="this.form.submit()">
+      <option value="">All projects</option>
+      {% for p in projects %}
+      <option value="{{ p.project_id }}" {% if selected_project_id == p.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if vulnerabilities %}
+<div class="table-wrap" style="margin-top:var(--space-4)">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Severity</th><th>CVE / Issue</th><th>Package</th><th>Version</th>
+        <th>Reachability</th><th>Fixed in</th><th>Applications</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vulnerabilities %}
+      <tr class="run-row" data-href="/activities/{{ skill_id }}/vulnerabilities/{{ v.key }}">
+        <td><span class="badge {{ v.severity | severity_badge }}">{{ v.severity }}</span></td>
+        <td>
+          {% if v.cve_id %}{{ v.cve_id }}{% else %}<span class="badge badge--neutral">unverified</span> {{ v.issue }}{% endif %}
+        </td>
+        <td><code>{{ v.package }}</code></td>
+        <td>{{ v.version }}</td>
+        <td>{{ v.reachability }}</td>
+        <td>{{ v.fixed_in }}</td>
+        <td>{{ v.affected_projects | length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-4)"><div>No vulnerabilities{% if selected_project_id %} for this project{% endif %}.</div></div>
+{% endif %}
+{% endblock %}

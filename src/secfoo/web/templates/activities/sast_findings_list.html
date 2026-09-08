@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}SAST — All Findings — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/sast" class="ds-caption">&larr; Back to SAST</a>
+<span class="ds-overline" style="display:block;margin-top:var(--space-4)">SAST</span>
+<h1>All findings</h1>
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6)">
+  <div class="segmented">
+    <a class="segmented__option" {% if selected_status == 'open' %}aria-selected="true"{% endif %} href="/activities/sast/findings?status=open{% if selected_project_id %}&project_id={{ selected_project_id }}{% endif %}{% if search %}&q={{ search }}{% endif %}">Open ({{ open_count }})</a>
+    <a class="segmented__option" {% if selected_status == 'closed' %}aria-selected="true"{% endif %} href="/activities/sast/findings?status=closed{% if selected_project_id %}&project_id={{ selected_project_id }}{% endif %}{% if search %}&q={{ search }}{% endif %}">Closed ({{ closed_count }})</a>
+  </div>
+  <form method="get" action="/activities/sast/findings" style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
+    <input type="hidden" name="status" value="{{ selected_status }}">
+    <select class="select" name="project_id" onchange="this.form.submit()">
+      <option value="">All projects</option>
+      {% for p in projects %}
+      <option value="{{ p.project_id }}" {% if selected_project_id == p.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
+      {% endfor %}
+    </select>
+    <input class="input" type="search" name="q" placeholder="Search title, CWE, file..." value="{{ search }}">
+    <button class="btn btn--outline btn--sm" type="submit">Search</button>
+  </form>
+</div>
+
+{% if findings %}
+<div class="table-wrap" style="margin-top:var(--space-6)">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Project</th><th>Access</th><th>Title</th><th>Source location</th><th>Last seen</th><th>CVSS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in findings %}
+      <tr class="run-row" data-href="/activities/sast/findings/{{ f.fingerprint }}">
+        <td>{{ f.project_display_name }}</td>
+        <td>
+          {% if f.verdict and f.verdict.lower() == 'confirmed' %}<span class="badge badge--success">Verified</span>{% endif %}
+          {% if f.cvss_vector | cvss_network_reachable %}<span class="badge badge--neutral">External</span>{% endif %}
+        </td>
+        <td>{{ f.title }} <br><span class="ds-caption">{{ f.cwe or "unverified" }}</span></td>
+        <td><code>{{ f.location_file }}{% if f.location_line %}:{{ f.location_line }}{% endif %}</code></td>
+        <td>{{ f.last_seen_at | fmt_time }}</td>
+        <td>
+          {% if f.cvss_score is not none %}
+          <span class="badge {{ f.cvss_score | cvss_rating_label | cvss_badge }}">{{ f.cvss_score | cvss_rating_label | capitalize }} {{ "%.1f"|format(f.cvss_score) }}</span>
+          {% else %}
+          <span class="badge badge--neutral">No vector</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-6)"><div>No {{ selected_status }} findings{% if search %} matching "{{ search }}"{% endif %}{% if selected_project_id %} for this project{% endif %}.</div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% from "_macros.html" import findings_badges %}
+{% set verdict_projects = projects | selectattr("design_verdict") | list %}
+{% block title %}{{ skill.nav_label }} — secfoo{% endblock %}
+{% block content %}
+<span class="ds-overline">Activity</span>
+<h1>{{ skill.name }}</h1>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">{{ skill.description }}</p>
+
+{% if dash %}
+{% include "activities/architecture_dashboard.html" %}
+{% endif %}
+
+{% if tm_dash %}
+{% include "activities/threat_modeling_dashboard.html" %}
+{% endif %}
+
+{% if sca_dash %}
+{% include "activities/sca_dashboard.html" %}
+{% endif %}
+
+{% if sast_dash %}
+{% include "activities/sast_dashboard.html" %}
+{% endif %}
+
+{% if secret_dash %}
+{% include "activities/secret_scanning_dashboard.html" %}
+{% endif %}
+
+{% if not tm_dash and not dash and not sca_dash and not sast_dash and not secret_dash %}
+{# All three program dashboards above already cover coverage, findings,
+   and trust-boundary counts with more specific tiles -- this generic block
+   would just duplicate them. #}
+<div class="stat-card-grid" style="margin-top:var(--space-8)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ projects | length }}</span>
+    <span class="stat-card__label">Projects covered</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ run_count }}</span>
+    <span class="stat-card__label">Runs</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ severity.total }}</span>
+    <span class="stat-card__label">Total findings</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ severity.critical + severity.high }}</span>
+    <span class="stat-card__label">Critical + High</span>
+  </div>
+  {% if verdict_projects %}
+  <div class="stat-card">
+    <span class="stat-card__value">{{ verdict_projects | rejectattr("design_verdict", "in", ["Sound"]) | list | length }}/{{ verdict_projects | length }}</span>
+    <span class="stat-card__label">Projects not cleanly Sound</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ projects | sum(attribute="boundary_count") }}</span>
+    <span class="stat-card__label">Trust boundaries identified</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if verdict_projects %}
+<div class="card" style="margin-top:var(--space-8)">
+  <h4 class="card__title">Design verdicts</h4>
+  <p class="card__body" style="margin-bottom:var(--space-4)">
+    From each project's most recent successful review.
+  </p>
+  <div class="findings-cell" style="gap:var(--space-2)">
+    {% for p in verdict_projects %}
+    <a href="/runs/{{ p.latest_run_uuid }}" class="badge {{ p.design_verdict | design_verdict_badge }}" style="text-decoration:none">
+      {{ p.project_display_name }}: {{ p.design_verdict }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if not dash and not sca_dash and not sast_dash and not secret_dash %}
+{# Security Architecture Review's and SCA's own program dashboards above
+   already have their own severity/disposition breakdowns -- a raw
+   severity-count bar here would just be a second, less specific cut of
+   the same findings. #}
+<div class="card" style="margin-top:var(--space-8)">
+  <h4 class="card__title">Findings by severity</h4>
+  {% for row in severity_rows %}
+  <div class="severity-bar">
+    <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
+    <span class="severity-bar__label">{{ row.label }}</span>
+    <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" style="width:{{ row.percent }}%"></div></div>
+    <span class="severity-bar__count">{{ row.count }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if diagrams_available and skill.id != "threat-modeling" %}
+<h2 style="margin-top:var(--space-12)">Architecture diagram</h2>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">
+  Data flow diagram from the selected project's most recent successful review.
+</p>
+{% if diagram_projects | length > 1 %}
+<form method="get" action="/activities/{{ skill.id }}" style="margin-top:var(--space-4);max-width:20rem">
+  <select class="select" name="diagram_project" onchange="this.form.submit()">
+    {% for p in diagram_projects %}
+    <option value="{{ p.project_id }}" {% if selected_diagram_project and p.project_id == selected_diagram_project.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+{% if selected_diagram_project %}
+<a href="/runs/{{ selected_diagram_project.latest_run_uuid }}" class="card" style="text-decoration:none;color:inherit;display:block;margin-top:var(--space-6);max-width:48rem">
+  <span class="card__eyebrow">{{ selected_diagram_project.project_display_name }}</span>
+  {% if selected_diagram_project.design_verdict %}
+  <span class="badge {{ selected_diagram_project.design_verdict | design_verdict_badge }}" style="margin-bottom:var(--space-3)">{{ selected_diagram_project.design_verdict }}</span>
+  {% endif %}
+  {% if mermaid_available %}
+  <div class="mermaid-figure" style="margin:0">
+    <pre class="mermaid">{{ selected_diagram_project.diagram_source }}</pre>
+  </div>
+  {% else %}
+  <pre style="margin:0;font:var(--text-caption);font-family:var(--font-family-mono);color:var(--color-text-muted);white-space:pre-wrap;max-height:20rem;overflow:auto">{{ selected_diagram_project.diagram_source }}</pre>
+  {% endif %}
+</a>
+{% endif %}
+{% if not mermaid_available %}
+<div class="alert alert--info" style="margin-top:var(--space-4)">
+  <div>Showing raw diagram source. Run <code>secfoo vendor mermaid</code> to render these as pictures.</div>
+</div>
+{% endif %}
+{% endif %}
+
+<h2 style="margin-top:var(--space-12)">By project</h2>
+{% if projects %}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Project</th><th>Runs</th><th>Latest</th><th>Status</th>
+        {% if verdict_projects %}<th>Boundaries</th>{% endif %}
+        <th>Findings</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr class="run-row" data-href="/runs/{{ p.latest_run_uuid }}">
+        <td>
+          {{ p.project_display_name }}
+          <br><span class="ds-caption">{{ p.project_kind }}</span>
+        </td>
+        <td>{{ p.run_count }}</td>
+        <td>{{ p.latest_started_at | fmt_time }}</td>
+        <td><span class="badge {{ p.latest_status | status_badge }}">{{ p.latest_status }}</span></td>
+        {% if verdict_projects %}<td>{{ p.boundary_count or "-" }}</td>{% endif %}
+        <td class="findings-cell">{{ findings_badges(p) }}</td>
+        <td>
+          {% if p.latest_assessment_id %}
+          <a class="btn btn--ghost btn--sm" href="/assessments/{{ p.latest_assessment_id }}">Assessment</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info">
+  <div>
+    No project has been scanned with this activity yet. Start one from an
+    assessment's <strong>Run Assessment</strong> page, or run
+    <code>secfoo run --skill {{ skill.id }}</code>.
+  </div>
+</div>
+{% endif %}
+
+{% if diagrams_available and skill.id != "threat-modeling" and mermaid_available %}
+{# Same loader as run_detail.html -- see that template for why it's
+   vendored locally (works offline) and loaded as a classic script rather
+   than an ES module import (the bundle is an IIFE that assigns
+   globalThis.mermaid, not an ES module). The init/run call itself lives
+   in the external mermaid-init.js file below, not inline here -- the
+   portal's CSP (default-src 'self', no 'unsafe-inline') silently blocks
+   inline JS, so it never actually ran there even though the library
+   file loaded fine. #}
+<script src="/static/vendor/mermaid.min.js"></script>
+<script src="/static/js/mermaid-init.js"></script>
+{% endif %}
+{% endblock %}

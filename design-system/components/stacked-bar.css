@@ -1,0 +1,58 @@
+/*
+  Stacked bar
+  -----------
+  One horizontal bar split into proportional colored segments (e.g. a
+  finding-disposition breakdown), plus a legend row underneath.
+*/
+
+.stacked-bar {
+  display: flex;
+  height: 1.5rem;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background-color: var(--color-gray-100);
+}
+
+.stacked-bar__segment {
+  height: 100%;
+}
+
+.stacked-bar__segment--remediated { background-color: var(--color-success); }
+.stacked-bar__segment--mitigated { background-color: var(--color-teal-500); }
+.stacked-bar__segment--mitigated-tested { background-color: var(--color-success); }
+.stacked-bar__segment--mitigated-untested { background-color: var(--color-amber-500); }
+.stacked-bar__segment--accepted { background-color: var(--color-primary-400); }
+.stacked-bar__segment--transferred { background-color: var(--color-gray-400); }
+.stacked-bar__segment--open { background-color: var(--color-warning); }
+.stacked-bar__segment--past-due { background-color: var(--color-error); }
+
+.stacked-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.stacked-bar-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.stacked-bar-legend__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-circle);
+  flex-shrink: 0;
+}
+
+.stacked-bar-legend__dot--remediated { background-color: var(--color-success); }
+.stacked-bar-legend__dot--mitigated { background-color: var(--color-teal-500); }
+.stacked-bar-legend__dot--mitigated-tested { background-color: var(--color-success); }
+.stacked-bar-legend__dot--mitigated-untested { background-color: var(--color-amber-500); }
+.stacked-bar-legend__dot--accepted { background-color: var(--color-primary-400); }
+.stacked-bar-legend__dot--transferred { background-color: var(--color-gray-400); }
+.stacked-bar-legend__dot--open { background-color: var(--color-warning); }
+.stacked-bar-legend__dot--past-due { background-color: var(--color-error); }

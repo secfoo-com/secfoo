@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_macros.html" import findings_badges %}
+{% block title %}secfoo — Dashboard{% endblock %}
+{% block content %}
+<span class="ds-overline">Dashboard</span>
+<h1>AI Security &amp; Assessment Hub</h1>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:40rem">
+  All security assessments run across every project, in one place.
+</p>
+
+<div class="stat-card-grid" style="margin-top:var(--space-8)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ projects | length }}</span>
+    <span class="stat-card__label">Applications reviewed</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ severity.total }}</span>
+    <span class="stat-card__label">Total findings</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ third_party_count }}</span>
+    <span class="stat-card__label">Third-party assessments</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ responsible_ai_count }}</span>
+    <span class="stat-card__label">Responsible AI coverage</span>
+  </div>
+</div>
+
+<h2 style="margin-top:var(--space-10)">Top findings across the program</h2>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">
+  The highest-severity items across every activity — SAST, SCA, third-party vendor assessments,
+  secret scanning, past-due architecture exceptions, and unmitigated threat-model gaps — not just this activity's own coverage.
+</p>
+{% if top_findings %}
+<div class="table-wrap" style="margin-top:var(--space-4)">
+  <table class="table">
+    <thead><tr><th>Severity</th><th>Source</th><th>Finding</th><th>Project</th><th>Detail</th></tr></thead>
+    <tbody>
+      {% for f in top_findings %}
+      <tr class="run-row" data-href="{{ f.url }}">
+        <td><span class="badge {{ f.severity | severity_badge }}">{{ f.severity | capitalize }}</span></td>
+        <td><span class="badge badge--neutral">{{ f.source }}</span></td>
+        <td>{{ f.title }}</td>
+        <td>{{ f.project }}</td>
+        <td class="ds-caption">{{ f.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-4)">
+  <div>No Critical/High findings across any activity right now.</div>
+</div>
+{% endif %}
+
+<div class="card-grid" style="margin-top:var(--space-10)">
+  <div class="card">
+    <h4 class="card__title">Findings by severity</h4>
+    {% for row in severity_rows %}
+    <div class="severity-bar">
+      <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
+      <span class="severity-bar__label">{{ row.label }}</span>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" style="width:{{ row.percent }}%"></div></div>
+      <span class="severity-bar__count">{{ row.count }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Activity coverage</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">Projects with at least one successful run of each activity.</p>
+    {% for skill in skill_coverage %}
+    <a href="/activities/{{ skill.id }}" style="display:block;margin-bottom:var(--space-4);text-decoration:none;color:inherit">
+      <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-1)">
+        <span class="ds-caption">{{ skill.label }}</span>
+        <span class="ds-caption">{{ skill.covered }}/{{ skill.total }}</span>
+      </div>
+      <div class="severity-bar__track">
+        <div class="severity-bar__fill severity-bar__fill--low" style="width:{{ (skill.covered / skill.total * 100) if skill.total else 0 }}%"></div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Responsible AI risk mix</h4>
+    <p class="card__body">
+      {{ responsible_ai_count }} assessment(s) with a risk rating &middot;
+      AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.
+    </p>
+    <a class="btn btn--outline btn--sm" href="/responsible-ai" style="margin-top:var(--space-3)">Open Responsible AI view</a>
+  </div>
+</div>
+
+<h2 style="margin-top:var(--space-12)">Recent assessments</h2>
+{% if assessments %}
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Findings</th><th>Reviewed</th></tr></thead>
+    <tbody>
+      {% for a in assessments %}
+      <tr class="run-row" data-href="/assessments/{{ a.id }}">
+        <td>{{ a.project_display_name }}</td>
+        <td>{{ a.assessment_type | assessment_type_label }}</td>
+        <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
+        <td class="findings-cell">{{ findings_badges(a) }}</td>
+        <td>{{ a.review_date or (a.updated_at | fmt_time) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info">
+  <div>No assessments yet. Run <code>secfoo assessment create --type internal</code>, or use the "New Assessment" button on the <a href="/assessments">Assessments</a> page.</div>
+</div>
+{% endif %}
+{% endblock %}

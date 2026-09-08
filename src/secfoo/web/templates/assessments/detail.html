@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ assessment.project_display_name }} — secfoo{% endblock %}
+{% block head_extra %}
+{% if has_running_run %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+{% block content %}
+<a href="/assessments" class="ds-caption">&larr; All assessments</a>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);flex-wrap:wrap;margin-top:var(--space-4)">
+  <div>
+    <span class="ds-overline">{{ assessment.assessment_type | assessment_type_label }}</span>
+    <h1>{{ assessment.project_display_name }}</h1>
+  </div>
+  <a class="btn btn--primary btn--md" href="/assessments/{{ assessment.id }}/runs/new">Run Assessment</a>
+</div>
+
+{% if has_running_run %}
+<div class="alert alert--info" style="margin-bottom:var(--space-4)">
+  <div>A run is in progress. This page refreshes automatically every 5 seconds.</div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:var(--space-6);margin-bottom:var(--space-6)">
+  <div class="meta-row">
+    <div><span class="ds-caption">Status</span><br><span class="badge {{ assessment.status | assessment_status_badge }}">{{ assessment.status | assessment_status_label }}</span></div>
+    <div><span class="ds-caption">Application ID</span><br>{{ assessment.application_id or '-' }}</div>
+    <div><span class="ds-caption">Security Assessment Request</span><br>{{ assessment.sar_number or '-' }}</div>
+    <div><span class="ds-caption">Reviewer</span><br>{{ assessment.reviewer or '-' }}</div>
+    <div><span class="ds-caption">Review date</span><br>{{ assessment.review_date or '-' }}</div>
+  </div>
+  {% if assessment.notes %}
+  <div style="margin-top:var(--space-4)"><span class="ds-caption">Notes</span><br>{{ assessment.notes }}</div>
+  {% endif %}
+  {% if assessment.responsible_ai_risk %}
+  <div style="margin-top:var(--space-4)">
+    <span class="ds-caption">Responsible AI</span><br>
+    <span class="badge {{ assessment.responsible_ai_risk | responsible_ai_risk_badge }}">{{ assessment.responsible_ai_risk }}</span>
+    <span class="badge {{ assessment.responsible_ai_status | responsible_ai_status_badge }}">{{ assessment.responsible_ai_status }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<h2>Findings by severity</h2>
+<div class="card" style="margin-bottom:var(--space-6)">
+  {% for row in severity_rows %}
+  <div class="severity-bar">
+    <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
+    <span class="severity-bar__label">{{ row.label }}</span>
+    <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" style="width:{{ row.percent }}%"></div></div>
+    <span class="severity-bar__count">{{ row.count }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Attached runs</h2>
+{% if runs %}
+<div class="table-wrap" style="margin-bottom:var(--space-6)">
+  <table class="table">
+    <thead><tr><th>Started</th><th>Skill</th><th>Agent</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for run in runs %}
+      <tr class="run-row" data-href="/runs/{{ run.run_uuid }}">
+        <td>{{ run.started_at | fmt_time }}</td>
+        <td>{{ run.skill_name }}</td>
+        <td>{{ run.agent_id }}</td>
+        <td><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="ds-body" style="color:var(--color-text-muted)">
+  No runs attached yet. Run <code>secfoo run --assessment {{ assessment.id }} --skill security-architecture-review</code> to attach one.
+</p>
+{% endif %}
+
+<h2 style="margin-top:var(--space-8)">Attachments</h2>
+<p class="ds-body" style="color:var(--color-text-muted)">AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.</p>
+{% if attachments %}
+<div class="table-wrap" style="margin-top:var(--space-4);margin-bottom:var(--space-6)">
+  <table class="table">
+    <thead><tr><th>File</th><th>Kind</th><th>Uploaded</th></tr></thead>
+    <tbody>
+      {% for att in attachments %}
+      <tr><td>{{ att.original_name }}</td><td>{{ att.attachment_kind }}</td><td>{{ att.uploaded_at | fmt_time }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<form method="post" action="/assessments/{{ assessment.id }}/attachments" enctype="multipart/form-data" style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
+  <input class="input" type="file" name="file" required>
+  <button class="btn btn--outline btn--sm" type="submit">Upload attachment</button>
+</form>
+{% endblock %}

@@ -1,0 +1,58 @@
+/*
+  Donut chart
+  -----------
+  Pure-CSS conic-gradient donut for a small category mix (e.g. gate
+  decisions). The gradient itself is set per-instance via the
+  --donut-gradient custom property in an inline style, since CSS alone
+  can't express data-driven percentages -- same pattern already used for
+  severity-bar's proportional widths.
+*/
+
+.donut {
+  width: 8rem;
+  height: 8rem;
+  border-radius: var(--radius-circle);
+  background: conic-gradient(var(--donut-gradient, var(--color-gray-200) 0 100%));
+  position: relative;
+  flex-shrink: 0;
+}
+
+.donut__hole {
+  position: absolute;
+  inset: 22%;
+  border-radius: var(--radius-circle);
+  background-color: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: var(--text-h4);
+  color: var(--color-text);
+  text-align: center;
+}
+
+.donut-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.donut-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--text-body-sm);
+  color: var(--color-text);
+}
+
+.donut-legend__dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-circle);
+  flex-shrink: 0;
+}

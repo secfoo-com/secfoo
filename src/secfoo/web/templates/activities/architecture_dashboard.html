@@ -1,0 +1,183 @@
+{# Extended Security Architecture Review dashboard: coverage, exceptions,
+   CCM domain conformance, risk disposition, unreviewed/stale projects,
+   recurring root causes, gate decisions, and standards deviation.
+   See web/architecture_dashboard.py for what's real vs. approximated. #}
+
+<span class="ds-overline" style="display:block;margin-top:var(--space-8)">Program dashboard</span>
+
+<div class="stat-card-grid" style="margin-top:var(--space-4)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ dash.coverage_pct }}%</span>
+    <span class="stat-card__label">Coverage — {{ dash.coverage_reviewed }} / {{ dash.coverage_in_scope }} in-scope systems</span>
+  </div>
+  <div class="stat-card" style="{% if dash.exceptions_past_expiry %}border-top-color:var(--color-error){% endif %}">
+    <span class="stat-card__value" style="{% if dash.exceptions_past_expiry %}color:var(--color-error){% endif %}">{{ dash.exceptions_past_expiry }}</span>
+    <span class="stat-card__label">Exceptions past expiry</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ dash.open_findings_past_due }}</span>
+    <span class="stat-card__label">Open findings past due (&gt;{{ past_due_sla_days }}d)</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ dash.unverified_mitigations }}</span>
+    <span class="stat-card__label">Unverified mitigations</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ dash.cycle_time_p90_days if dash.cycle_time_p90_days is not none else "—" }}</span>
+    <span class="stat-card__label">Cycle time p90 (days)</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:var(--space-6);margin-top:var(--space-8)">
+  <div class="card">
+    <h4 class="card__title">CCM domain conformance</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      Hatched = not assessed by review (process-assured or not applicable), not a failing score.
+    </p>
+    {% for row in dash.ccm_rows %}
+    <div class="conformance-bar">
+      <span class="conformance-bar__label" title="{{ row.name }}">{{ row.name }}</span>
+      <div class="conformance-bar__track">
+        {% if row.hatched %}
+        <div class="conformance-bar__fill conformance-bar__fill--unassessed"></div>
+        {% else %}
+        <div class="conformance-bar__fill {% if row.score >= 80 %}conformance-bar__fill--conformant{% elif row.score >= 50 %}conformance-bar__fill--partial{% else %}conformance-bar__fill--non-conformant{% endif %}" style="width:{{ row.score }}%"></div>
+        {% endif %}
+      </div>
+      <span class="conformance-bar__value">{{ row.code }} — {% if row.hatched %}not assessed{% else %}{{ row.score }}%{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h4 class="card__title">Risk disposition</h4>
+      {% if dash.disposition_total %}
+      <div class="stacked-bar" style="margin-top:var(--space-4)">
+        {% for key in ["remediated", "mitigated", "accepted", "open", "past_due"] %}
+        {% set count = dash.disposition[key] %}
+        {% if count %}
+        <div class="stacked-bar__segment stacked-bar__segment--{{ key.replace('_', '-') }}" style="width:{{ (count / dash.disposition_total * 100) }}%" title="{{ key }}: {{ count }}"></div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="stacked-bar" style="margin-top:var(--space-4)"></div>
+      {% endif %}
+      <div class="stacked-bar-legend">
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--remediated"></span>Remediated ({{ dash.disposition.remediated }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--mitigated"></span>Mitigated ({{ dash.disposition.mitigated }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--accepted"></span>Accepted ({{ dash.disposition.accepted }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--open"></span>Open ({{ dash.disposition.open }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--past-due"></span>Past due ({{ dash.disposition.past_due }})</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:var(--space-6)">
+      <h4 class="card__title">Exception aging</h4>
+      <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3)">
+        <div class="stat-card" style="flex:1;{% if dash.exception_aging.past_expiry %}border-top-color:var(--color-error){% endif %}">
+          <span class="stat-card__value" style="{% if dash.exception_aging.past_expiry %}color:var(--color-error){% endif %}">{{ dash.exception_aging.past_expiry }}</span>
+          <span class="stat-card__label">Past expiry</span>
+        </div>
+        <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ dash.exception_aging.due_0_30 }}</span><span class="stat-card__label">Due &le;30d</span></div>
+        <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ dash.exception_aging.due_31_60 }}</span><span class="stat-card__label">Due &le;60d</span></div>
+        <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ dash.exception_aging.due_61_90 }}</span><span class="stat-card__label">Due &le;90d</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-10)">
+  <div>
+    <h2 style="margin-top:0">Unreviewed &amp; stale</h2>
+    {% if dash.stale_projects %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Project</th><th>State</th><th>Last reviewed</th></tr></thead>
+        <tbody>
+          {% for p in dash.stale_projects %}
+          <tr class="run-row" data-href="/projects/{{ p.project_id }}">
+            <td>{{ p.project_display_name }}</td>
+            <td>
+              {% if p.state == "never_reviewed" %}<span class="badge badge--error">Never reviewed</span>
+              {% elif p.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
+              {% else %}<span class="badge badge--warning">Stale ({{ p.days_since_review }}d)</span>{% endif %}
+            </td>
+            <td>{{ (p.last_reviewed_at | fmt_time) if p.last_reviewed_at else "Never" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert--info"><div>Nothing unreviewed or stale — every in-scope project has a recent review.</div></div>
+    {% endif %}
+  </div>
+
+  <div>
+    <h2 style="margin-top:0">Top recurring root causes</h2>
+    {% if dash.root_causes %}
+    <div class="card">
+      {% for cause, count in dash.root_causes %}
+      <div class="severity-bar">
+        <span class="severity-bar__dot severity-bar__dot--low"></span>
+        <span class="severity-bar__label" style="width:12rem">{{ cause }}</span>
+        <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--low" style="width:{{ (count / dash.root_causes[0][1] * 100) }}%"></div></div>
+        <span class="severity-bar__count">{{ count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert--info"><div>No findings yet to aggregate.</div></div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-6);margin-top:var(--space-10);margin-bottom:var(--space-4)">
+  <div class="card">
+    <h4 class="card__title">Gate decision mix</h4>
+    <div class="donut-row" style="margin-top:var(--space-4)">
+      <div class="donut" style="--donut-gradient: {{ gate_mix_gradient }}">
+        <div class="donut__hole">{{ dash.gate_mix.approve + dash.gate_mix.conditions + dash.gate_mix.reject }}</div>
+      </div>
+      <div class="donut-legend">
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-success)"></span>Approve ({{ dash.gate_mix.approve }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-warning)"></span>With conditions ({{ dash.gate_mix.conditions }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-error)"></span>Reject ({{ dash.gate_mix.reject }})</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Most-deviated standards</h4>
+    {% if dash.top_standards %}
+    {% for standard, count in dash.top_standards %}
+    <div class="severity-bar">
+      <span class="severity-bar__dot severity-bar__dot--medium"></span>
+      <span class="severity-bar__label" style="width:10rem">{{ standard }}</span>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--medium" style="width:{{ (count / dash.top_standards[0][1] * 100) }}%"></div></div>
+      <span class="severity-bar__count">{{ count }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">No standard-specific findings cited yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Uncovered CCM domains</h4>
+    <span class="stat-card__value" style="display:block;margin-bottom:var(--space-3)">{{ dash.uncovered_ccm_domains | length }} / 17</span>
+    {% if dash.uncovered_ccm_domains %}
+    <ul style="margin:0;padding-left:1.2rem">
+      {% for name in dash.uncovered_ccm_domains %}
+      <li class="ds-body" style="color:var(--color-text-muted)">{{ name }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">Every domain has been assessed by at least one review.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div style="border-bottom:1px solid var(--color-border);margin-top:var(--space-4)"></div>

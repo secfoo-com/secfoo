@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import findings_badges, responsible_ai_badges %}
+{% block title %}secfoo — Assessments{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);flex-wrap:wrap">
+  <div>
+    <span class="ds-overline">Assessments</span>
+    <h1>Assessment register</h1>
+  </div>
+  <a class="btn btn--primary btn--md" href="/assessments/new">New Assessment</a>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6)">
+  <div class="segmented">
+    <a class="segmented__option" {% if active_type == 'all' %}aria-selected="true"{% endif %} href="/assessments">All ({{ counts.all }})</a>
+    <a class="segmented__option" {% if active_type == 'internal' %}aria-selected="true"{% endif %} href="/assessments?type=internal">Internal ({{ counts.internal }})</a>
+    <a class="segmented__option" {% if active_type == 'third_party' %}aria-selected="true"{% endif %} href="/assessments?type=third_party">Third-Party ({{ counts.third_party }})</a>
+  </div>
+  <form method="get" action="/assessments" style="display:flex;gap:var(--space-3);align-items:center">
+    <input type="hidden" name="type" value="{{ '' if active_type == 'all' else active_type }}">
+    <select class="select" name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      <option value="ready" {% if active_status == 'ready' %}selected{% endif %}>Ready</option>
+      <option value="in_progress" {% if active_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+      <option value="completed" {% if active_status == 'completed' %}selected{% endif %}>Completed</option>
+      <option value="blocked" {% if active_status == 'blocked' %}selected{% endif %}>Blocked</option>
+    </select>
+    <input class="input" type="search" name="q" placeholder="Search project, application ID..." value="{{ search }}">
+    <button class="btn btn--outline btn--sm" type="submit">Search</button>
+  </form>
+</div>
+
+{% if assessments %}
+<div class="table-wrap" style="margin-top:var(--space-6)">
+  <table class="table">
+    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Findings</th><th>Responsible AI</th><th>Reviewed</th><th></th></tr></thead>
+    <tbody>
+      {% for a in assessments %}
+      <tr class="run-row" data-href="/assessments/{{ a.id }}">
+        <td>
+          {{ a.project_display_name }}
+          {% if a.application_id or a.sar_number %}
+          <br><span class="ds-caption">{{ a.application_id or '' }}{% if a.application_id and a.sar_number %} &middot; {% endif %}{{ a.sar_number or '' }}</span>
+          {% endif %}
+        </td>
+        <td>{{ a.assessment_type | assessment_type_label }}</td>
+        <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
+        <td class="findings-cell">{{ findings_badges(a) }}</td>
+        <td class="findings-cell">{{ responsible_ai_badges(a) }}</td>
+        <td>{{ a.review_date or (a.updated_at | fmt_time) }}</td>
+        <td>
+          <button
+            class="btn btn--danger btn--sm btn--icon"
+            data-delete-url="/assessments/{{ a.id }}/delete"
+            data-confirm="Delete this assessment? Attached runs are kept but detached."
+            title="Delete assessment"
+            aria-label="Delete assessment"
+          >&times;</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-6)"><div>No assessments match these filters.</div></div>
+{% endif %}
+{% endblock %}

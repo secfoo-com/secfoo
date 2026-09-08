@@ -1,0 +1,117 @@
+/*
+  Logo — "scope brackets"
+  ----------------------
+  The mark is two brackets enclosing a signal dot: the reviewed target,
+  scoped. Built from borders and a circle only (no SVG, no image asset), so
+  it inherits color and scales from a single --logo-size custom property.
+
+  Sizing: set --logo-size on .logo (or on any ancestor). Everything else is
+  derived in em, so the mark, the wordmark and the clearspace stay locked.
+
+    <span class="logo">
+      <span class="logo__mark" aria-hidden="true">
+        <i class="logo__bracket logo__bracket--left"></i>
+        <i class="logo__dot"></i>
+        <i class="logo__bracket logo__bracket--right"></i>
+      </span>
+      <span class="logo__word">secfoo</span>
+    </span>
+*/
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.44em;
+  font-size: var(--logo-size);
+  line-height: 1;
+  color: var(--brand-ink);
+  text-decoration: none;
+  padding: var(--logo-clearspace);
+}
+.logo:hover { color: var(--brand-ink); }
+
+/* ---------- Mark ---------- */
+.logo__mark {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.logo__bracket {
+  display: block;
+  width: 0.34em;
+  height: 0.94em;
+  border: var(--logo-stroke) solid currentColor;
+  box-sizing: border-box;
+}
+.logo__bracket--left {
+  border-right: none;
+  border-radius: var(--logo-radius) 0 0 var(--logo-radius);
+}
+.logo__bracket--right {
+  border-left: none;
+  border-radius: 0 var(--logo-radius) var(--logo-radius) 0;
+}
+
+.logo__dot {
+  display: block;
+  flex: none;
+  width: var(--logo-dot);
+  height: var(--logo-dot);
+  margin-inline: var(--logo-gap);
+  border-radius: var(--radius-circle);
+  background-color: var(--brand-signal);
+}
+
+/* ---------- Wordmark ---------- */
+.logo__word {
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-weight: 600;
+  font-size: 0.94em;
+  letter-spacing: var(--logo-wordmark-tracking);
+  color: currentColor;
+}
+
+/* ---------- Sizes ---------- */
+.logo--xs  { --logo-size: 1rem; }     /* favicon / 16-20px UI */
+.logo--sm  { --logo-size: 1.5rem; }   /* dense toolbars */
+.logo--md  { --logo-size: 2rem; }     /* app nav (default) */
+.logo--lg  { --logo-size: 3rem; }     /* marketing header */
+.logo--xl  { --logo-size: 4.5rem; }   /* hero, cover slides */
+
+/* ---------- Variants ---------- */
+/* Mark only — hides the wordmark but keeps the same box */
+.logo--mark-only .logo__word { display: none; }
+
+/* Stacked lockup, for square placements */
+.logo--stacked {
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+/* On dark grounds */
+.logo--inverse { color: var(--brand-on-dark); }
+.logo--inverse .logo__dot { background-color: var(--brand-signal-soft); }
+
+/* Single-color reproduction (embroidery, fax, engraving, 1-color print) */
+.logo--mono { color: currentColor; }
+.logo--mono .logo__dot { background-color: currentColor; }
+
+/* Small sizes need a slightly heavier stroke to survive rasterisation */
+.logo--xs, .logo--sm { --logo-stroke: 0.16em; --logo-gap: 0.3em; }
+
+/* ---------- Favicon / app tile ---------- */
+.logo-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5em;
+  height: 2.5em;
+  font-size: var(--logo-size, 1rem);
+  border-radius: var(--radius-md);
+  background-color: var(--brand-ink);
+  color: var(--brand-on-dark);
+}
+.logo-tile .logo { padding: 0; color: inherit; }
+.logo-tile .logo__dot { background-color: var(--brand-signal-soft); }

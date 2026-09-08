@@ -1,0 +1,70 @@
+/*
+  Themes
+  ------
+  Role tokens only — never re-declare component CSS per theme. Apply to
+  <html> or to any container to theme a subtree.
+
+    <html data-theme="dark">
+    <section data-theme="terminal"> ... </section>
+
+  data-theme="dark"      neutral dark (defined in tokens.css)
+  data-theme="petrol"    brand-saturated dark — marketing hero, cover slides
+  data-theme="terminal"  CLI surface — near-black petrol, teal prompt accent
+  data-accent="amber"    swaps the signal accent for amber (warning contexts)
+*/
+
+[data-theme="petrol"] {
+  --color-bg: var(--color-primary-900);
+  --color-bg-subtle: var(--color-primary-800);
+  --color-surface: var(--color-primary-800);
+  --color-border: var(--color-primary-600);
+  --color-text: var(--color-white);
+  --color-text-muted: var(--color-primary-200);
+  --color-link: var(--color-teal-300);
+  --color-link-hover: var(--color-teal-100);
+  --brand-ink: var(--color-white);
+  --brand-signal: var(--color-teal-300);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0.25rem 0.25rem 1.25rem rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0.625rem 0.625rem 2.5rem rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="terminal"] {
+  --color-bg: #041a24;
+  --color-bg-subtle: var(--color-primary-900);
+  --color-surface: var(--color-primary-900);
+  --color-border: var(--color-primary-700);
+  --color-text: var(--color-gray-100);
+  --color-text-muted: var(--color-primary-300);
+  --color-link: var(--color-teal-300);
+  --color-link-hover: var(--color-teal-100);
+  --brand-ink: var(--color-white);
+  --brand-signal: var(--color-teal-300);
+  --font-family-base: var(--font-family-mono);
+}
+
+[data-accent="amber"] {
+  --brand-signal: var(--color-amber-500);
+  --brand-signal-soft: var(--color-amber-300);
+  --color-focus-ring: var(--color-amber-500);
+  --shadow-focus: 0 0 0 3px rgba(217, 138, 61, 0.35);
+}
+
+/* Theme-aware surfaces */
+.surface { background-color: var(--color-surface); color: var(--color-text); }
+.surface--subtle { background-color: var(--color-bg-subtle); color: var(--color-text); }
+.surface--brand {
+  background-color: var(--color-primary-900);
+  color: var(--color-white);
+}
+.surface--terminal {
+  background-color: var(--surface-terminal);
+  color: var(--surface-terminal-text);
+  font-family: var(--font-family-mono);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+.surface--terminal::before {
+  content: "$ ";
+  color: var(--surface-terminal-prompt);
+}

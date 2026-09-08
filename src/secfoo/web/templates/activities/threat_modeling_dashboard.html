@@ -1,0 +1,227 @@
+{# Extended Threat Modeling dashboard: coverage, a portfolio-total STRIDE x
+   asset-class matrix plus one per project, threat disposition (tested vs.
+   untested mitigations), accepted threats reconciled with recorded human
+   owners, models needing rework, recurring threat archetypes, model-depth
+   mix, post-build misses, and falsified assumptions.
+   See web/threat_modeling_dashboard.py for what's real vs. approximated. #}
+
+{% macro stride_table(matrix) %}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Asset class</th>
+        {% for letter in ["S", "T", "R", "I", "D", "E"] %}
+        <th style="text-align:center">{{ letter }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in matrix %}
+      <tr>
+        <td>{{ row.asset_class }}</td>
+        {% for letter in ["S", "T", "R", "I", "D", "E"] %}
+        {% set n = row.cells[letter] %}
+        <td style="text-align:center;{% if n == 0 %}background-color:var(--color-error-bg){% elif n < 3 %}background-color:var(--color-warning-bg){% else %}background-color:var(--color-success-bg){% endif %}">
+          {{ n if n else "—" }}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+<span class="ds-overline" style="display:block;margin-top:var(--space-8)">Program dashboard</span>
+
+<div class="stat-card-grid" style="margin-top:var(--space-4)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ tm_dash.coverage_pct }}%</span>
+    <span class="stat-card__label">Coverage — {{ tm_dash.coverage_reviewed }} / {{ tm_dash.coverage_in_scope }} in-scope systems</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ tm_dash.open_threats_past_due }}</span>
+    <span class="stat-card__label">Open threats past due (&gt;{{ past_due_sla_days }}d)</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ tm_dash.mitigated_untested }}</span>
+    <span class="stat-card__label">Threats mitigated but untested</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ tm_dash.median_threats_per_model if tm_dash.median_threats_per_model is not none else "—" }}</span>
+    <span class="stat-card__label">Median threats per model</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:var(--space-6);margin-top:var(--space-8)">
+  <div class="card">
+    <h4 class="card__title">STRIDE &times; asset-class coverage</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      Empty cells are the signal — a blank column means that category was never exercised, not that it's safe from it.
+    </p>
+
+    <span class="card__eyebrow">Portfolio total <span style="color:var(--color-text-muted)">(every modeled project, summed)</span></span>
+    <div style="margin-top:var(--space-2)">
+      {{ stride_table(tm_dash.stride_aggregate) }}
+    </div>
+
+    {% if tm_dash.stride_by_project %}
+    <p class="card__body" style="margin:var(--space-6) 0 var(--space-3);color:var(--color-text-muted)">
+      By project — a blank cell here is a real gap on that specific system; the total above can't say which project it came from.
+    </p>
+    <div style="max-height:24rem;overflow-y:auto">
+      {% for entry in tm_dash.stride_by_project %}
+      <div style="{% if not loop.first %}margin-top:var(--space-6){% endif %}">
+        <span class="card__eyebrow">{{ entry.project_display_name }} <span style="color:var(--color-text-muted)">({{ entry.threat_count }} threat{{ "s" if entry.threat_count != 1 else "" }})</span></span>
+        <div style="margin-top:var(--space-2)">
+          {{ stride_table(entry.matrix) }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h4 class="card__title">Threat disposition</h4>
+      {% if tm_dash.disposition_total %}
+      <div class="stacked-bar" style="margin-top:var(--space-4)">
+        {% for key in ["mitigated_tested", "mitigated_untested", "accepted", "transferred", "open", "past_due"] %}
+        {% set count = tm_dash.disposition[key] %}
+        {% if count %}
+        <div class="stacked-bar__segment stacked-bar__segment--{{ key.replace('_', '-') }}" style="width:{{ (count / tm_dash.disposition_total * 100) }}%" title="{{ key }}: {{ count }}"></div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="stacked-bar" style="margin-top:var(--space-4)"></div>
+      {% endif %}
+      <div class="stacked-bar-legend">
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--mitigated-tested"></span>Mitigated + tested ({{ tm_dash.disposition.mitigated_tested }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--mitigated-untested"></span>Mitigated, untested ({{ tm_dash.disposition.mitigated_untested }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--accepted"></span>Accepted ({{ tm_dash.disposition.accepted }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--transferred"></span>Transferred ({{ tm_dash.disposition.transferred }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--open"></span>Open ({{ tm_dash.disposition.open }})</span>
+        <span class="stacked-bar-legend__item"><span class="stacked-bar-legend__dot stacked-bar-legend__dot--past-due"></span>Past due ({{ tm_dash.disposition.past_due }})</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:var(--space-6)">
+      <h4 class="card__title">Accepted threats</h4>
+      <p class="card__body" style="margin-bottom:var(--space-3);color:var(--color-text-muted)">
+        Every threat marked Accepted, reconciled with who actually signed off — <code>secfoo accept create</code> is how "not recorded" turns into a real name.
+      </p>
+      {% if tm_dash.accepted_threats %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Threat</th><th>Project</th><th>Accepted by</th></tr></thead>
+          <tbody>
+            {% for item in tm_dash.accepted_threats %}
+            <tr>
+              <td>{{ item.threat }}</td>
+              <td>{{ item.project }}</td>
+              <td>
+                {% if item.accepted_by %}{{ item.accepted_by }}
+                {% else %}<span class="badge badge--warning">Not recorded</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="ds-body" style="color:var(--color-text-muted)">No accepted threats yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-10)">
+  <div>
+    <h2 style="margin-top:0">Models needing rework</h2>
+    {% if tm_dash.needs_rework %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Project</th><th>State</th><th>Last modeled</th></tr></thead>
+        <tbody>
+          {% for p in tm_dash.needs_rework %}
+          <tr class="run-row" data-href="/projects/{{ p.project_id }}">
+            <td>{{ p.project_display_name }}</td>
+            <td>
+              {% if p.state == "never_reviewed" %}<span class="badge badge--error">Never modeled</span>
+              {% elif p.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
+              {% else %}<span class="badge badge--warning">Stale ({{ p.days_since_review }}d)</span>{% endif %}
+            </td>
+            <td>{{ (p.last_reviewed_at | fmt_time) if p.last_reviewed_at else "Never" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert--info"><div>Nothing needs rework — every in-scope project has a current model.</div></div>
+    {% endif %}
+  </div>
+
+  <div>
+    <h2 style="margin-top:0">Recurring threat patterns</h2>
+    {% if tm_dash.recurring_patterns %}
+    <div class="card">
+      {% for archetype, count in tm_dash.recurring_patterns %}
+      <div class="severity-bar">
+        <span class="severity-bar__dot severity-bar__dot--low"></span>
+        <span class="severity-bar__label" style="width:12rem">{{ archetype }}</span>
+        <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--low" style="width:{{ (count / tm_dash.recurring_patterns[0][1] * 100) }}%"></div></div>
+        <span class="severity-bar__count">{{ count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert--info"><div>No threats yet to aggregate.</div></div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-6);margin-top:var(--space-10);margin-bottom:var(--space-4)">
+  <div class="card">
+    <h4 class="card__title">Model depth mix</h4>
+    <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3)">
+      <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.full }}</span><span class="stat-card__label">Full</span></div>
+      <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.feature_level }}</span><span class="stat-card__label">Feature-level</span></div>
+      <div class="stat-card" style="flex:1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.lightweight }}</span><span class="stat-card__label">Lightweight</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Threats found post-build</h4>
+    <span class="stat-card__value" style="display:block;margin-bottom:var(--space-1)">{{ tm_dash.post_build_count_recent }}</span>
+    <span class="ds-body" style="color:var(--color-text-muted)">in the last 90 days ({{ tm_dash.post_build_count_total }} all-time)</span>
+    {% if tm_dash.post_build_recent %}
+    <ul style="margin:var(--space-3) 0 0;padding-left:1.2rem">
+      {% for finding in tm_dash.post_build_recent %}
+      <li class="ds-body">{{ finding.title }} <span style="color:var(--color-text-muted)">— {{ finding.project_display_name }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted);margin-top:var(--space-3)">None recorded yet — see <code>secfoo miss</code>.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Falsified assumptions</h4>
+    <span class="stat-card__value" style="display:block;margin-bottom:var(--space-3)">{{ tm_dash.falsified_assumptions | length }}</span>
+    {% if tm_dash.falsified_assumptions %}
+    <ul style="margin:0;padding-left:1.2rem">
+      {% for assumption in tm_dash.falsified_assumptions %}
+      <li class="ds-body" style="color:var(--color-text-muted)">{{ assumption }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">No falsified assumptions recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div style="border-bottom:1px solid var(--color-border);margin-top:var(--space-4)"></div>

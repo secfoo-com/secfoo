@@ -1,0 +1,15 @@
+{% macro findings_badges(a) %}
+  {%- if a.critical_count %}<span class="badge {{ 'critical' | severity_badge }}">{{ a.critical_count }}C</span>{% endif -%}
+  {%- if a.high_count %}<span class="badge {{ 'high' | severity_badge }}">{{ a.high_count }}H</span>{% endif -%}
+  {%- if a.medium_count %}<span class="badge {{ 'medium' | severity_badge }}">{{ a.medium_count }}M</span>{% endif -%}
+  {%- if a.low_count %}<span class="badge {{ 'low' | severity_badge }}">{{ a.low_count }}L</span>{% endif -%}
+  {%- if a.info_count %}<span class="badge {{ 'info' | severity_badge }}">{{ a.info_count }}I</span>{% endif -%}
+  {%- if not (a.critical_count or a.high_count or a.medium_count or a.low_count or a.info_count) %}<span class="ds-caption">No findings</span>{% endif -%}
+{% endmacro %}
+
+{% macro responsible_ai_badges(a) %}
+  {%- if a.responsible_ai_risk %}
+  <span class="badge {{ a.responsible_ai_risk | responsible_ai_risk_badge }}">{{ a.responsible_ai_risk }}</span>
+  <span class="badge {{ a.responsible_ai_status | responsible_ai_status_badge }}">{{ a.responsible_ai_status }}</span>
+  {%- else %}<span class="ds-caption">&mdash;</span>{% endif -%}
+{% endmacro %}

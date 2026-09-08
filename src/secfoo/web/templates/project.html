@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_macros.html" import findings_badges %}
+{% block title %}{{ project.display_name }} — secfoo{% endblock %}
+{% block content %}
+<a href="/" class="ds-caption">&larr; All projects</a>
+<span class="ds-overline" style="display:block;margin-top:var(--space-4)">{{ project.kind }}</span>
+<h1>{{ project.display_name }}</h1>
+<p class="ds-caption">{{ project.identifier }}</p>
+
+<h2 style="margin-top:var(--space-8)">Activity coverage</h2>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Activity</th><th>Runs</th><th>Last run</th><th>Findings</th></tr></thead>
+    <tbody>
+      {% for a in activities %}
+      <tr class="run-row" data-href="/activities/{{ a.skill.id }}">
+        <td>{{ a.skill.nav_label }}</td>
+        {% if a.summary %}
+        <td>{{ a.summary.run_count }}</td>
+        <td>{{ a.summary.latest_started_at | fmt_time }}</td>
+        <td class="findings-cell">{{ findings_badges(a.summary) }}</td>
+        {% else %}
+        <td>0</td>
+        <td>&mdash;</td>
+        <td><span class="badge badge--neutral">Not run</span></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 style="margin-top:var(--space-10)">Runs</h2>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Started</th><th>Skill</th><th>Agent</th><th>Status</th><th>Duration</th></tr></thead>
+    <tbody>
+      {% for run in runs %}
+      <tr class="run-row" data-href="/runs/{{ run.run_uuid }}">
+        <td>{{ run.started_at | fmt_time }}</td>
+        <td>{{ run.skill_name }}</td>
+        <td>{{ run.agent_id }}</td>
+        <td><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></td>
+        <td>{{ run.duration_seconds | fmt_duration }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

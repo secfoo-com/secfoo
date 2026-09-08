@@ -1,0 +1,72 @@
+/*
+  Cards
+  -----
+  Surface containers with soft brand-tinted shadow, rounded corners.
+*/
+
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-6);
+  transition: box-shadow var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.card--interactive {
+  cursor: pointer;
+}
+.card--interactive:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card__media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.card--flush .card__body {
+  padding: var(--space-6);
+}
+
+.card__eyebrow {
+  font: var(--text-overline);
+  letter-spacing: var(--overline-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-teal-700);
+  margin-bottom: var(--space-2);
+  display: block;
+}
+
+.card__title {
+  font: var(--text-h4);
+  margin-bottom: var(--space-2);
+}
+
+.card__body {
+  color: var(--color-text-muted);
+}
+
+.card__footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-6);
+}

@@ -1,0 +1,30 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+.DS_Store
+
+# Unrelated third-party repo cloned into this directory for testing --
+# never belongs in this repo (already caused one real incident: it leaked
+# into a published PyPI sdist before this line existed).
+AI-Goverance-Health/
+
+# Local IDE/tool metadata (directory-to-UUID mapping), not project content.
+cache/
+
+# Platform binaries are copied into npm/*/bin/ by the release workflow at
+# publish time -- never committed (README.txt placeholders stay tracked).
+npm/secfoo-*/bin/secfoo
+npm/secfoo-*/bin/secfoo.exe
+node_modules/
+
+# NOTE: src/secfoo/web/static/design-system/ is intentionally NOT
+# gitignored even though it's a generated copy (via
+# scripts/sync_design_system.py) -- hatchling reads .gitignore as a
+# packaging exclusion filter, so ignoring it here silently drops the
+# dashboard's CSS from every built wheel/sdist. Re-run the sync script
+# after editing design-system/ and commit the result.

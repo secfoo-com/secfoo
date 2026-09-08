@@ -1,0 +1,115 @@
+{# Extended SCA Reachability dashboard: coverage, a severity/reachability
+   breakdown, an ecosystem breakdown, and a short "Top vulnerabilities"
+   preview linking out to the full, project-filterable register at
+   /activities/sca-reachability/vulnerabilities
+   (sca_vulnerabilities_list.html) -- each row backed by a real OSV.dev
+   match when one exists, or the report's own "unverified" finding when it
+   doesn't (never a fabricated CVE ID -- see web/sca_dashboard.py for
+   what's real vs. approximated). #}
+
+<span class="ds-overline" style="display:block;margin-top:var(--space-8)">Program dashboard</span>
+
+{% if sca_dash.osv_unreachable %}
+<div class="alert alert--warning" style="margin-top:var(--space-4)">
+  <div>OSV.dev was unreachable during the last enrichment pass -- some rows below may show as "not looked up" until the next successful pass.</div>
+</div>
+{% endif %}
+
+<div class="stat-card-grid" style="margin-top:var(--space-4)">
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sca_dash.coverage_pct }}%</span>
+    <span class="stat-card__label">Coverage — {{ sca_dash.coverage_reviewed }} / {{ sca_dash.coverage_in_scope }} in-scope systems</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sca_dash.vulnerabilities | length }}</span>
+    <span class="stat-card__label">Distinct vulnerabilities across all projects</span>
+  </div>
+  <div class="stat-card" style="{% if sca_dash.reachability_counts.reachable %}border-top-color:var(--color-error){% endif %}">
+    <span class="stat-card__value" style="{% if sca_dash.reachability_counts.reachable %}color:var(--color-error){% endif %}">{{ sca_dash.reachability_counts.reachable }}</span>
+    <span class="stat-card__label">Reachable</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__value">{{ sca_dash.unmapped_ecosystem_count }}</span>
+    <span class="stat-card__label">Findings with an ecosystem OSV.dev doesn't recognize</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-8)">
+  <div class="card">
+    <h4 class="card__title">Severity</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      From each finding's own Risk Register severity -- never translated from a CVSS score.
+    </p>
+    {% set severity_total = sca_dash.severity_counts.high + sca_dash.severity_counts.medium + sca_dash.severity_counts.low %}
+    <div class="donut-row" style="margin-top:var(--space-4)">
+      <div class="donut" style="--donut-gradient: {{ sca_severity_gradient }}">
+        <div class="donut__hole">{{ severity_total }}</div>
+      </div>
+      <div class="donut-legend">
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-error)"></span>High ({{ sca_dash.severity_counts.high }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-warning)"></span>Medium ({{ sca_dash.severity_counts.medium }})</span>
+        <span class="donut-legend__item"><span class="donut-legend__dot" style="background-color:var(--color-teal-500)"></span>Low ({{ sca_dash.severity_counts.low }})</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 class="card__title">Vulnerabilities by ecosystem</h4>
+    <p class="card__body" style="margin-bottom:var(--space-4)">
+      A breakdown of the findings above, not of every dependency in every manifest.
+    </p>
+    {% if sca_dash.ecosystem_counts %}
+    {% for ecosystem, count in sca_dash.ecosystem_counts %}
+    <div class="severity-bar">
+      <span class="severity-bar__dot severity-bar__dot--low"></span>
+      <span class="severity-bar__label" style="width:8rem">{{ ecosystem }}</span>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--low" style="width:{{ (count / sca_dash.ecosystem_counts[0][1] * 100) }}%"></div></div>
+      <span class="severity-bar__count">{{ count }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="ds-body" style="color:var(--color-text-muted)">No vulnerabilities yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% set top_vulnerabilities = sca_dash.vulnerabilities[:5] %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-10)">
+  <div>
+    <h2 style="margin:0">Top vulnerabilities</h2>
+    <p class="ds-body" style="color:var(--color-text-muted);margin-top:var(--space-1)">The highest-severity vulnerabilities across all projects.</p>
+  </div>
+  <a class="btn btn--outline btn--sm" href="/activities/{{ skill.id }}/vulnerabilities">View all vulnerabilities ({{ sca_dash.vulnerabilities | length }}) &rarr;</a>
+</div>
+
+{% if top_vulnerabilities %}
+<div class="table-wrap" style="margin-top:var(--space-4)">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Severity</th><th>CVE / Issue</th><th>Package</th><th>Version</th>
+        <th>Reachability</th><th>Fixed in</th><th>Applications</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in top_vulnerabilities %}
+      <tr class="run-row" data-href="/activities/{{ skill.id }}/vulnerabilities/{{ v.key }}">
+        <td><span class="badge {{ v.severity | severity_badge }}">{{ v.severity }}</span></td>
+        <td>
+          {% if v.cve_id %}{{ v.cve_id }}{% else %}<span class="badge badge--neutral">unverified</span> {{ v.issue }}{% endif %}
+        </td>
+        <td><code>{{ v.package }}</code></td>
+        <td>{{ v.version }}</td>
+        <td>{{ v.reachability }}</td>
+        <td>{{ v.fixed_in }}</td>
+        <td>{{ v.affected_projects | length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-4)"><div>No vulnerabilities identified yet.</div></div>
+{% endif %}
+
+<div style="border-bottom:1px solid var(--color-border);margin-top:var(--space-8)"></div>

@@ -1,0 +1,33 @@
+{
+  "name": "@rakfortltd/secfoo",
+  "version": "0.1.1",
+  "description": "Context-based security architectural assessment orchestrator (threat modeling, SAST/SCA checks, and OWASP-aligned reporting via your choice of coding-agent CLI)",
+  "bin": {
+    "secfoo": "bin/secfoo.js"
+  },
+  "optionalDependencies": {
+    "@rakfortltd/secfoo-darwin-arm64": "0.1.1",
+    "@rakfortltd/secfoo-darwin-x64": "0.1.1",
+    "@rakfortltd/secfoo-linux-x64": "0.1.1",
+    "@rakfortltd/secfoo-linux-arm64": "0.1.1",
+    "@rakfortltd/secfoo-win32-x64": "0.1.1"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/rakfortltd/secfoo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rakfortltd/secfoo.git"
+  },
+  "keywords": [
+    "security",
+    "threat-modeling",
+    "sast",
+    "sca",
+    "owasp",
+    "stride",
+    "llm-agent"
+  ]
+}

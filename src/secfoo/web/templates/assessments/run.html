@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Run Assessment — secfoo{% endblock %}
+{% block content %}
+<a href="/assessments/{{ assessment.id }}" class="ds-caption">&larr; {{ assessment.project_display_name }}</a>
+<span class="ds-overline" style="display:block;margin-top:var(--space-4)">Step 2 of 2</span>
+<h1>Run Assessment</h1>
+<p class="ds-body" style="color:var(--color-text-muted);max-width:36rem;margin-bottom:var(--space-6)">
+  Runs against <strong>{{ assessment.project_display_name }}</strong> and attaches the result(s) to this assessment.
+</p>
+
+<div class="card" style="max-width:36rem">
+  <form method="post" action="/assessments/{{ assessment.id }}/runs">
+    <div class="field">
+      <label class="field__label">Skills</label>
+      {% for s in skills %}
+      <label class="checkbox" style="display:block;margin-bottom:var(--space-2)">
+        <input type="checkbox" name="skill" value="{{ s.id }}"> {{ s.name }}
+      </label>
+      {% endfor %}
+    </div>
+    <div class="field">
+      <label class="field__label">Agent</label>
+      <select class="select" name="agent">
+        {% for a in agent_options %}
+        <option value="{{ a.id }}">{{ a.id }}{% if not a.available %} (not installed){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label">Depth</label>
+      <select class="select" name="depth">
+        <option value="quick">Quick (fast triage)</option>
+        <option value="standard">Standard (thorough)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label">Confluence context (optional)</label>
+      <textarea class="textarea" name="confluence" placeholder="One URL per line"></textarea>
+    </div>
+    <div class="field">
+      <label class="field__label">Exclude paths (optional)</label>
+      <textarea class="textarea" name="exclude" placeholder="One path per line, e.g. vendor/ or some-cloned-repo/"></textarea>
+      <span class="field__helper">
+        Paths that aren't part of this system (vendored copies, unrelated checked-out
+        repos). Added on top of the built-in exclusions and any in your config.toml.
+      </span>
+    </div>
+    <div class="form-actions">
+      <a class="btn btn--ghost btn--md" href="/assessments/{{ assessment.id }}">Skip for now</a>
+      <button type="submit" class="btn btn--primary btn--md">Start run</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

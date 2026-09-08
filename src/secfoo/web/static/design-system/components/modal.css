@@ -1,0 +1,86 @@
+/*
+  Modal / Dialog
+  --------------
+*/
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(7, 39, 54, 0.5);
+  display: flex;
+  /* flex-start (not center) + overflow-y here on the BACKDROP, not on
+     .modal itself, is deliberate: centering a flex item with align-items
+     center while also giving that same item max-height+overflow-y:auto is
+     a well-known WebKit trap -- Safari's flex items default to
+     min-height:auto, which fights the max-height constraint and makes the
+     item's own scrollbar inert, so a form taller than the viewport (e.g.
+     New Assessment's ~9 fields) becomes unreachable with no way to scroll
+     to the Create button. Chrome is more forgiving of the same markup,
+     which is why this only reproduced in Safari. Scrolling the backdrop
+     instead sidesteps the bug entirely in every browser. */
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-6);
+  z-index: var(--z-modal-backdrop);
+}
+
+.modal {
+  position: relative;
+  z-index: var(--z-modal);
+  width: 100%;
+  max-width: 32rem;
+  /* Auto margins on both sides of a flex item center it when there's
+     spare space (form shorter than viewport) and collapse to 0 when there
+     isn't (form taller than viewport), letting the backdrop's own scroll
+     take over instead of clipping content -- no fixed max-height needed. */
+  margin-block: auto;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-8);
+  animation: ds-modal-in var(--duration-base) var(--ease-standard);
+}
+
+@keyframes ds-modal-in {
+  from { opacity: 0; transform: translateY(0.5rem) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal__close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-gray-500);
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-circle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal__close:hover {
+  background-color: var(--color-gray-100);
+  color: var(--color-text);
+}
+
+.modal__title {
+  font: var(--text-h3);
+  margin-bottom: var(--space-3);
+  padding-right: var(--space-8);
+}
+
+.modal__body {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

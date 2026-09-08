@@ -1,0 +1,64 @@
+/*
+  Conformance bar
+  ---------------
+  One row per item rated against a control framework (e.g. a CCM domain):
+  label, proportional bar, value. Distinct from severity-bar.css in that
+  a rating can be "not assessed" -- shown hatched rather than colored,
+  since scoring an unassessed domain as 0% would misrepresent it as a
+  failure.
+*/
+
+.conformance-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.conformance-bar__label {
+  width: 15rem;
+  flex-shrink: 0;
+  font: var(--text-body-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conformance-bar__track {
+  flex: 1;
+  height: 0.625rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-gray-100);
+  overflow: hidden;
+}
+
+.conformance-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+.conformance-bar__fill--conformant { background-color: var(--color-success); }
+.conformance-bar__fill--partial { background-color: var(--color-warning); }
+.conformance-bar__fill--non-conformant { background-color: var(--color-error); }
+
+/* Process-assured / not-applicable: hatched, not a color on the
+   conformance scale, so it visually reads as "not from this review". */
+.conformance-bar__fill--unassessed {
+  width: 100%;
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-gray-300),
+    var(--color-gray-300) 4px,
+    var(--color-gray-100) 4px,
+    var(--color-gray-100) 8px
+  );
+}
+
+.conformance-bar__value {
+  width: 9rem;
+  flex-shrink: 0;
+  text-align: right;
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "secfoo"
+dynamic = ["version"]
+description = "Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "RakFort", email = "info@rakfort.com" },
+]
+keywords = ["security", "threat-modeling", "owasp", "stride", "llm-agent", "compliance"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+  "typer>=0.12",
+  # typer 0.12.x's rich help renderer and Enum-option handling call into
+  # click.Parameter internals (make_metavar(), Choice default validation)
+  # that click 8.2 changed the signature/strictness of -- pinning below
+  # 8.2 keeps `secfoo --help` and any Enum-typed --option with a default
+  # from crashing. Safe to drop once typer is upgraded past this pair.
+  "click<8.2",
+  "rich>=13.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "jinja2>=3.1",
+  "markdown-it-py>=3.0",
+  "python-multipart>=0.0.9",
+  "tomli>=2.0; python_version < '3.11'",
+  # Pure-Python text extraction for uploaded third-party vendor documents
+  # (docext.py) -- deliberately no system-level binaries (no poppler, no
+  # LibreOffice) so the Docker/Kubernetes image stays lean and doesn't
+  # need extra OS packages installed.
+  "pypdf>=4.0",
+  "python-docx>=1.1",
+  "python-pptx>=0.6.23",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.4"]
+build = ["pyinstaller>=6.0"]
+
+[project.scripts]
+secfoo = "secfoo.cli:main"
+
+[tool.hatch.version]
+# Single source of truth for the version -- pyproject.toml reads it from
+# here instead of duplicating it, so a version bump can't happen in one
+# place and not the other (exactly the bug that shipped 0.1.1 with
+# secfoo.__version__ still reporting "0.1.0").
+path = "src/secfoo/__about__.py"
+
+[tool.hatch.build.targets.sdist]
+# `only-include` (not `include`, which is additive on top of hatchling's
+# default "everything in the project root" selection -- confirmed the hard
+# way when `include` alone still let an unrelated cloned repo leak into a
+# published release) is the actual strict allowlist: nothing outside these
+# paths ships, full stop, regardless of what else lands in the project root.
+only-include = [
+  "src/secfoo",
+  "README.md",
+  "LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/secfoo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

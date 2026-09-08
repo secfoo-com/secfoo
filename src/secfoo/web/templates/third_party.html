@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import findings_badges %}
+{% block title %}secfoo — Third-Party{% endblock %}
+{% block content %}
+<span class="ds-overline">Third-Party</span>
+<h1>Third-party assessments</h1>
+<p class="ds-body" style="color:var(--color-text-muted)">
+  {{ counts.total }} third-party assessment(s) &middot; AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.
+</p>
+
+<div class="card" style="margin-top:var(--space-6)">
+  <h4 class="card__title">Vendor CCM v4 conformance</h4>
+  <p class="card__body" style="margin-bottom:var(--space-4)">
+    Aggregated from {{ dash.assessed_vendor_count }} vendor(s)' most recent Third-Party Risk Assessment run --
+    evidence found in vendor-provided documents (SOC 2 reports, ISO certificates, pen test reports, questionnaires),
+    never a guess. Hatched = no vendor has provided evidence for this domain yet, not a failing score.
+  </p>
+  {% for row in dash.ccm_rows %}
+  <div class="conformance-bar">
+    <span class="conformance-bar__label" title="{{ row.name }}">{{ row.name }}</span>
+    <div class="conformance-bar__track">
+      {% if row.hatched %}
+      <div class="conformance-bar__fill conformance-bar__fill--unassessed"></div>
+      {% else %}
+      <div class="conformance-bar__fill {% if row.score >= 80 %}conformance-bar__fill--conformant{% elif row.score >= 50 %}conformance-bar__fill--partial{% else %}conformance-bar__fill--non-conformant{% endif %}" style="width:{{ row.score }}%"></div>
+      {% endif %}
+    </div>
+    <span class="conformance-bar__value">{{ row.code }} — {% if row.hatched %}not assessed{% else %}{{ row.score }}%{% endif %}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if assessments %}
+<div class="table-wrap" style="margin-top:var(--space-6)">
+  <table class="table">
+    <thead><tr><th>Project</th><th>Status</th><th>Findings</th><th>Reviewed</th></tr></thead>
+    <tbody>
+      {% for a in assessments %}
+      <tr class="run-row" data-href="/assessments/{{ a.id }}">
+        <td>
+          {{ a.project_display_name }}
+          {% if a.application_id or a.sar_number %}
+          <br><span class="ds-caption">{{ a.application_id or '' }}{% if a.application_id and a.sar_number %} &middot; {% endif %}{{ a.sar_number or '' }}</span>
+          {% endif %}
+        </td>
+        <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
+        <td class="findings-cell">{{ findings_badges(a) }}</td>
+        <td>{{ a.review_date or (a.updated_at | fmt_time) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info" style="margin-top:var(--space-6)">
+  <div>No third-party assessments yet. Create one from the <a href="/assessments">Assessments</a> page with type "Third-Party".</div>
+</div>
+{% endif %}
+{% endblock %}

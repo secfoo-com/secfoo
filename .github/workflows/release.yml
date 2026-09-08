@@ -1,0 +1,178 @@
+name: Release
+
+# Triggered by pushing a tag like v0.1.2. Builds standalone binaries for
+# every supported platform (PyInstaller can't cross-compile, so each one
+# runs on a real runner of that OS/arch), attaches them to a GitHub
+# Release, then publishes to PyPI, npm (as platform-specific
+# optionalDependencies packages), and GHCR.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   PYPI_API_TOKEN   - PyPI account -> API tokens
+#   NPM_TOKEN        - npmjs.com account -> Access Tokens -> Automation
+# GITHUB_TOKEN (GHCR push) is provided automatically, no setup needed.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  check-version:
+    name: Verify tag matches package version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(grep -oP '(?<=__version__ = ")[^"]+' src/secfoo/__about__.py)
+          echo "Tag version:     $TAG_VERSION"
+          echo "Package version: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match src/secfoo/__about__.py's __version__ ($PKG_VERSION). Bump __about__.py and retag."
+            exit 1
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+  build-binaries:
+    name: Build binary (${{ matrix.name }})
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: darwin-arm64
+          - os: macos-15-intel
+            name: darwin-x64
+          - os: ubuntu-latest
+            name: linux-x64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: windows-latest
+            name: win32-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package + build deps
+        run: pip install -e ".[build]"
+      - name: Build binary
+        run: pyinstaller packaging/secfoo.spec --distpath dist/binary --workpath build/pyinstaller --noconfirm
+      - name: Stage artifact under its final release name
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp dist/binary/secfoo.exe out/secfoo-${{ matrix.name }}.exe
+          else
+            cp dist/binary/secfoo out/secfoo-${{ matrix.name }}
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: secfoo-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten artifacts and compute checksums
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          (cd release && sha256sum * > SHA256SUMS)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [check-version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*.tar.gz dist/*.whl
+
+  publish-npm:
+    name: Publish npm packages
+    needs: [check-version, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Populate platform binaries and publish all 6 packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          declare -A DIRS=(
+            [darwin-arm64]=npm/secfoo-darwin-arm64
+            [darwin-x64]=npm/secfoo-darwin-x64
+            [linux-x64]=npm/secfoo-linux-x64
+            [linux-arm64]=npm/secfoo-linux-arm64
+            [win32-x64]=npm/secfoo-win32-x64
+          )
+          for plat in "${!DIRS[@]}"; do
+            pkgdir="${DIRS[$plat]}"
+            mkdir -p "$pkgdir/bin"
+            if [ "$plat" = "win32-x64" ]; then
+              cp "artifacts/secfoo-$plat/secfoo-$plat.exe" "$pkgdir/bin/secfoo.exe"
+            else
+              cp "artifacts/secfoo-$plat/secfoo-$plat" "$pkgdir/bin/secfoo"
+              chmod +x "$pkgdir/bin/secfoo"
+            fi
+            npm version "$VERSION" --no-git-tag-version --prefix "$pkgdir" --allow-same-version
+            npm publish --access public "$pkgdir"
+          done
+          npm version "$VERSION" --no-git-tag-version --prefix npm/secfoo --allow-same-version
+          npm publish --access public npm/secfoo
+
+  publish-docker:
+    name: Publish Docker image (GHCR)
+    needs: [check-version, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for the new version to be installable from PyPI
+        run: sleep 60
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/rakfortltd/secfoo:${{ needs.check-version.outputs.version }}
+            ghcr.io/rakfortltd/secfoo:latest
