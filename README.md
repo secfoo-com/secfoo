@@ -4,7 +4,7 @@
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/dm/secfoo" alt="PyPI downloads"></a>
   <a href="https://github.com/secfoo-com/secfoo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/secfoo-com/secfoo/ci.yml" alt="CI"></a>
-  <a href="https://github.com/secfoo-com/secfoo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/secfoo-com/secfoo" alt="Apache 2.0 license"></a>
+  <a href="https://github.com/secfoo-com/secfoo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/secfoo-com/secfoo" alt="MIT license"></a>
 </p>
 
 <p align="center">
@@ -86,7 +86,7 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
   time, not one after another.
 - **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
   CLI — pick whichever you already use and trust.
-- **Open source CLI**: Apache-2.0 licensed.
+- **Open source CLI**: MIT licensed.
 
 ## Activity catalog
 

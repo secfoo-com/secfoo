@@ -6,4 +6,4 @@ authors:
   - name: "RakFort"
 repository-code: "https://github.com/secfoo-com/secfoo"
 url: "https://secfoo.com"
-license: "Apache-2.0"
+license: "MIT"
