@@ -48,6 +48,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.4", "bandit>=1.8", "pip-audit>=2.7"]
 build = ["pyinstaller>=6.0"]
+# The `api` agent (secfoo/agents/api.py): calls OpenAI/Anthropic/Gemini
+# directly with an API key instead of driving an installed agent CLI.
+api = ["litellm>=1.40"]
 
 [project.scripts]
 secfoo = "secfoo.cli:main"

@@ -49,6 +49,9 @@ class RunOutcome:
     exit_code: int | None
     duration_seconds: float | None
     report_path: str | None
+    cost_usd: float | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
@@ -227,6 +230,9 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=result.cost_usd,
         )
 
         if result.status == "success":
@@ -251,6 +257,9 @@ def _run_single_skill(
             exit_code=result.exit_code,
             duration_seconds=result.duration_seconds,
             report_path=str(report_path),
+            cost_usd=result.cost_usd,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
         )
     finally:
         repo.close()

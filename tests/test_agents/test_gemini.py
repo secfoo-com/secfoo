@@ -27,3 +27,24 @@ def test_extract_report_result_key_fallback():
 def test_extract_report_non_json_passthrough():
     adapter = GeminiAdapter()
     assert adapter.extract_report("plain text") == "plain text"
+
+
+def test_extract_usage_sums_tokens_across_models_without_cost():
+    stdout = json.dumps({
+        "response": "report",
+        "stats": {
+            "models": {
+                "gemini-pro": {"tokens": {"prompt": 1000, "candidates": 200}},
+                "gemini-flash": {"tokens": {"prompt": 50, "candidates": 5}},
+            }
+        },
+    })
+    usage = GeminiAdapter().extract_usage(stdout)
+    assert usage.input_tokens == 1050
+    assert usage.output_tokens == 205
+    assert usage.cost_usd is None
+
+
+def test_extract_usage_unknown_without_stats():
+    assert GeminiAdapter().extract_usage(json.dumps({"response": "r"})).input_tokens is None
+    assert GeminiAdapter().extract_usage("not json").input_tokens is None

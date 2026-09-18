@@ -20,6 +20,7 @@ def overview(request: Request):
         responsible_ai_count = repo.count_assessments_with_responsible_ai_risk()
         models_count, tools_count = repo.ai_bom_counts_total()
         top_findings = build_top_findings(repo)
+        cost_by_agent = repo.cost_summary(group_by="agent")
 
     # Coverage is "projects that have had this activity run", so the
     # denominator is the project count -- see RunRepository.skill_coverage.
@@ -48,5 +49,13 @@ def overview(request: Request):
             "models_count": models_count,
             "tools_count": tools_count,
             "top_findings": top_findings,
+            "cost_by_agent": cost_by_agent,
+            # None (rendered "-") until at least one run has a known cost,
+            # so runs that predate tracking don't read as free.
+            "total_cost": (
+                sum(row.cost_usd for row in cost_by_agent)
+                if any(row.unpriced_runs < row.runs for row in cost_by_agent)
+                else None
+            ),
         },
     )
