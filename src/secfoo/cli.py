@@ -72,6 +72,7 @@ class AgentId(str, Enum):
     CURSOR = "agent"
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
+    COPILOT = "copilot"
 
 
 class DepthId(str, Enum):

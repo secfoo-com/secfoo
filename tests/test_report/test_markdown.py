@@ -69,6 +69,34 @@ def test_strip_preamble_leaves_text_unchanged_when_no_heading_found():
     assert strip_preamble(text) == text
 
 
+def test_strip_preamble_falls_back_to_numbered_section_one():
+    """Regression test for the copilot adapter: it unpromptedly runs its
+    own native security-scan tool first (an unrelated "##"/"###" preamble
+    with no single top-level "#" heading anywhere) before going straight
+    into the required numbered sections without ever writing the "#
+    <Skill> Report" title. The primary anchor never fires here, so this
+    must fall back to "## 1. Executive Summary" instead of giving up.
+    """
+    required_report = "## 1. Executive Summary\nRisk is high.\n\n## 2. Scope\n..."
+    text = (
+        "## Security Findings\n\n"
+        "### Alert 1\n**Severity: CRITICAL**\nSome native alert content.\n\n"
+        "## Remediation Roadmap\n- fix it\n\n"
+        + required_report
+    )
+    assert strip_preamble(text) == required_report
+
+
+def test_strip_preamble_prefers_top_level_heading_over_numbered_fallback():
+    """When both anchors are present, the title must win so the report
+    keeps its own heading -- proved by placing "## 1." chatter *before*
+    the real title, which the fallback alone would cut into instead of
+    past entirely.
+    """
+    text = "## 1. This is chatter mentioning numbered sections, not the report.\n\n" + SAMPLE_REPORT
+    assert strip_preamble(text) == SAMPLE_REPORT
+
+
 FINDINGS_REGISTER_REPORT = """\
 # Threat Assessment Report
 
