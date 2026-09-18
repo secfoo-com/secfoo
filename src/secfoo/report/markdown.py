@@ -51,12 +51,17 @@ _TOP_LEVEL_HEADING_RE = re.compile(r"^#\s+.+$", re.MULTILINE)
 # its own native security-scan tool first, emitting an unrelated "##"/"###"
 # preamble, then goes straight into the skill's required numbered sections
 # without ever writing a single top-level "#" heading anywhere). Every
-# skill's contract requires "## 1. Executive Summary" as its first numbered
-# section (see skills/renderer.py's shared "Required output format" block),
-# so it's a safe, skill-agnostic anchor to fall back to -- tried only when
-# the primary title search above finds nothing, so a compliant agent's
-# report (which always has both) is unaffected.
-_NUMBERED_SECTION_ONE_RE = re.compile(r"^##\s+1\.\s+.+$", re.MULTILINE)
+# skill's contract requires "## 1. Executive Summary" verbatim as its
+# first numbered section (see skills/renderer.py's shared "Required
+# output format" block -- identical across every skill, not just SAST),
+# so anchoring on that literal phrase, not just "## 1." with any text,
+# matters: a preamble that itself numbers an unrelated "## 1. <something>"
+# section (a plan, a to-do list) would otherwise be matched instead of the
+# real report -- cutting to the wrong, earlier point instead of past the
+# preamble entirely. Tried only when the primary title search above finds
+# nothing, so a compliant agent's report (which always has both) is
+# unaffected either way.
+_NUMBERED_SECTION_ONE_RE = re.compile(r"^##\s+1\.\s+Executive Summary\s*$", re.MULTILINE | re.IGNORECASE)
 
 # "commonmark" alone is the strict base spec and does NOT parse GFM pipe
 # tables -- every `| a | b |` block silently fell through as a plain

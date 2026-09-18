@@ -87,13 +87,30 @@ def test_strip_preamble_falls_back_to_numbered_section_one():
     assert strip_preamble(text) == required_report
 
 
+def test_strip_preamble_fallback_ignores_unrelated_numbered_sections():
+    """The fallback must match the literal "## 1. Executive Summary"
+    text, not just any "## 1. <anything>" heading -- otherwise a
+    preamble that numbers its own unrelated section "1." (a plan, a
+    to-do list) gets matched instead of the real report, cutting to the
+    wrong, earlier point rather than past the preamble entirely.
+    """
+    required_report = "## 1. Executive Summary\nThe real content that should be kept."
+    text = (
+        "## My plan\n1. Read the target files\n2. Check for issues\n\n"
+        "## 1. Setup notes before I start\n"
+        "This has nothing to do with the real report at all.\n\n"
+        + required_report
+    )
+    assert strip_preamble(text) == required_report
+
+
 def test_strip_preamble_prefers_top_level_heading_over_numbered_fallback():
     """When both anchors are present, the title must win so the report
-    keeps its own heading -- proved by placing "## 1." chatter *before*
-    the real title, which the fallback alone would cut into instead of
-    past entirely.
+    keeps its own heading -- proved by placing "## 1. Executive Summary"
+    chatter *before* the real title, which the fallback alone would
+    match and cut into instead of skipping past entirely.
     """
-    text = "## 1. This is chatter mentioning numbered sections, not the report.\n\n" + SAMPLE_REPORT
+    text = "## 1. Executive Summary\nThis mentions the section name but isn't the report.\n\n" + SAMPLE_REPORT
     assert strip_preamble(text) == SAMPLE_REPORT
 
 
