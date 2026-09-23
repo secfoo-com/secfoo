@@ -72,6 +72,8 @@ _RUNS_MIGRATIONS = {
     "input_tokens": "ALTER TABLE runs ADD COLUMN input_tokens INTEGER",
     "output_tokens": "ALTER TABLE runs ADD COLUMN output_tokens INTEGER",
     "cost_usd": "ALTER TABLE runs ADD COLUMN cost_usd REAL",
+    # Memory Bank: git HEAD SHA at scan time; foundation for incremental diff-based rescans.
+    "target_commit": "ALTER TABLE runs ADD COLUMN target_commit TEXT",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -290,12 +292,13 @@ class RunRepository:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         cost_usd: float | None = None,
+        target_commit: str | None = None,  # Memory Bank: HEAD SHA of the scanned repo.
     ) -> None:
         self._conn.execute(
             "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
             "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
-            "cost_usd = ? WHERE run_uuid = ?",
+            "cost_usd = ?, target_commit = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,
@@ -312,6 +315,7 @@ class RunRepository:
                 input_tokens,
                 output_tokens,
                 cost_usd,
+                target_commit,
                 run_uuid,
             ),
         )

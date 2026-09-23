@@ -70,7 +70,9 @@ CREATE TABLE IF NOT EXISTS runs (
     cost_usd          REAL,
     -- Set once `secfoo cloud` has pushed this run to the enterprise
     -- portal. NULL means never synced (offline, or no `cloud login` yet).
-    cloud_synced_at   TEXT
+    cloud_synced_at   TEXT,
+    -- Memory Bank: git HEAD SHA at scan time; enables future incremental diff-based rescans.
+    target_commit     TEXT
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other
