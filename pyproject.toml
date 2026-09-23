@@ -24,10 +24,14 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "typer>=0.12",
+  # typer>=0.12 alone still resolves/keeps typer 0.12.3 on an environment
+  # that already has it (e.g. an old venv, or a resolver picking the
+  # floor) -- confirmed by hitting a real one: typer 0.12.3 + click 8.5.0
+  # broke multi-word option parsing ("secfoo accept create --threat-id T1
+  # ..." rejected as unexpected extra arguments). typer>=0.15 is the
+  # actual minimum verified working against the click pin below.
+  "typer>=0.15",
   # click 8.3.3+ fixes PYSEC-2026-2132 (click.edit command injection).
-  # typer 0.12+ works with click 8.3.x — the old <8.2 pin was for a typer
-  # 0.12.x / click 8.2 API mismatch that no longer applies at current versions.
   "click>=8.3.3,<9",
   "rich>=13.0",
   "fastapi>=0.110",
