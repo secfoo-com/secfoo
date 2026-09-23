@@ -39,6 +39,20 @@ logger = logging.getLogger(__name__)
 STDERR_EXCERPT_LIMIT = 2000
 
 
+def _git_head_commit(path: Path) -> str | None:
+    """Return the HEAD commit SHA for a git repo at `path`, or None if
+    the directory isn't a git repo or git isn't available."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except Exception:
+        return None
+
+
 @dataclass
 class RunOutcome:
     run_uuid: str
@@ -206,6 +220,8 @@ def _run_single_skill(
 
         adapter = get_adapter(agent_id)
         result = adapter.run(prompt, workdir=target_ctx.local_path, timeout=timeout)
+        # Memory Bank: capture HEAD SHA so future runs can diff against this baseline.
+        target_commit = _git_head_commit(target_ctx.local_path)
 
         if on_skill_complete:
             on_skill_complete(skill.name, result.status)
@@ -233,6 +249,7 @@ def _run_single_skill(
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             cost_usd=result.cost_usd,
+            target_commit=target_commit,  # Memory Bank: persisted for incremental diff rescans.
         )
 
         if result.status == "success":
