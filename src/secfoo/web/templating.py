@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from secfoo.cost import format_cost, format_tokens
 from secfoo.cvss import CvssError, parse_vector
 from secfoo.cvss import rating as cvss_rating
 from secfoo.report.architecture import classify_design_verdict
@@ -219,6 +220,8 @@ templates.env.globals["sidebar_activities"] = _sidebar_activities()
 templates.env.filters["status_badge"] = status_badge_class
 templates.env.filters["fmt_time"] = format_timestamp
 templates.env.filters["fmt_duration"] = format_duration
+templates.env.filters["fmt_cost"] = format_cost
+templates.env.filters["fmt_tokens"] = format_tokens
 templates.env.filters["severity_badge"] = severity_badge_class
 templates.env.filters["cvss_badge"] = cvss_badge_class
 templates.env.filters["cvss_rating_label"] = cvss_rating_label

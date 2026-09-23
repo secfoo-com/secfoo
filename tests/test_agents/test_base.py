@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 
+from secfoo.agents.base import _kill_process_tree
 from secfoo.agents.claude import ClaudeAdapter
 from secfoo.settings import Defaults, SecfooConfig
 
@@ -49,3 +50,53 @@ def test_stdin_is_devnull_so_interactive_prompts_fail_fast_not_hang(fake_popen, 
     adapter = ClaudeAdapter()
     adapter.run("hi", workdir=tmp_path)
     assert fake.call_kwargs["stdin"] == subprocess.DEVNULL
+
+
+def test_kill_process_tree_uses_killpg_on_posix(monkeypatch):
+    # raising=False: os.getpgid/os.killpg/signal.SIGKILL don't exist as
+    # attributes at all outside POSIX (that's the bug this whole file is
+    # about), so there's nothing for monkeypatch to find here on Windows.
+    sigkill = object()
+    calls = []
+    monkeypatch.setattr("secfoo.agents.base.os.getpgid", lambda pid: pid, raising=False)
+    monkeypatch.setattr("secfoo.agents.base.os.killpg", lambda pgid, sig: calls.append((pgid, sig)), raising=False)
+    monkeypatch.setattr("secfoo.agents.base.signal.SIGKILL", sigkill, raising=False)
+    _kill_process_tree(4321, posix=True)
+    assert calls == [(4321, sigkill)]
+
+
+def test_kill_process_tree_swallows_missing_process_on_posix(monkeypatch):
+    """The target may have already exited by the time we try to kill it --
+    that's a normal race, not an error."""
+
+    def _raise(pid):
+        raise ProcessLookupError
+
+    monkeypatch.setattr("secfoo.agents.base.os.getpgid", _raise, raising=False)
+    # Never actually called (getpgid raises first) -- just needs to exist as
+    # an attribute so the call expression resolves on a platform without it.
+    monkeypatch.setattr("secfoo.agents.base.os.killpg", lambda pgid, sig: None, raising=False)
+    monkeypatch.setattr("secfoo.agents.base.signal.SIGKILL", object(), raising=False)
+    _kill_process_tree(4321, posix=True)  # must not raise
+
+
+def test_kill_process_tree_uses_taskkill_on_windows(monkeypatch):
+    """os.killpg/os.getpgid don't exist outside POSIX -- Windows has no
+    process-group equivalent in the stdlib, so this must shell out to
+    `taskkill /T` (kill the whole process tree) instead."""
+    calls = []
+    monkeypatch.setattr("secfoo.agents.base.subprocess.run", lambda *a, **kw: calls.append((a, kw)))
+    _kill_process_tree(4321, posix=False)
+    assert calls
+    args, kwargs = calls[0]
+    assert args[0] == ["taskkill", "/F", "/T", "/PID", "4321"]
+    assert kwargs["stdout"] == subprocess.DEVNULL
+    assert kwargs["stderr"] == subprocess.DEVNULL
+
+
+def test_kill_process_tree_swallows_taskkill_errors_on_windows(monkeypatch):
+    def _raise(*a, **kw):
+        raise OSError("taskkill not found")
+
+    monkeypatch.setattr("secfoo.agents.base.subprocess.run", _raise)
+    _kill_process_tree(4321, posix=False)  # must not raise

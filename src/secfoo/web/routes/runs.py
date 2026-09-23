@@ -21,7 +21,7 @@ def run_detail(request: Request, run_uuid: str):
 
     report_html = ""
     if record.report_path and Path(record.report_path).exists():
-        text = Path(record.report_path).read_text()
+        text = Path(record.report_path).read_text(encoding="utf-8", errors="replace")
         if text.strip():
             report_html = render_report_html(text)
 

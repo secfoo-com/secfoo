@@ -67,7 +67,7 @@ def write_claude_mcp_config(servers: list[MCPServerConfig]) -> Path | None:
         return None
     payload = {"mcpServers": {s.name: _server_to_standard_shape(s) for s in servers}}
     STORE_DIR.mkdir(parents=True, exist_ok=True)
-    CLAUDE_MCP_CONFIG_PATH.write_text(json.dumps(payload, indent=2))
+    CLAUDE_MCP_CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return CLAUDE_MCP_CONFIG_PATH
 
 
@@ -123,7 +123,7 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
     existing: dict = {}
     if CURSOR_MCP_CONFIG_PATH.exists():
         try:
-            existing = json.loads(CURSOR_MCP_CONFIG_PATH.read_text()).get("mcpServers", {})
+            existing = json.loads(CURSOR_MCP_CONFIG_PATH.read_text(encoding="utf-8")).get("mcpServers", {})
         except json.JSONDecodeError as exc:
             return [SyncResult("*", False, f"{CURSOR_MCP_CONFIG_PATH} is not valid JSON: {exc}")]
 
@@ -138,7 +138,7 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
         results.append(SyncResult(server.name, True, f"added to {CURSOR_MCP_CONFIG_PATH}"))
 
     if newly_added:
-        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps({"mcpServers": existing}, indent=2))
+        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps({"mcpServers": existing}, indent=2), encoding="utf-8")
         for name in newly_added:
             proc = subprocess.run(["agent", "mcp", "enable", name], capture_output=True, text=True, timeout=30)
             if proc.returncode != 0:
@@ -157,5 +157,6 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     raise ValueError(
         f"secfoo mcp sync isn't supported for {agent_id!r}. "
         f"claude uses --mcp-config automatically on every run (no sync needed); "
-        f"agy doesn't expose any MCP configuration mechanism via its CLI yet."
+        f"agy doesn't expose any MCP configuration mechanism via its CLI yet; "
+        f"codex isn't wired up for it yet (it reads ~/.codex/config.toml directly)."
     )

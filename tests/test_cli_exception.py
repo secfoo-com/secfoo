@@ -93,6 +93,27 @@ def test_exception_delete_unknown_exits_nonzero(monkeypatch, tmp_path):
     assert result.exit_code == 1
 
 
+def test_exception_create_rejects_malformed_expires_at(monkeypatch, tmp_path):
+    result = _create(monkeypatch, tmp_path, expires_at="not-a-date")
+    assert result.exit_code != 0
+    assert "not a valid date" in result.output
+
+    # Nothing should have been created.
+    result = runner.invoke(app, ["exception", "list"])
+    assert "No exceptions found" in result.stdout
+
+
+def test_exception_update_rejects_malformed_expires_at(monkeypatch, tmp_path):
+    _create(monkeypatch, tmp_path)
+    result = runner.invoke(app, ["exception", "update", "1", "--expires-at", "31/12/2027"])
+    assert result.exit_code != 0
+    assert "not a valid date" in result.output
+
+    # The original (valid) expiry must be untouched.
+    result = runner.invoke(app, ["exception", "show", "1"])
+    assert "Expires: 2099-01-01" in result.stdout
+
+
 def test_exception_list_filters_by_status(monkeypatch, tmp_path):
     _create(monkeypatch, tmp_path, title="one")
     _create(monkeypatch, tmp_path, title="two")

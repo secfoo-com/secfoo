@@ -5,7 +5,9 @@
 [defaults]
 # Used whenever --agent / --depth / --timeout aren't passed on the command
 # line. CLI flags always win over these.
-agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini
+agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | api (API key, no CLI)
+agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | secfoo
+agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | secfoo | codex
 depth = "quick"        # quick | standard
 # timeout = 1800       # seconds; omit to use each agent's own default
 

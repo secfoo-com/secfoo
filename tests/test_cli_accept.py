@@ -85,6 +85,25 @@ def test_accept_create_with_unknown_run_exits_nonzero(monkeypatch, tmp_path):
     assert "No run found" in result.output
 
 
+def test_accept_create_rejects_malformed_expires_at(monkeypatch, tmp_path):
+    result = _create(monkeypatch, tmp_path, expires_at="12/31/2027")
+    assert result.exit_code != 0
+    assert "not a valid date" in result.output
+
+    result = runner.invoke(app, ["accept", "list"])
+    assert "No threat acceptances recorded" in result.stdout
+
+
+def test_accept_update_rejects_malformed_expires_at(monkeypatch, tmp_path):
+    _create(monkeypatch, tmp_path, expires_at="2099-01-01")
+    result = runner.invoke(app, ["accept", "update", "1", "--expires-at", "not-a-date"])
+    assert result.exit_code != 0
+    assert "not a valid date" in result.output
+
+    result = runner.invoke(app, ["accept", "show", "1"])
+    assert "Expires: 2099-01-01" in result.stdout
+
+
 def test_accept_update_status(monkeypatch, tmp_path):
     _create(monkeypatch, tmp_path)
     result = runner.invoke(app, ["accept", "update", "1", "--status", "revoked"])

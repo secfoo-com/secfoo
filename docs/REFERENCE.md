@@ -360,6 +360,7 @@ How MCP servers reach each agent varies by what its CLI actually supports:
 |---|---|
 | `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched) |
 | `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
+| `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
 | `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |
 
 ```bash
@@ -389,7 +390,7 @@ along with a `SHA256SUMS` file.
 - **Docker**: `ghcr.io/rakfortltd/secfoo`, built from the PyPI package on
   a slim Python base (simplest, most robust route for a container image —
   no cross-platform concern since the image itself is the platform).
-  **Note**: none of the 4 agent CLIs (claude, cursor, antigravity, gemini)
+  **Note**: none of the 5 agent CLIs (claude, cursor, antigravity, gemini, codex)
   are installed in this image, so `secfoo run` needs one made available on
   `PATH` inside the container yourself (e.g. a custom image built `FROM`
   this one, or a volume/bind mount) to actually execute a skill — without

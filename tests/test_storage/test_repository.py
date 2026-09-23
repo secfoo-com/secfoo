@@ -62,6 +62,7 @@ def test_create_and_complete_run_roundtrip(tmp_path):
         report_path="/tmp/r.md",
         prompt_path="/tmp/p.md",
         stderr_excerpt=None,
+        cost_usd=0.0123,
     )
 
     run = repo.get_run(run_uuid)
@@ -69,6 +70,8 @@ def test_create_and_complete_run_roundtrip(tmp_path):
     assert run.exit_code == 0
     assert run.report_path == "/tmp/r.md"
     assert run.finished_at is not None
+    assert run.cost_usd == 0.0123
+    assert repo.total_cost_usd() == 0.0123
     repo.close()
 
 
@@ -167,8 +170,10 @@ def test_create_completed_run_attaches_to_an_assessment(tmp_path):
         duration_seconds=60.0,
         report_path=None,
         assessment_id=assessment_id,
+        cost_usd=0.0456,
     )
     assert repo.get_run("r1").assessment_id == assessment_id
+    assert repo.get_run("r1").cost_usd == 0.0456
     repo.close()
 
 

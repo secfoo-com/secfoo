@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from secfoo.agents.antigravity import AntigravityAdapter
+from secfoo.agents.api import ApiAdapter
 from secfoo.agents.base import AgentAdapter
 from secfoo.agents.claude import ClaudeAdapter
 from secfoo.agents.copilot import CopilotAdapter
+from secfoo.agents.codex import CodexAdapter
 from secfoo.agents.cursor import CursorAdapter
 from secfoo.agents.gemini import GeminiAdapter
+from secfoo.agents.secfoo import SecFooAdapter
 
 ADAPTERS: dict[str, type[AgentAdapter]] = {
     ClaudeAdapter.name: ClaudeAdapter,
@@ -13,6 +16,9 @@ ADAPTERS: dict[str, type[AgentAdapter]] = {
     AntigravityAdapter.name: AntigravityAdapter,
     GeminiAdapter.name: GeminiAdapter,
     CopilotAdapter.name: CopilotAdapter,
+    ApiAdapter.name: ApiAdapter,
+    SecFooAdapter.name: SecFooAdapter,
+    CodexAdapter.name: CodexAdapter,
 }
 
 

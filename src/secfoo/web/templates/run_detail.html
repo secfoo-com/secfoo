@@ -10,6 +10,8 @@
     <div><span class="ds-caption">Agent</span><br>{{ run.agent_id }}</div>
     <div><span class="ds-caption">Started</span><br>{{ run.started_at | fmt_time }}</div>
     <div><span class="ds-caption">Duration</span><br>{{ run.duration_seconds | fmt_duration }}</div>
+    <div><span class="ds-caption">AI cost</span><br>{{ run.cost_usd | fmt_cost }}</div>
+    <div><span class="ds-caption">Tokens (in / out)</span><br>{{ run.input_tokens | fmt_tokens }} / {{ run.output_tokens | fmt_tokens }}</div>
     <div><span class="ds-caption">Exit code</span><br>{{ run.exit_code if run.exit_code is not none else '-' }}</div>
   </div>
 

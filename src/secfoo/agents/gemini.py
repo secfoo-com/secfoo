@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from secfoo.agents.base import AgentAdapter
+from secfoo.agents.base import AgentAdapter, Usage
 
 
 class GeminiAdapter(AgentAdapter):
@@ -39,3 +39,19 @@ class GeminiAdapter(AgentAdapter):
         except json.JSONDecodeError:
             return stdout
         return payload.get("response", payload.get("result", stdout))
+
+    def extract_usage(self, stdout: str) -> Usage:
+        # `--output-format json` carries per-model token counts under
+        # stats.models.<model>.tokens, but no cost.
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            return Usage()
+        models = (payload.get("stats") or {}).get("models") if isinstance(payload, dict) else None
+        if not isinstance(models, dict) or not models:
+            return Usage()
+        tokens = [m.get("tokens") or {} for m in models.values() if isinstance(m, dict)]
+        return Usage(
+            input_tokens=sum(t.get("prompt") or 0 for t in tokens),
+            output_tokens=sum(t.get("candidates") or 0 for t in tokens),
+        )

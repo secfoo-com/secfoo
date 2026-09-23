@@ -55,7 +55,7 @@
 {% if runs %}
 <div class="table-wrap" style="margin-bottom:var(--space-6)">
   <table class="table">
-    <thead><tr><th>Started</th><th>Skill</th><th>Agent</th><th>Status</th></tr></thead>
+    <thead><tr><th>Started</th><th>Skill</th><th>Agent</th><th>Status</th><th>Cost</th></tr></thead>
     <tbody>
       {% for run in runs %}
       <tr class="run-row" data-href="/runs/{{ run.run_uuid }}">
@@ -63,6 +63,7 @@
         <td>{{ run.skill_name }}</td>
         <td>{{ run.agent_id }}</td>
         <td><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></td>
+        <td>{{ run.cost_usd | fmt_cost }}</td>
       </tr>
       {% endfor %}
     </tbody>

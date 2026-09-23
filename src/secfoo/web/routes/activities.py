@@ -75,7 +75,7 @@ def _attach_architecture_signals(projects: list[dict]) -> bool:
         report_path = project.get("latest_success_report_path")
         if not report_path or not Path(report_path).is_file():
             continue
-        text = Path(report_path).read_text()
+        text = Path(report_path).read_text(encoding="utf-8", errors="replace")
         project["diagram_source"] = extract_mermaid_diagram(text)
         project["design_verdict"] = extract_design_verdict(text)
         project["boundary_count"] = count_trust_boundaries(text)

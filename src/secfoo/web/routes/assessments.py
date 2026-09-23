@@ -65,11 +65,11 @@ def _run_third_party_risk_assessment(assessment_id: int, project_id: int) -> Non
         wrote_any = False
         for attachment in attachments:
             extracted_path = _extracted_text_path(Path(attachment.file_path))
-            text = extracted_path.read_text() if extracted_path.exists() else ""
+            text = extracted_path.read_text(encoding="utf-8", errors="replace") if extracted_path.exists() else ""
             if not text.strip():
                 continue
             out_path = tmp_dir / f"{Path(attachment.original_name).stem}.txt"
-            out_path.write_text(f"Source document: {attachment.original_name}\n\n{text}")
+            out_path.write_text(f"Source document: {attachment.original_name}\n\n{text}", encoding="utf-8")
             wrote_any = True
 
         if not wrote_any:
@@ -336,7 +336,7 @@ def assessment_upload(assessment_id: int, file: UploadFile):
             # (rather than re-extracted on every subsequent upload/trigger)
             # -- a vendor doc's content doesn't change after upload.
             text = docext.extract_text(dest)
-            _extracted_text_path(dest).write_text(text)
+            _extracted_text_path(dest).write_text(text, encoding="utf-8")
             if assessment.assessment_type == "third_party":
                 trigger_third_party_review = True
 

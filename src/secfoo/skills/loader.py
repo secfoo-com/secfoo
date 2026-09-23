@@ -53,7 +53,7 @@ def _parse_frontmatter(text: str, *, source: Path) -> tuple[dict[str, str], str]
 
 
 def _load_file(path: Path) -> Skill:
-    fields, body = _parse_frontmatter(path.read_text(), source=path)
+    fields, body = _parse_frontmatter(path.read_text(encoding="utf-8"), source=path)
     try:
         return Skill(
             id=fields["id"],

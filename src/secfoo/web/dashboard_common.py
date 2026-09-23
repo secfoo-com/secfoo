@@ -26,7 +26,9 @@ def read_report(path: str | None) -> str:
     file = Path(path)
     if not file.is_file():
         return ""
-    return file.read_text()
+    # errors="replace": reports written by older versions on Windows used the
+    # locale code page, not UTF-8 -- show them with placeholders, never crash.
+    return file.read_text(encoding="utf-8", errors="replace")
 
 
 def append_boundary_changed_projects(

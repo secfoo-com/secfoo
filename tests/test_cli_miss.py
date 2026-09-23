@@ -82,6 +82,15 @@ def test_miss_create_with_unknown_run_exits_nonzero(monkeypatch, tmp_path):
     assert "No run found" in result.output
 
 
+def test_miss_create_rejects_malformed_discovered_at(monkeypatch, tmp_path):
+    result = _create(monkeypatch, tmp_path, discovered_at="yesterday")
+    assert result.exit_code != 0
+    assert "not a valid date" in result.output
+
+    result = runner.invoke(app, ["miss", "list"])
+    assert "No post-build findings recorded" in result.stdout
+
+
 def test_miss_delete(monkeypatch, tmp_path):
     _create(monkeypatch, tmp_path)
     result = runner.invoke(app, ["miss", "delete", "1"])

@@ -3,7 +3,7 @@
 # robust route for a container image, since there's no cross-platform
 # concern (the image itself is the platform).
 #
-# Note: none of the 4 agent CLIs (claude, agent/cursor, agy, gemini) are
+# Note: none of the 5 agent CLIs (claude, agent/cursor, agy, gemini, codex) are
 # installed in this image, and none of their auth lives here either --
 # `secfoo run` needs one available on PATH inside the container (e.g. via
 # a custom image built FROM this one, or a volume mount) to actually

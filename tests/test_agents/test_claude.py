@@ -70,3 +70,36 @@ def test_run_success_extracts_report_from_json(fake_popen, tmp_path, monkeypatch
     result = adapter.run("review this", workdir=tmp_path)
     assert result.status == "success"
     assert result.raw_report == "# Threat Report"
+
+
+def test_extract_usage_reads_cost_and_sums_cached_input_tokens():
+    stdout = json.dumps({
+        "result": "report",
+        "total_cost_usd": 0.4512,
+        "usage": {
+            "input_tokens": 100,
+            "cache_creation_input_tokens": 2000,
+            "cache_read_input_tokens": 30000,
+            "output_tokens": 4000,
+        },
+    })
+    usage = ClaudeAdapter().extract_usage(stdout)
+    assert usage.input_tokens == 32100
+    assert usage.output_tokens == 4000
+    assert usage.cost_usd == 0.4512
+
+
+def test_extract_usage_unknown_when_stdout_is_not_json():
+    usage = ClaudeAdapter().extract_usage("plain text")
+    assert usage.cost_usd is None
+    assert usage.input_tokens is None
+
+
+def test_run_records_usage_from_json_output(tmp_path, monkeypatch, fake_popen):
+    monkeypatch.setattr("secfoo.agents.claude.load_config", lambda: _empty_config())
+    stdout = json.dumps({"result": "report", "total_cost_usd": 1.5, "usage": {"input_tokens": 10, "output_tokens": 5}})
+    fake_popen(returncode=0, stdout=stdout)
+    result = ClaudeAdapter().run("prompt", workdir=tmp_path)
+    assert result.cost_usd == 1.5
+    assert result.input_tokens == 10
+    assert result.output_tokens == 5

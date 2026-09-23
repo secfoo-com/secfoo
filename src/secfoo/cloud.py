@@ -59,7 +59,7 @@ def load_cloud_config(path: Path | None = None) -> CloudConfig | None:
     if not path.exists():
         return None
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         raise CloudError(f"{path}: invalid TOML: {exc}") from exc
     api_key = data.get("api_key")
@@ -73,7 +73,8 @@ def save_cloud_config(config: CloudConfig, path: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f'api_key = "{_toml_escape(config.api_key)}"\n'
-        f'portal_url = "{_toml_escape(config.portal_url)}"\n'
+        f'portal_url = "{_toml_escape(config.portal_url)}"\n',
+        encoding="utf-8",
     )
     path.chmod(0o600)
 
@@ -145,6 +146,9 @@ def push_run(
             "started_at": run.started_at,
             "finished_at": run.finished_at,
             "duration_seconds": run.duration_seconds,
+            "input_tokens": run.input_tokens,
+            "output_tokens": run.output_tokens,
+            "cost_usd": run.cost_usd,
             "confluence_urls": run.confluence_urls,
         },
         "report_markdown": report_markdown,
@@ -186,7 +190,7 @@ def sync_run(repo: RunRepository, run_uuid: str, config: CloudConfig) -> None:
 
     report_markdown = ""
     if run.report_path and Path(run.report_path).is_file():
-        report_markdown = Path(run.report_path).read_text()
+        report_markdown = Path(run.report_path).read_text(encoding="utf-8", errors="replace")
 
     assessment = repo.get_assessment(run.assessment_id) if run.assessment_id else None
 

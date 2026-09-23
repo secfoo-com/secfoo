@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -21,6 +21,7 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
+from secfoo.cost import format_cost, format_tokens
 from secfoo.runner import _project_display_name, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
 from secfoo.skills.loader import load_all_skills
@@ -55,6 +56,28 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _validate_date(value: Optional[str]) -> Optional[str]:
+    """Typer callback for the `--expires-at` / `--discovered-at` style
+    options that are documented as YYYY-MM-DD: rejects anything that
+    doesn't parse as that shape at input time.
+
+    Without this, an unparseable value (a typo, a different format) was
+    accepted and stored as-is, then silently ignored by every downstream
+    consumer that parses it with `datetime.fromisoformat` (the aging
+    buckets in storage/repository.py, the past-due check in
+    web/top_findings.py) -- the exception/finding looked normal in
+    `list`/`show` but its expiry could never be tracked, detected as
+    past-due, or surfaced on the dashboard.
+    """
+    if value is None:
+        return None
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        raise typer.BadParameter(f"'{value}' is not a valid date -- expected YYYY-MM-DD.") from None
+    return value
+
+
 # Derived from the skill definition files rather than hand-listed, so
 # dropping a new definitions/*.md in registers it with the CLI (and its
 # --help choices) automatically. Hand-maintaining this enum alongside the
@@ -73,6 +96,9 @@ class AgentId(str, Enum):
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
     COPILOT = "copilot"
+    API = "api"
+    SECFOO = "secfoo"
+    CODEX = "codex"
 
 
 class DepthId(str, Enum):
@@ -267,17 +293,27 @@ def run(
     table.add_column("Skill")
     table.add_column("Status")
     table.add_column("Duration")
+    table.add_column("Cost", justify="right")
     table.add_column("Run ID")
 
     any_failed = False
     for outcome in outcomes:
         style = _STATUS_STYLE.get(outcome.status, "white")
         duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
-        table.add_row(outcome.skill_name, f"[{style}]{outcome.status}[/]", duration, outcome.run_uuid)
+        table.add_row(
+            outcome.skill_name,
+            f"[{style}]{outcome.status}[/]",
+            duration,
+            format_cost(outcome.cost_usd),
+            outcome.run_uuid,
+        )
         if outcome.status != "success":
             any_failed = True
 
     console.print(table)
+    priced = [o.cost_usd for o in outcomes if o.cost_usd is not None]
+    if priced:
+        console.print(f"AI spend for this run: [bold]{format_cost(sum(priced))}[/]")
     console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
     if any_failed:
         raise typer.Exit(code=1)
@@ -314,6 +350,7 @@ def list_runs(
     table.add_column("Skill")
     table.add_column("Agent")
     table.add_column("Status")
+    table.add_column("Cost", justify="right")
     table.add_column("Run ID")
 
     for r in runs:
@@ -324,6 +361,7 @@ def list_runs(
             r.skill_name,
             r.agent_id,
             f"[{style}]{r.status}[/]",
+            format_cost(r.cost_usd),
             r.run_uuid,
         )
     console.print(table)
@@ -348,7 +386,7 @@ def show(
 
     console.print(f"[bold]{record.skill_name}[/] via {record.agent_id} — status: {record.status}")
     if record.report_path and Path(record.report_path).exists():
-        console.print(Path(record.report_path).read_text())
+        console.print(Path(record.report_path).read_text(encoding="utf-8", errors="replace"))
     else:
         console.print("[yellow]No report content available for this run.[/]")
 
@@ -381,6 +419,77 @@ def agents() -> None:
         style = "green" if available else "red"
         table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]")
     console.print(table)
+
+
+class CostGroup(str, Enum):
+    AGENT = "agent"
+    SKILL = "skill"
+    PROJECT = "project"
+
+
+@app.command()
+def cost(
+    by: CostGroup = typer.Option(CostGroup.AGENT, "--by", help="Group spend by agent, skill, or project."),
+    since: Optional[str] = typer.Option(
+        None, "--since", help="Only count runs started on or after this date, YYYY-MM-DD.", callback=_validate_date
+    ),
+    project: Optional[str] = typer.Option(
+        None, "--project", "-p", help="Only count one project (name/URL substring)."
+    ),
+) -> None:
+    """Show AI spend (tokens and cost) across past runs."""
+    with RunRepository() as repo:
+        project_id = None
+        if project:
+            needle = project.lower()
+            matches = [
+                p for p in repo.list_projects()
+                if needle in p.display_name.lower() or needle in p.identifier.lower()
+            ]
+            if not matches:
+                console.print(f"[yellow]No project matches {project!r}.[/]")
+                return
+            if len(matches) > 1:
+                names = ", ".join(p.display_name for p in matches)
+                err_console.print(f"[red]{project!r} matches several projects ({names}) -- be more specific.[/]")
+                raise typer.Exit(code=1)
+            project_id = matches[0].id
+        rows = repo.cost_summary(group_by=by.value, since=since, project_id=project_id)
+
+    if not rows:
+        console.print("No runs found.")
+        return
+
+    table = Table(title=f"AI spend by {by.value}" + (f" since {since}" if since else ""))
+    table.add_column(by.value.capitalize())
+    table.add_column("Runs", justify="right")
+    table.add_column("Input tokens", justify="right")
+    table.add_column("Output tokens", justify="right")
+    table.add_column("Cost", justify="right")
+    for row in rows:
+        table.add_row(
+            row.label,
+            str(row.runs),
+            format_tokens(row.input_tokens),
+            format_tokens(row.output_tokens),
+            format_cost(row.cost_usd) if row.unpriced_runs < row.runs else "-",
+        )
+    table.add_section()
+    table.add_row(
+        "[bold]Total[/]",
+        str(sum(r.runs for r in rows)),
+        format_tokens(sum(r.input_tokens for r in rows)),
+        format_tokens(sum(r.output_tokens for r in rows)),
+        f"[bold]{format_cost(sum(r.cost_usd for r in rows))}[/]",
+    )
+    console.print(table)
+
+    unpriced = sum(r.unpriced_runs for r in rows)
+    if unpriced:
+        console.print(
+            f"[yellow]{unpriced} run(s) have no cost recorded[/] -- their agent doesn't report it "
+            "(cursor, agy), or they ran before cost tracking existed."
+        )
 
 
 @assessment_app.command(name="create")
@@ -610,7 +719,9 @@ def exception_create(
     title: str = typer.Option(..., "--title", help="Short description of what's being accepted."),
     justification: str = typer.Option(..., "--justification", help="Why this risk is being accepted."),
     granted_by: str = typer.Option(..., "--granted-by", help="Who approved this exception."),
-    expires_at: str = typer.Option(..., "--expires-at", help="Expiry date, YYYY-MM-DD."),
+    expires_at: str = typer.Option(
+        ..., "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
+    ),
     standard_or_control: Optional[str] = typer.Option(
         None, "--control", help="CCM domain code or standard clause this exception covers, e.g. IAM or 'SOC 2 CC6.1'."
     ),
@@ -690,7 +801,9 @@ def exception_show(exception_id: int) -> None:
 def exception_update(
     exception_id: int,
     status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at"),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
+    ),
     justification: Optional[str] = typer.Option(None, "--justification"),
 ) -> None:
     """Update an exception -- e.g. revoke it, or extend its expiry."""
@@ -731,7 +844,9 @@ def miss_create(
         None, "--project", "-p", help="Public GitHub repo URL or local directory. Defaults to the current directory."
     ),
     title: str = typer.Option(..., "--title", help="What was found."),
-    discovered_at: str = typer.Option(..., "--discovered-at", help="When it was found, YYYY-MM-DD."),
+    discovered_at: str = typer.Option(
+        ..., "--discovered-at", help="When it was found, YYYY-MM-DD.", callback=_validate_date
+    ),
     description: Optional[str] = typer.Option(None, "--description"),
     discovered_by: Optional[str] = typer.Option(None, "--discovered-by", help="Who/what found it (incident, pen test, ...)."),
     run: Optional[str] = typer.Option(None, "--run", help="Run UUID of the threat model that should have caught this, if known."),
@@ -822,7 +937,9 @@ def accept_create(
     title: str = typer.Option(..., "--title", help="Short description of the threat being accepted."),
     justification: str = typer.Option(..., "--justification", help="Why this risk is being accepted."),
     accepted_by: str = typer.Option(..., "--accepted-by", help="Who is accepting this risk."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at", help="Optional review-by date, YYYY-MM-DD."),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Optional review-by date, YYYY-MM-DD.", callback=_validate_date
+    ),
     run: Optional[str] = typer.Option(None, "--run", help="Run UUID this threat came from, if known."),
 ) -> None:
     """Record a human risk acceptance for one threat from a Threat Register.
@@ -899,7 +1016,9 @@ def accept_show(acceptance_id: int) -> None:
 def accept_update(
     acceptance_id: int,
     status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(None, "--expires-at"),
+    expires_at: Optional[str] = typer.Option(
+        None, "--expires-at", help="Review-by date, YYYY-MM-DD.", callback=_validate_date
+    ),
     justification: Optional[str] = typer.Option(None, "--justification"),
 ) -> None:
     """Update a threat acceptance -- e.g. revoke it, or extend its review date."""
@@ -1077,7 +1196,7 @@ def config_init(
         err_console.print(f"[yellow]{CONFIG_PATH} already exists.[/] Use --force to overwrite it.")
         raise typer.Exit(code=1)
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text())
+    CONFIG_PATH.write_text(CONFIG_EXAMPLE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     console.print(f"Wrote {CONFIG_PATH}. Edit it, then run [bold]secfoo mcp list[/] to confirm.")
 
 

@@ -14,7 +14,7 @@ and, if possible, steps to reproduce. We aim to acknowledge reports within
 
 secfoo is a developer tool that runs in your environment with your user
 permissions. `secfoo run` shells out to a coding-agent CLI you already have
-installed and trust (Claude Code, Cursor, Antigravity, or Gemini CLI) and
+installed and trust (Claude Code, Cursor, Antigravity, Gemini CLI, or Codex CLI) and
 points it at a target — a local directory or a shallow clone of a public
 GitHub repo — with an instruction prompt telling it to *read and report
 only*. secfoo does not itself execute code from the target; the agent CLI

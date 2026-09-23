@@ -22,7 +22,7 @@ Context-based security architectural assessment orchestrator: pick skills, targe
 Pick one or more security **activities** (see the catalog below), point them
 at a **target** (a public GitHub URL, a local directory, plus optional
 Confluence links for extra context), choose which coding-agent CLI runs them
-(Claude Code, Cursor, Antigravity, or Gemini CLI), and browse every
+(Claude Code, Cursor, Antigravity, Gemini CLI, or Codex CLI), and browse every
 assessment ever run, across every project, in a local web dashboard.
 
 > This repository is the open-source CLI and local dashboard. secfoo's
@@ -41,7 +41,8 @@ secfoo run --skill security-architecture-review --agent claude
 ```
 
 You'll need an agent CLI already installed and authenticated — Claude
-Code, Cursor, Antigravity, or Gemini CLI (`--agent claude|agent|agy|gemini`).
+Code, Cursor, Antigravity, Gemini CLI, or Codex CLI (`--agent claude|agent|agy|gemini|codex`)
+— or just a model API key with the built-in `api` agent (below).
 On a real terminal, that first run prompts for a project name and
 application ID, then browse every result in the dashboard:
 
@@ -49,6 +50,53 @@ application ID, then browse every result in the dashboard:
 secfoo run --skill sast --skill threat-modeling \
   --target https://github.com/org/repo --agent claude
 secfoo serve
+```
+
+### No agent CLI? Use an API key
+
+The built-in `api` agent is a LangGraph workflow that sends the target's
+source to OpenAI, Anthropic or Gemini through LiteLLM — no coding-agent
+CLI needed, which suits CI. Keys are read from the environment only and
+never stored:
+
+```bash
+pip install "secfoo[api]"
+export OPENAI_API_KEY=...            # or ANTHROPIC_API_KEY / GEMINI_API_KEY
+export SECFOO_API_MODEL=openai/gpt-4.1-mini   # optional; any LiteLLM model id
+secfoo run --skill sast --agent api --target https://github.com/org/repo
+```
+
+It suits small and medium repositories: the whole target has to fit in one
+request, and larger ones are rejected with a message suggesting `--exclude`.
+
+### Tracking AI spend
+
+Every run records tokens and cost where the agent reports them (`api`,
+`claude`; `gemini` reports tokens only). See it per run in `secfoo run`,
+`secfoo list` and the dashboard, or summarised:
+
+```bash
+secfoo cost                          # by agent
+secfoo cost --by skill --since 2026-09-01
+secfoo cost --project checkout
+```
+
+Secfoo also includes a built-in LangGraph agent whose model calls are routed
+through LiteLLM. Configure the provider key and model in the environment;
+credentials are never stored in the repository:
+
+```powershell
+$env:OPENAI_API_KEY = "your-key"
+$env:SECFOO_MODEL = "openai/gpt-4o-mini"
+secfoo run --skill security-architecture-review --agent secfoo
+```
+
+LiteLLM-reported spend is stored per run and can be reviewed from the
+dashboard or queried from the CLI:
+
+```bash
+secfoo cost
+secfoo cost --project "Checkout Service"
 ```
 
 See [Getting Started](https://secfoo.com/docs/index.html#quickstart) or
@@ -85,8 +133,8 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
   record every rescan.
 - **Concurrent by default**: multiple `--skill` flags run at the same
   time, not one after another.
-- **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
-  CLI — pick whichever you already use and trust.
+- **Bring your own agent**: Claude Code, Cursor, Antigravity, Gemini
+  CLI, or Codex CLI — pick whichever you already use and trust.
 - **Open source CLI**: MIT licensed.
 
 ## Activity catalog

@@ -91,7 +91,7 @@ def _parse_csv(text: str) -> AIBOMSummary:
 
 
 def parse_ai_bom(path: Path) -> AIBOMSummary:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     suffix = path.suffix.lower()
     if suffix == ".json":
         return _parse_json(text)

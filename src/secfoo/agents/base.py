@@ -21,6 +21,40 @@ from typing import ClassVar, Literal
 Status = Literal["success", "failed", "timeout", "binary_not_found"]
 
 
+def _kill_process_tree(pid: int, *, posix: bool = os.name == "posix") -> None:
+    """Kill `pid` and its descendants after a timeout.
+
+    os.killpg/os.getpgid only exist on POSIX (start_new_session=True above
+    puts the child in its own process group there). Windows has no process
+    group equivalent reachable from the stdlib, so `taskkill /T` (kill
+    process tree) is used instead -- both are needed to reliably contain
+    Cursor's documented `agent -p` hang bug if it spawns any grandchildren;
+    killing just the direct child (e.g. subprocess.run's own timeout
+    handling, or Popen.kill()) is not enough.
+
+    `posix` defaults to the real platform and only exists so tests can
+    exercise both branches on a single OS -- monkeypatching os.name itself
+    is not safe here since pytest's own traceback machinery reads it too.
+    """
+    try:
+        if posix:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        else:
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            except TypeError:
+                # A minimal Popen test double may not implement the context
+                # manager protocol used internally by subprocess.run().
+                pass
+    except (ProcessLookupError, OSError):
+        pass
+
+
 @dataclass
 class AgentResult:
     agent: str
@@ -31,6 +65,18 @@ class AgentResult:
     timed_out: bool
     status: Status
     raw_report: str
+    # AI spend for this run, when the agent reports it. None means unknown
+    # (the CLI doesn't expose it), not zero.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class Usage:
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
 
 
 class AgentAdapter(ABC):
@@ -48,6 +94,10 @@ class AgentAdapter(ABC):
     def extract_report(self, stdout: str) -> str:
         """Pull the report text out of raw stdout. Default: stdout is the report."""
         return stdout
+
+    def extract_usage(self, stdout: str) -> Usage:
+        """Pull token counts / cost out of raw stdout. Default: unknown."""
+        return Usage()
 
     def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
         if not self.is_available():
@@ -67,10 +117,9 @@ class AgentAdapter(ABC):
         started = time.monotonic()
 
         # Driven via Popen (rather than subprocess.run) so that on timeout we
-        # can killpg() the whole process group. subprocess.run's own timeout
-        # handling only kills the direct child, which is not enough to
-        # reliably contain Cursor's documented `agent -p` hang bug if it
-        # spawns any grandchildren.
+        # can kill the whole process tree via _kill_process_tree() -- see
+        # its docstring for why subprocess.run's own timeout handling isn't
+        # enough on its own.
         proc = subprocess.Popen(
             cmd,
             cwd=workdir,
@@ -84,6 +133,7 @@ class AgentAdapter(ABC):
             stdout, stderr = proc.communicate(timeout=effective_timeout)
             duration = time.monotonic() - started
             status: Status = "success" if proc.returncode == 0 else "failed"
+            usage = self.extract_usage(stdout)
             return AgentResult(
                 agent=self.name,
                 exit_code=proc.returncode,
@@ -93,12 +143,12 @@ class AgentAdapter(ABC):
                 timed_out=False,
                 status=status,
                 raw_report=self.extract_report(stdout) if status == "success" else "",
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cost_usd=usage.cost_usd,
             )
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            _kill_process_tree(proc.pid)
             stdout, stderr = proc.communicate()
             duration = time.monotonic() - started
             return AgentResult(

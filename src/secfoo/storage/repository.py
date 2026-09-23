@@ -39,6 +39,7 @@ from secfoo.report.severity import SeverityCounts, extract_overall_risk_rating
 from secfoo.storage.models import (
     AssessmentRecord,
     AttachmentRecord,
+    CostRow,
     ExceptionRecord,
     OsvLookupRecord,
     PostBuildFindingRecord,
@@ -68,6 +69,11 @@ _RUNS_MIGRATIONS = {
     # existed on an upgraded local store (re-synced harmlessly by `secfoo
     # cloud sync`, since ingestion is idempotent on the server side).
     "cloud_synced_at": "ALTER TABLE runs ADD COLUMN cloud_synced_at TEXT",
+    "input_tokens": "ALTER TABLE runs ADD COLUMN input_tokens INTEGER",
+    "output_tokens": "ALTER TABLE runs ADD COLUMN output_tokens INTEGER",
+    "cost_usd": "ALTER TABLE runs ADD COLUMN cost_usd REAL",
+    # Memory Bank: git HEAD SHA at scan time; foundation for incremental diff-based rescans.
+    "target_commit": "ALTER TABLE runs ADD COLUMN target_commit TEXT",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -101,10 +107,10 @@ class RunRepository:
         # rollback-journal's writer lock. Requires local disk, not
         # NFS/EFS-backed storage, for the portal host.
         self._conn.execute("PRAGMA journal_mode = WAL")
-        self._conn.executescript(SCHEMA_PATH.read_text())
+        self._conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
         self._migrate()
-        self._conn.executescript(SCHEMA_INDEXES_PATH.read_text())
+        self._conn.executescript(SCHEMA_INDEXES_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
 
     def _migrate(self) -> None:
@@ -248,23 +254,22 @@ class RunRepository:
         low_count: int = 0,
         info_count: int = 0,
         assessment_id: int | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
     ) -> None:
-        """Inserts a run that already fully happened elsewhere, in one
-        step, keyed by a caller-supplied `run_uuid` rather than minting a
-        new one. Used by the enterprise portal's ingestion API to
-        replicate a run the CLI already ran and completed locally --
-        unlike `create_run()` + `complete_run()`, which model a run
-        actually starting and finishing in this process.
-        """
+        """Insert a run that already completed in another process."""
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, skill_id, skill_name, agent_id, confluence_urls, "
             "status, exit_code, started_at, finished_at, duration_seconds, report_path, "
-            "critical_count, high_count, medium_count, low_count, info_count, assessment_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "critical_count, high_count, medium_count, low_count, info_count, assessment_id, "
+            "input_tokens, output_tokens, cost_usd) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_uuid, project_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls),
                 status, exit_code, started_at, finished_at, duration_seconds, report_path,
                 critical_count, high_count, medium_count, low_count, info_count, assessment_id,
+                input_tokens, output_tokens, cost_usd,
             ),
         )
         self._conn.commit()
@@ -284,11 +289,16 @@ class RunRepository:
         medium_count: int = 0,
         low_count: int = 0,
         info_count: int = 0,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
+        target_commit: str | None = None,  # Memory Bank: HEAD SHA of the scanned repo.
     ) -> None:
         self._conn.execute(
             "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
-            "medium_count = ?, low_count = ?, info_count = ? WHERE run_uuid = ?",
+            "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
+            "cost_usd = ?, target_commit = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,
@@ -302,6 +312,10 @@ class RunRepository:
                 medium_count,
                 low_count,
                 info_count,
+                input_tokens,
+                output_tokens,
+                cost_usd,
+                target_commit,
                 run_uuid,
             ),
         )
@@ -337,6 +351,15 @@ class RunRepository:
         confluence_urls = json.loads(data.pop("confluence_urls") or "[]")
         project_display_name = data.pop("display_name", None)
         return RunRecord(confluence_urls=confluence_urls, project_display_name=project_display_name, **data)
+
+    def total_cost_usd(self, *, project_id: int | None = None) -> float:
+        query = "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM runs WHERE 1=1"
+        params: list[object] = []
+        if project_id is not None:
+            query += " AND project_id = ?"
+            params.append(project_id)
+        row = self._conn.execute(query, params).fetchone()
+        return float(row["total"])
 
     def list_runs(
         self,
@@ -389,6 +412,33 @@ class RunRepository:
             params.append(project_id)
         row = self._conn.execute(query, params).fetchone()
         return SeverityCounts(critical=row["c"], high=row["h"], medium=row["m"], low=row["l"], info=row["i"])
+
+    def cost_summary(self, *, group_by: str, project_id: int | None = None, since: str | None = None) -> list[CostRow]:
+        """AI spend grouped by agent, skill, or project. Runs whose agent
+        doesn't report cost are counted in `unpriced_runs`, not as $0."""
+        group_sql = {
+            "agent": "runs.agent_id",
+            "skill": "runs.skill_name",
+            "project": "projects.display_name",
+        }[group_by]
+        query = (
+            f"SELECT {group_sql} AS label, COUNT(*) AS runs, "
+            "COALESCE(SUM(runs.input_tokens),0) AS input_tokens, "
+            "COALESCE(SUM(runs.output_tokens),0) AS output_tokens, "
+            "COALESCE(SUM(runs.cost_usd),0) AS cost_usd, "
+            "SUM(CASE WHEN runs.cost_usd IS NULL THEN 1 ELSE 0 END) AS unpriced_runs "
+            "FROM runs JOIN projects ON projects.id = runs.project_id "
+            "WHERE runs.status NOT IN ('pending','running')"
+        )
+        params: list[object] = []
+        if project_id is not None:
+            query += " AND runs.project_id = ?"
+            params.append(project_id)
+        if since is not None:
+            query += " AND runs.started_at >= ?"
+            params.append(since)
+        query += f" GROUP BY {group_sql} ORDER BY cost_usd DESC, runs DESC"
+        return [CostRow(**dict(row)) for row in self._conn.execute(query, params).fetchall()]
 
     def assessment_severity_totals(self, assessment_id: int) -> SeverityCounts:
         row = self._conn.execute(
@@ -524,7 +574,7 @@ class RunRepository:
         path = Path(row["report_path"])
         if not path.exists():
             return None, None
-        rating = extract_overall_risk_rating(path.read_text())
+        rating = extract_overall_risk_rating(path.read_text(encoding="utf-8", errors="replace"))
         if rating is None:
             return None, None
         risk = "high-risk" if rating == "high" else "moderate"

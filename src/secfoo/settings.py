@@ -82,7 +82,7 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         return SecfooConfig(defaults=Defaults(), mcp_servers=[])
 
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"{path}: invalid TOML: {exc}") from exc
 
