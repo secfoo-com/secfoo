@@ -95,6 +95,7 @@ class AgentId(str, Enum):
     CURSOR = "agent"
     ANTIGRAVITY = "agy"
     GEMINI = "gemini"
+    COPILOT = "copilot"
     API = "api"
     SECFOO = "secfoo"
     CODEX = "codex"

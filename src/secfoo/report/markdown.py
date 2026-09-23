@@ -46,6 +46,23 @@ _MERMAID_BLOCK_RE = re.compile(
 )
 _TOP_LEVEL_HEADING_RE = re.compile(r"^#\s+.+$", re.MULTILINE)
 
+# Fallback anchor for an agent that skips the literal "# <Skill> Report"
+# title outright (observed with the copilot adapter: it unpromptedly runs
+# its own native security-scan tool first, emitting an unrelated "##"/"###"
+# preamble, then goes straight into the skill's required numbered sections
+# without ever writing a single top-level "#" heading anywhere). Every
+# skill's contract requires "## 1. Executive Summary" verbatim as its
+# first numbered section (see skills/renderer.py's shared "Required
+# output format" block -- identical across every skill, not just SAST),
+# so anchoring on that literal phrase, not just "## 1." with any text,
+# matters: a preamble that itself numbers an unrelated "## 1. <something>"
+# section (a plan, a to-do list) would otherwise be matched instead of the
+# real report -- cutting to the wrong, earlier point instead of past the
+# preamble entirely. Tried only when the primary title search above finds
+# nothing, so a compliant agent's report (which always has both) is
+# unaffected either way.
+_NUMBERED_SECTION_ONE_RE = re.compile(r"^##\s+1\.\s+Executive Summary\s*$", re.MULTILINE | re.IGNORECASE)
+
 # "commonmark" alone is the strict base spec and does NOT parse GFM pipe
 # tables -- every `| a | b |` block silently fell through as a plain
 # paragraph of literal text. `enable(["table"])` turns on just the table
@@ -71,10 +88,15 @@ def strip_preamble(text: str) -> str:
     """Drops any assistant chatter before the report's required top-level
     heading (`# <Skill> Report`). The prompt explicitly forbids a preamble,
     but that instruction isn't 100% reliable in practice -- this is the
-    defensive backstop. Leaves text unchanged if no top-level heading is
-    found at all, rather than risk hiding a malformed report.
+    defensive backstop. Falls back to anchoring on "## 1. Executive
+    Summary" (see _NUMBERED_SECTION_ONE_RE above) when no top-level heading
+    exists at all, for an agent that skips the title outright but still
+    gets to the required sections eventually. Leaves text unchanged if
+    neither anchor is found, rather than risk hiding a malformed report.
     """
     match = _TOP_LEVEL_HEADING_RE.search(text)
+    if match is None:
+        match = _NUMBERED_SECTION_ONE_RE.search(text)
     if match is None:
         return text
     return text[match.start():]
