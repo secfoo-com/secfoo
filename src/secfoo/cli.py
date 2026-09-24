@@ -106,6 +106,31 @@ class DepthId(str, Enum):
     STANDARD = "standard"
 
 
+class FailOn(str, Enum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+# Exit codes for `secfoo run`, so CI can tell "the scan broke" from "the
+# scan worked and the policy gate failed" without parsing output.
+EXIT_RUN_FAILED = 1
+EXIT_GATE_FAILED = 2
+
+_SEVERITY_ORDER = ("critical", "high", "medium", "low")
+
+
+def _findings_at_or_above(outcome, threshold: str) -> int:
+    """Count of findings in `outcome` at `threshold` severity or worse."""
+    total = 0
+    for level in _SEVERITY_ORDER:
+        total += getattr(outcome, f"{level}_count", 0)
+        if level == threshold:
+            break
+    return total
+
+
 class AssessmentTypeId(str, Enum):
     INTERNAL = "internal"
     THIRD_PARTY = "third-party"
@@ -212,20 +237,46 @@ def run(
         "checked-out repo). Repeatable, and added on top of [defaults].exclude "
         "in ~/.secfoo/config.toml and the built-in exclusions.",
     ),
+    fail_on: Optional[FailOn] = typer.Option(
+        None,
+        "--fail-on",
+        help="Exit 2 if any run reports a finding at this severity or worse "
+        "(critical|high|medium|low). Falls back to [defaults].fail_on in "
+        "~/.secfoo/config.toml; unset means findings never fail the command.",
+    ),
+    max_cost: Optional[float] = typer.Option(
+        None,
+        "--max-cost",
+        min=0.0,
+        help="Exit 2 if the summed reported AI spend (USD) for this invocation "
+        "exceeds this amount. Checked after the runs finish (an agent CLI "
+        "only reports cost on completion). Falls back to [defaults].max_cost_usd.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print one JSON document (per-skill outcomes, severity counts, "
+        "spend, gate results) to stdout instead of the table -- for CI.",
+    ),
 ) -> None:
     """Run one or more security skills against a target using the chosen agent.
 
     Multiple --skill flags run concurrently, not one after another.
+
+    Exit codes: 0 success, 1 a run failed/timed out, 2 all runs succeeded
+    but a --fail-on / --max-cost gate tripped.
     """
     for url in confluence:
         if not url.strip().lower().startswith(("http://", "https://")):
-            console.print(f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway.")
+            (err_console if json_output else console).print(
+                f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway."
+            )
 
     # No --assessment means execute_runs() will auto-create one for this run.
     # On a real terminal, ask for the two fields that make that case file
     # actually trackable later instead of silently falling back to a
     # URL/path-derived name and no application ID.
-    if assessment is None and _is_interactive():
+    if assessment is None and _is_interactive() and not json_output:
         if project_name is None:
             try:
                 default_name = _project_display_name(resolve_target(target))
@@ -247,12 +298,23 @@ def run(
         depth = DepthId(file_defaults.depth) if file_defaults.depth else DepthId.QUICK
     if timeout is None:
         timeout = file_defaults.timeout
+    if fail_on is None and file_defaults.fail_on:
+        fail_on = FailOn(file_defaults.fail_on)
+    if max_cost is None:
+        max_cost = file_defaults.max_cost_usd
     # Exclusions are additive rather than override: --exclude adds to the
     # config's list, so naming one path can't silently drop the others.
     exclude_paths = _merge_excludes(file_defaults.exclude, exclude)
 
     task_ids: dict[str, int] = {}
-    progress = Progress(SpinnerColumn(finished_text=" "), TextColumn("{task.description}"), console=console)
+    # In --json mode nothing but the final document may reach stdout, so
+    # the spinner is disabled and human-facing notes go to stderr.
+    progress = Progress(
+        SpinnerColumn(finished_text=" "),
+        TextColumn("{task.description}"),
+        console=console,
+        disable=json_output,
+    )
 
     def handle_start(skill_name: str) -> None:
         task_ids[skill_name] = progress.add_task(f"Running [bold]{skill_name}[/] via {agent.value}...", total=None)
@@ -289,34 +351,112 @@ def run(
             err_console.print(f"[red]Error:[/] {exc}")
             raise typer.Exit(code=1) from None
 
-    table = Table(title="Assessment results")
-    table.add_column("Skill")
-    table.add_column("Status")
-    table.add_column("Duration")
-    table.add_column("Cost", justify="right")
-    table.add_column("Run ID")
-
-    any_failed = False
-    for outcome in outcomes:
-        style = _STATUS_STYLE.get(outcome.status, "white")
-        duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
-        table.add_row(
-            outcome.skill_name,
-            f"[{style}]{outcome.status}[/]",
-            duration,
-            format_cost(outcome.cost_usd),
-            outcome.run_uuid,
-        )
-        if outcome.status != "success":
-            any_failed = True
-
-    console.print(table)
+    any_failed = any(o.status != "success" for o in outcomes)
     priced = [o.cost_usd for o in outcomes if o.cost_usd is not None]
-    if priced:
-        console.print(f"AI spend for this run: [bold]{format_cost(sum(priced))}[/]")
-    console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
+    total_cost = sum(priced) if priced else None
+    unpriced_runs = len(outcomes) - len(priced)
+
+    # Policy gates. Both are evaluated even when a run failed, so the JSON
+    # document is complete, but a failed run always wins on exit code (1):
+    # a gate verdict computed from a partial scan isn't trustworthy.
+    gate_findings = None
+    if fail_on is not None:
+        gate_findings = {
+            "threshold": fail_on.value,
+            "count": sum(_findings_at_or_above(o, fail_on.value) for o in outcomes),
+        }
+        gate_findings["passed"] = gate_findings["count"] == 0
+    gate_cost = None
+    if max_cost is not None:
+        gate_cost = {
+            "max_cost_usd": max_cost,
+            "total_cost_usd": total_cost,
+            "unpriced_runs": unpriced_runs,
+            # No reported spend at all can't be judged against a cap -- treat
+            # as passed but surface unpriced_runs so CI can decide otherwise.
+            "passed": total_cost is None or total_cost <= max_cost,
+        }
+    gate_failed = (gate_findings is not None and not gate_findings["passed"]) or (
+        gate_cost is not None and not gate_cost["passed"]
+    )
+
+    if json_output:
+        document = {
+            "agent": agent.value,
+            "depth": depth.value,
+            "runs": [
+                {
+                    "run_uuid": o.run_uuid,
+                    "skill_id": o.skill_id,
+                    "skill_name": o.skill_name,
+                    "status": o.status,
+                    "exit_code": o.exit_code,
+                    "duration_seconds": o.duration_seconds,
+                    "report_path": o.report_path,
+                    "input_tokens": o.input_tokens,
+                    "output_tokens": o.output_tokens,
+                    "cost_usd": o.cost_usd,
+                    "severity": {
+                        "critical": o.critical_count,
+                        "high": o.high_count,
+                        "medium": o.medium_count,
+                        "low": o.low_count,
+                        "info": o.info_count,
+                    },
+                }
+                for o in outcomes
+            ],
+            "total_cost_usd": total_cost,
+            "unpriced_runs": unpriced_runs,
+            "gates": {"findings": gate_findings, "cost": gate_cost},
+            "any_run_failed": any_failed,
+            "exit_code": EXIT_RUN_FAILED if any_failed else (EXIT_GATE_FAILED if gate_failed else 0),
+        }
+        # Plain print, not rich: the document must be byte-exact JSON.
+        print(json.dumps(document, indent=2))
+    else:
+        table = Table(title="Assessment results")
+        table.add_column("Skill")
+        table.add_column("Status")
+        table.add_column("Duration")
+        table.add_column("Findings (C/H/M/L)")
+        table.add_column("Cost", justify="right")
+        table.add_column("Run ID")
+
+        for outcome in outcomes:
+            style = _STATUS_STYLE.get(outcome.status, "white")
+            duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
+            table.add_row(
+                outcome.skill_name,
+                f"[{style}]{outcome.status}[/]",
+                duration,
+                f"{outcome.critical_count}/{outcome.high_count}/{outcome.medium_count}/{outcome.low_count}",
+                format_cost(outcome.cost_usd),
+                outcome.run_uuid,
+            )
+
+        console.print(table)
+        if total_cost is not None:
+            console.print(f"AI spend for this run: [bold]{format_cost(total_cost)}[/]")
+        if gate_findings is not None:
+            verdict = "[green]passed[/]" if gate_findings["passed"] else "[red]FAILED[/]"
+            console.print(
+                f"Findings gate (--fail-on {gate_findings['threshold']}): {verdict} "
+                f"-- {gate_findings['count']} finding(s) at or above threshold"
+            )
+        if gate_cost is not None:
+            verdict = "[green]passed[/]" if gate_cost["passed"] else "[red]FAILED[/]"
+            console.print(
+                f"Cost gate (--max-cost {format_cost(max_cost)}): {verdict} "
+                f"-- reported spend {format_cost(total_cost)}"
+                + (f", {unpriced_runs} run(s) unpriced" if unpriced_runs else "")
+            )
+        console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
+
     if any_failed:
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=EXIT_RUN_FAILED)
+    if gate_failed:
+        raise typer.Exit(code=EXIT_GATE_FAILED)
 
 
 @app.command(name="list")

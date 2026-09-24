@@ -242,6 +242,38 @@ text on every request — there is no persistent per-finding lifecycle.
 Findings link to a detail page keyed by `(project, finding ID, type,
 location)` so duplicate rows in a report remain addressable.
 
+### SAST Open/Closed finding identity
+
+The SAST activity dashboard (`/activities/sast`) is the one program view
+with a **persistent per-finding lifecycle** (`sast_findings` table). After
+each successful local `sast` run, secfoo parses the report's **Findings
+Register** (structured columns the skill contract requires) and upserts by
+fingerprint; findings not seen again are closed.
+
+**Fingerprint (no embedding or title matching):**
+
+| Input | Used for identity? |
+|-------|-------------------|
+| Skill id (`sast`) | Yes |
+| CWE (register column) | Yes |
+| Normalized file path (Location column) | Yes |
+| Source **code-region hash** (±4 lines at reported line, from repo on disk) | Yes, when `workdir` is available |
+| Title, description, recommendation | No — refreshed each run for display |
+| Per-run `F1`, `F2` ids | No |
+| Exact line number | No — except cloud-ingest fallback (below) |
+
+When the scan target is on disk (`secfoo run`), `report/code_region.py`
+hashes a small normalized window of source at the line in the Location
+column. Two distinct issues in the same file (same CWE) get different keys
+even if the agent rephrases titles. When only the report is available
+(e.g. `secfoo cloud sync` ingest), identity falls back to CWE + path, with
+a coarse line-bucket only if multiple register rows in **one** report share
+the same CWE and file.
+
+Open rows keyed with the legacy fingerprint are **rekeyed** automatically
+on the first rescan that computes a region hash. There is no post-hoc
+embedding similarity on finding text.
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.
@@ -293,7 +325,36 @@ secfoo show <run-uuid>
 
 # Launch the local dashboard
 secfoo serve
+
+# AI spend across past runs
+secfoo cost --by skill --since 2026-09-01
 ```
+
+### CI gates and machine-readable output
+
+```bash
+secfoo run --skill sast --skill secret-scanning --agent api --target . \
+  --fail-on high --max-cost 2.00 --json > secfoo-result.json
+```
+
+| Flag | Effect |
+|---|---|
+| `--fail-on critical\|high\|medium\|low` | Exit `2` if any run reports a finding at that severity or worse. Counts come from the report contract's `### [SEVERITY] Fn:` headings, not from prose. |
+| `--max-cost <usd>` | Exit `2` if the summed agent-reported spend for this invocation exceeds the cap. Evaluated after the runs complete. |
+| `--json` | Write one JSON document to stdout (per-skill status, severity counts, tokens, USD, gate verdicts, resolved exit code); progress and notes go to stderr. Also suppresses the interactive project-name prompt. |
+
+Exit codes: `0` clean, `1` a run failed or timed out (gate verdicts are
+still reported in the JSON but a partial scan never passes), `2` all runs
+succeeded but a gate tripped. Config-file defaults: `[defaults].fail_on`
+and `[defaults].max_cost_usd`.
+
+Cost provenance: `api`/`secfoo` take LiteLLM's `completion_cost`, `claude`
+takes `total_cost_usd` from `--output-format json`, `gemini` reports tokens
+only, `agent`/`agy` report nothing. Runs with no reported cost count as
+`unpriced_runs` in the JSON and in `secfoo cost`; they never pass a cap as
+"$0". The enterprise portal stores the client-reported tokens/USD on
+ingest — spend can't be recomputed server-side from report text the way
+severity counts are.
 
 ## Assessments
 
@@ -343,6 +404,9 @@ depth = "quick"
 # Vendored copies / unrelated repos checked out inside a project. Added to
 # the built-in exclusions (node_modules/, .git/, ...), never replacing them.
 exclude = ["vendor/", "some-cloned-repo/"]
+# CI gates (see "CI gates" above); --fail-on / --max-cost override per run.
+fail_on = "high"
+max_cost_usd = 2.00
 
 [[mcp_servers]]
 name = "Atlassian-Rovo-MCP"

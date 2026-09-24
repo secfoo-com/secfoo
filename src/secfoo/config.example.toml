@@ -5,11 +5,17 @@
 [defaults]
 # Used whenever --agent / --depth / --timeout aren't passed on the command
 # line. CLI flags always win over these.
-agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | api (API key, no CLI)
-agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | secfoo
-agent = "claude"      # claude | agent (Cursor) | agy (Antigravity) | gemini | secfoo | codex
+# Agent CLIs: claude | agent (Cursor) | agy (Antigravity) | gemini | codex | copilot
+# API-key agents (no CLI): api | secfoo
+agent = "claude"
 depth = "quick"        # quick | standard
 # timeout = 1800       # seconds; omit to use each agent's own default
+
+# CI gates -- both make `secfoo run` exit 2 (runs themselves succeeded, but
+# policy failed) so a pipeline can block a merge. CLI flags --fail-on and
+# --max-cost override these for a single run.
+# fail_on = "high"       # fail when any finding is high or critical
+# max_cost_usd = 2.00    # fail when the summed reported AI spend exceeds this
 
 # Paths that are never part of a system under review -- vendored copies,
 # unrelated repos checked out inside a project, large test fixtures. These

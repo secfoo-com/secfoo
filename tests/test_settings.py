@@ -20,6 +20,33 @@ def test_load_config_parses_defaults(tmp_path):
     assert cfg.defaults.timeout == 900
 
 
+def test_load_config_parses_ci_gate_defaults(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[defaults]\nfail_on = "high"\nmax_cost_usd = 2\n')
+    cfg = load_config(path)
+    assert cfg.defaults.fail_on == "high"
+    assert cfg.defaults.max_cost_usd == 2.0
+
+
+def test_load_config_gate_defaults_are_none_when_absent(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[defaults]\nagent = "claude"\n')
+    cfg = load_config(path)
+    assert cfg.defaults.fail_on is None
+    assert cfg.defaults.max_cost_usd is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    ['[defaults]\nfail_on = "severe"\n', "[defaults]\nmax_cost_usd = 0\n", "[defaults]\nmax_cost_usd = true\n"],
+)
+def test_load_config_rejects_invalid_gate_defaults(tmp_path, body):
+    path = tmp_path / "config.toml"
+    path.write_text(body)
+    with pytest.raises(ConfigError):
+        load_config(path)
+
+
 def test_load_config_parses_stdio_mcp_server(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text(
