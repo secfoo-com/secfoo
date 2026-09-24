@@ -1,10 +1,14 @@
 name: Release
 
-# Triggered by pushing a tag like v0.1.2. Builds standalone binaries for
-# every supported platform (PyInstaller can't cross-compile, so each one
-# runs on a real runner of that OS/arch), attaches them to a GitHub
-# Release, then publishes to PyPI, npm (as platform-specific
-# optionalDependencies packages), and GHCR.
+# Manually triggered (Actions tab -> Release -> Run workflow) by someone
+# with write access to this repo -- deliberately NOT a tag-push trigger,
+# so a release/PyPI publish can never fire from a stray tag or from a
+# fork/PR (which never has write access or secrets on a public repo
+# regardless). Builds standalone binaries for every supported platform
+# (PyInstaller can't cross-compile, so each one runs on a real runner of
+# that OS/arch), attaches them to a GitHub Release, then publishes to
+# PyPI, npm (as platform-specific optionalDependencies packages), and
+# GHCR.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   PYPI_API_TOKEN   - PyPI account -> API tokens
@@ -12,9 +16,11 @@ name: Release
 # GITHUB_TOKEN (GHCR push) is provided automatically, no setup needed.
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.3.0) -- must already exist and match src/secfoo/__about__.py"
+        required: true
 
 jobs:
   check-version:
@@ -24,14 +30,17 @@ jobs:
       version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - id: check
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${{ inputs.tag }}"
+          TAG_VERSION="${TAG_VERSION#v}"
           PKG_VERSION=$(grep -oP '(?<=__version__ = ")[^"]+' src/secfoo/__about__.py)
           echo "Tag version:     $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match src/secfoo/__about__.py's __version__ ($PKG_VERSION). Bump __about__.py and retag."
+            echo "::error::Tag ${{ inputs.tag }} does not match src/secfoo/__about__.py's __version__ ($PKG_VERSION). Bump __about__.py and retag."
             exit 1
           fi
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
@@ -56,6 +65,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -82,6 +93,8 @@ jobs:
     name: Create GitHub Release
     needs: build-binaries
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -93,6 +106,7 @@ jobs:
           (cd release && sha256sum * > SHA256SUMS)
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag }}
           files: release/*
           generate_release_notes: true
 
@@ -102,6 +116,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -162,6 +178,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
