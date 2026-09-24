@@ -1050,6 +1050,21 @@ def test_close_stale_sast_findings_closes_unseen_and_keeps_seen_open(tmp_path):
     repo.close()
 
 
+def test_rekey_open_sast_fingerprint_upgrades_open_row(tmp_path):
+    repo = _repo(tmp_path)
+    project_id = repo.upsert_project("id-1", "P1", "local")
+    run_id = _sast_run_id(repo, project_id)
+    _upsert(repo, project_id=project_id, run_id=run_id, fingerprint="legacy-fp")
+
+    repo.rekey_open_sast_fingerprint(
+        project_id=project_id, old_fingerprint="legacy-fp", new_fingerprint="region-fp"
+    )
+    rows = repo.list_sast_findings(project_id=project_id, status="open")
+    assert len(rows) == 1
+    assert rows[0].fingerprint == "region-fp"
+    repo.close()
+
+
 def test_reopened_finding_restores_original_first_seen_and_clears_closed_fields(tmp_path):
     repo = _repo(tmp_path)
     project_id = repo.upsert_project("id-1", "P1", "local")

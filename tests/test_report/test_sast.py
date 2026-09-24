@@ -146,10 +146,15 @@ def test_parse_location_strips_backticks_from_a_multi_location_cell():
     assert line is None
 
 
-def test_fingerprint_for_row_is_stable_for_identical_cwe_and_file():
+def test_fingerprint_for_row_is_stable_for_identical_cwe_and_file_without_region_hash():
     row_a = {"cwe": "CWE-89", "location": "`app/db.py:42`"}
-    row_b = {"cwe": "CWE-89", "location": "`app/db.py:99`"}  # line drifted between runs
+    row_b = {"cwe": "CWE-89", "location": "`app/db.py:99`"}  # line drift without region hash
     assert fingerprint_for_row(row_a) == fingerprint_for_row(row_b)
+
+
+def test_fingerprint_for_row_differs_when_region_hash_differs():
+    row = {"cwe": "CWE-89", "location": "`app/db.py:42`"}
+    assert fingerprint_for_row(row, region_hash="aaa") != fingerprint_for_row(row, region_hash="bbb")
 
 
 def test_fingerprint_for_row_differs_across_different_cwe_or_file():

@@ -107,8 +107,9 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
 - **Review architecture and threat-model a system** against secure
   design principles, STRIDE/LINDDUN, and CSA CCM v4 domain conformance
 - **Find code and dependency vulnerabilities** — SAST and SCA reachability
-  triage, tracked as an Open/Closed Findings register across rescans, not
-  just a one-off report
+  triage; SAST uses an Open/Closed register keyed by skill + CWE + file +
+  a hash of the vulnerable source region (not agent wording), so rescans
+  stay stable when the model paraphrases
 - **Catch exposed credentials** across source, config, git history, and
   linked Confluence pages
 - **Review LLM prompts and agent tool definitions** for injection and
