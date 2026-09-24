@@ -242,6 +242,38 @@ text on every request — there is no persistent per-finding lifecycle.
 Findings link to a detail page keyed by `(project, finding ID, type,
 location)` so duplicate rows in a report remain addressable.
 
+### SAST Open/Closed finding identity
+
+The SAST activity dashboard (`/activities/sast`) is the one program view
+with a **persistent per-finding lifecycle** (`sast_findings` table). After
+each successful local `sast` run, secfoo parses the report's **Findings
+Register** (structured columns the skill contract requires) and upserts by
+fingerprint; findings not seen again are closed.
+
+**Fingerprint (no embedding or title matching):**
+
+| Input | Used for identity? |
+|-------|-------------------|
+| Skill id (`sast`) | Yes |
+| CWE (register column) | Yes |
+| Normalized file path (Location column) | Yes |
+| Source **code-region hash** (±4 lines at reported line, from repo on disk) | Yes, when `workdir` is available |
+| Title, description, recommendation | No — refreshed each run for display |
+| Per-run `F1`, `F2` ids | No |
+| Exact line number | No — except cloud-ingest fallback (below) |
+
+When the scan target is on disk (`secfoo run`), `report/code_region.py`
+hashes a small normalized window of source at the line in the Location
+column. Two distinct issues in the same file (same CWE) get different keys
+even if the agent rephrases titles. When only the report is available
+(e.g. `secfoo cloud sync` ingest), identity falls back to CWE + path, with
+a coarse line-bucket only if multiple register rows in **one** report share
+the same CWE and file.
+
+Open rows keyed with the legacy fingerprint are **rekeyed** automatically
+on the first rescan that computes a region hash. There is no post-hoc
+embedding similarity on finding text.
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.

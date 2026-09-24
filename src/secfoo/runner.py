@@ -110,7 +110,14 @@ def _try_osv_enrich(repo: RunRepository, report_text: str) -> None:
         pass
 
 
-def update_sast_findings(repo: RunRepository, *, project_id: int, run_id: int, report_text: str) -> None:
+def update_sast_findings(
+    repo: RunRepository,
+    *,
+    project_id: int,
+    run_id: int,
+    report_text: str,
+    workdir: Path | None = None,
+) -> None:
     """Matches this run's Findings Register against the project's
     currently-open sast_findings rows by fingerprint (report/sast.py),
     upserting seen-again/new findings and closing whatever was open but
@@ -129,9 +136,16 @@ def update_sast_findings(repo: RunRepository, *, project_id: int, run_id: int, r
     in the tenant's `runs` table with a real report but never update
     Open/Closed Findings at all.
     """
-    findings = findings_with_fingerprints(report_text)
+    findings = findings_with_fingerprints(report_text, workdir=workdir)
     seen_fingerprints = []
     for row in findings:
+        legacy_fp = row.get("legacy_fingerprint")
+        if legacy_fp and legacy_fp != row["fingerprint"]:
+            repo.rekey_open_sast_fingerprint(
+                project_id=project_id,
+                old_fingerprint=legacy_fp,
+                new_fingerprint=row["fingerprint"],
+            )
         vector = row.get("cvss_vector", "").strip()
         score = None
         if vector:
@@ -153,6 +167,7 @@ def update_sast_findings(repo: RunRepository, *, project_id: int, run_id: int, r
             verdict=row.get("verdict") or None,
             location_file=row["location_file"],
             location_line=row.get("location_line"),
+            code_region_hash=row.get("code_region_hash"),
             cvss_vector=vector or None,
             cvss_score=score,
             description=row.get("description") or None,
@@ -260,7 +275,11 @@ def _run_single_skill(
                 try:
                     completed_run = repo.get_run(run_uuid)
                     update_sast_findings(
-                        repo, project_id=project_id, run_id=completed_run.id, report_text=report_text
+                        repo,
+                        project_id=project_id,
+                        run_id=completed_run.id,
+                        report_text=report_text,
+                        workdir=target_ctx.local_path,
                     )
                 except Exception:
                     logger.exception("Failed to update SAST finding lifecycle for run %s", run_uuid)

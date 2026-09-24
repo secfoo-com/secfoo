@@ -80,6 +80,10 @@ _ASSESSMENTS_MIGRATIONS = {
     "assessment_uuid": "ALTER TABLE assessments ADD COLUMN assessment_uuid TEXT",
 }
 
+_SAST_FINDINGS_MIGRATIONS = {
+    "code_region_hash": "ALTER TABLE sast_findings ADD COLUMN code_region_hash TEXT",
+}
+
 _ASSESSMENT_UPDATE_FIELDS = {
     "assessment_type", "status", "application_id", "sar_number", "reviewer", "review_date", "notes",
 }
@@ -123,6 +127,12 @@ class RunRepository:
         }
         for column, ddl in _ASSESSMENTS_MIGRATIONS.items():
             if column not in existing_assessment_cols:
+                self._conn.execute(ddl)
+        existing_sast_cols = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(sast_findings)").fetchall()
+        }
+        for column, ddl in _SAST_FINDINGS_MIGRATIONS.items():
+            if column not in existing_sast_cols:
                 self._conn.execute(ddl)
         self._conn.commit()
         self._migrate_attachment_kind_check()
@@ -1187,6 +1197,7 @@ class RunRepository:
         run_id: int,
         description: str | None = None,
         recommendation: str | None = None,
+        code_region_hash: str | None = None,
     ) -> None:
         """Inserts a newly-seen finding as open, or -- on a conflicting
         (project_id, fingerprint) -- refreshes it from this run's report
@@ -1198,22 +1209,46 @@ class RunRepository:
         now = _now()
         self._conn.execute(
             "INSERT INTO sast_findings (project_id, fingerprint, current_ref, title, severity, cwe, "
-            "owasp, verdict, location_file, location_line, cvss_vector, cvss_score, description, "
-            "recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
+            "owasp, verdict, location_file, location_line, code_region_hash, cvss_vector, cvss_score, "
+            "description, recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, "
+            "last_seen_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
             "ON CONFLICT(project_id, fingerprint) DO UPDATE SET "
             "current_ref = excluded.current_ref, title = excluded.title, severity = excluded.severity, "
             "cwe = excluded.cwe, owasp = excluded.owasp, verdict = excluded.verdict, "
             "location_file = excluded.location_file, location_line = excluded.location_line, "
+            "code_region_hash = excluded.code_region_hash, "
             "cvss_vector = excluded.cvss_vector, cvss_score = excluded.cvss_score, "
             "description = excluded.description, recommendation = excluded.recommendation, status = 'open', "
             "last_seen_run_id = excluded.last_seen_run_id, last_seen_at = excluded.last_seen_at, "
             "closed_in_run_id = NULL, closed_at = NULL",
             (
                 project_id, fingerprint, current_ref, title, severity, cwe, owasp, verdict,
-                location_file, location_line, cvss_vector, cvss_score, description, recommendation,
-                run_id, now, run_id, now,
+                location_file, location_line, code_region_hash, cvss_vector, cvss_score,
+                description, recommendation, run_id, now, run_id, now,
             ),
+        )
+        self._conn.commit()
+
+    def rekey_open_sast_fingerprint(
+        self, *, project_id: int, old_fingerprint: str, new_fingerprint: str
+    ) -> None:
+        """Upgrade an open row from a legacy fingerprint to a region-aware key.
+
+        No-op when the new key already exists or the old row is missing/closed.
+        """
+        if old_fingerprint == new_fingerprint:
+            return
+        exists = self._conn.execute(
+            "SELECT 1 FROM sast_findings WHERE project_id = ? AND fingerprint = ?",
+            (project_id, new_fingerprint),
+        ).fetchone()
+        if exists:
+            return
+        self._conn.execute(
+            "UPDATE sast_findings SET fingerprint = ? "
+            "WHERE project_id = ? AND fingerprint = ? AND status = 'open'",
+            (new_fingerprint, project_id, old_fingerprint),
         )
         self._conn.commit()
 
