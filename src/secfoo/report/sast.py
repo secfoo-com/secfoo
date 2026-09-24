@@ -12,36 +12,34 @@ with zero persistent per-finding identity. Real open/closed tracking needs
 a stable identity for "the same bug" across two separate runs, which this
 report's own `Fn` IDs cannot provide -- they restart at F1 every run.
 
-The fingerprint is CWE + normalized file path, deliberately NOT the
-finding's title or its line number:
+The fingerprint is skill id + CWE + normalized file path + a hash of the
+source *code region* around the reported line (when the scan target is
+available on disk). It is deliberately NOT the finding's title,
+description, or raw line number:
 
-- Line number is unstable -- any unrelated edit elsewhere in the file can
-  shift it even when the vulnerable line itself never moved.
-- Title is prose the model regenerates from scratch each run; keying on it
-  would turn harmless rephrasing ("SQL Injection via raw query" one run,
-  "SQLi in user search endpoint" the next) into a false "this finding was
-  fixed, and a new one was found" -- silently dropping a still-open bug off
-  the Open list. That failure mode (false "closed") is strictly worse than
-  the alternative (a genuinely-fixed finding lingers one extra scan as
-  "open" before nothing re-matches it and it correctly closes), so the
-  fingerprint deliberately biases toward over-matching.
+- Title/description are prose the model regenerates each run; keying on them
+  would treat paraphrase as "fixed + new finding."
+- Line number alone is unstable when unrelated edits shift line numbers.
+- When `workdir` is passed (local `secfoo run`), `code_region.hash_code_region`
+  hashes a small normalized window of actual source at the reported line so
+  two distinct issues in the same file stay separate even with the same CWE.
+- When `workdir` is unavailable (e.g. cloud ingest with report only), the
+  fingerprint falls back to CWE + path plus the same-run line-bucket collision
+  guard documented below.
 
-Known failure modes of this approximation, worth remembering when reading
-the resulting Open/Closed lists: a CWE reclassification between runs (a
-partial fix that changes which CWE best describes what remains) looks like
-close+reopen, not "the same finding, narrowed"; a file rename looks like
-close+reopen, not "the same finding, moved"; two distinct findings sharing
-both CWE and file collide onto one fingerprint unless the per-run
-collision guard below (a coarse line-bucket, added only when a run's own
-findings actually collide) keeps them apart.
+Known failure modes: CWE reclassification or file rename still look like
+close+reopen; a fix that changes the hashed snippet closes correctly; cloud-
+only ingest without the repo on disk cannot compute a region hash.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
+from pathlib import Path
 
 from secfoo.report.architecture import _extract_section
+from secfoo.report.code_region import hash_code_region
 
 SKILL_ID = "sast"
 
@@ -133,21 +131,34 @@ def _normalize_path(file_path: str) -> str:
     return file_path.strip().lstrip("./").lower()
 
 
-def fingerprint_for_row(row: dict[str, str], *, line_bucket: str | None = None) -> str:
-    """CWE + normalized file path (see module docstring for why not title
-    or line), optionally widened with a coarse line-bucket suffix when the
-    caller has detected this row would otherwise collide with another
-    finding of the same CWE in the same file within the same run.
-    """
+def fingerprint_for_row(
+    row: dict[str, str],
+    *,
+    line_bucket: str | None = None,
+    region_hash: str | None = None,
+) -> str:
+    """Stable cross-run identity from contract fields + optional source hash."""
     file_path, _line = parse_location(row["location"])
     cwe = row.get("cwe", "").strip().lower()
-    raw = f"{cwe}|{_normalize_path(file_path)}"
-    if line_bucket is not None:
-        raw += f"|{line_bucket}"
+    parts = [SKILL_ID, cwe, _normalize_path(file_path)]
+    if region_hash:
+        parts.append(region_hash)
+    elif line_bucket is not None:
+        parts.append(f"linebucket:{line_bucket}")
+    raw = "|".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def findings_with_fingerprints(report_markdown: str) -> list[dict[str, str]]:
+def legacy_fingerprint_for_row(row: dict[str, str], *, line_bucket: str | None = None) -> str:
+    """Pre-region-hash identity (CWE + path [+ line bucket]). Used to rekey open rows on upgrade."""
+    return fingerprint_for_row(row, line_bucket=line_bucket, region_hash=None)
+
+
+def findings_with_fingerprints(
+    report_markdown: str,
+    *,
+    workdir: Path | None = None,
+) -> list[dict[str, str]]:
     """One dict per Findings Register row, joined with its Detailed
     Findings block (description/recommendation) and its fingerprint --
     computed with the per-run collision guard: only rows that share both
@@ -175,17 +186,24 @@ def findings_with_fingerprints(report_markdown: str) -> list[dict[str, str]]:
     for index, row in enumerate(rows):
         file_path, line = parsed_locations[index]
         key = (row.get("cwe", "").strip().lower(), _normalize_path(file_path))
+        region_hash = None
+        if workdir is not None and line is not None:
+            region_hash = hash_code_region(workdir, file_path, line)
+
         line_bucket = None
-        if len(groups[key]) > 1 and line is not None:
+        if region_hash is None and len(groups[key]) > 1 and line is not None:
             line_bucket = str(int(line) // 20)
-        fingerprint = fingerprint_for_row(row, line_bucket=line_bucket)
+        fingerprint = fingerprint_for_row(row, line_bucket=line_bucket, region_hash=region_hash)
+        legacy_fingerprint = legacy_fingerprint_for_row(row, line_bucket=line_bucket)
 
         results.append(
             {
                 **row,
                 "location_file": file_path,
                 "location_line": line,
+                "code_region_hash": region_hash,
                 "fingerprint": fingerprint,
+                "legacy_fingerprint": legacy_fingerprint,
                 "description": descriptions.get(row["id"], ""),
                 "recommendation": recommendations.get(row["id"], ""),
             }

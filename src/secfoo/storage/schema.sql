@@ -185,10 +185,8 @@ CREATE INDEX IF NOT EXISTS idx_osv_lookups_eco_pkg_ver ON osv_lookups(ecosystem,
 -- this app. "Is this specific finding still there, or did it get fixed" is
 -- a cross-run question a single report can't answer in isolation, so it
 -- needs real state. Matched across runs by `fingerprint`
--- (report/sast.py:fingerprint_for_row) -- CWE + file path, deliberately NOT
--- title or line number, both of which drift between runs even when the
--- underlying bug hasn't changed. See report/sast.py's module docstring for
--- the known failure modes of this approximation.
+-- (report/sast.py:fingerprint_for_row): skill + CWE + path + optional
+-- code-region hash from the repo at scan time. See report/sast.py.
 CREATE TABLE IF NOT EXISTS sast_findings (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id        INTEGER NOT NULL REFERENCES projects(id),
@@ -201,6 +199,7 @@ CREATE TABLE IF NOT EXISTS sast_findings (
     verdict           TEXT,
     location_file     TEXT NOT NULL,
     location_line     TEXT,
+    code_region_hash  TEXT,
     cvss_vector       TEXT,
     cvss_score        REAL,
     description       TEXT,   -- the report's own Detailed Findings narrative, refreshed each run

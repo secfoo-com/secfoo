@@ -148,6 +148,7 @@ class SastFindingRecord:
     location_line: str | None
     cvss_vector: str | None
     cvss_score: float | None
+    code_region_hash: str | None
     status: str
     first_seen_run_id: int
     first_seen_at: str
