@@ -51,6 +51,14 @@ class Defaults:
     # Additive on top of the renderer's built-in exclusions, never a
     # replacement -- see renderer._exclude_section.
     exclude: list[str] = field(default_factory=list)
+    # CI gates, overridable per run by `secfoo run --fail-on / --max-cost`.
+    # fail_on: lowest severity that fails the run (critical|high|medium|low).
+    # max_cost_usd: fail the run when the summed reported spend exceeds this.
+    fail_on: str | None = None
+    max_cost_usd: float | None = None
+
+
+VALID_FAIL_ON = ("critical", "high", "medium", "low")
 
 
 @dataclass(frozen=True)
@@ -90,11 +98,21 @@ def load_config(path: Path | None = None) -> SecfooConfig:
     exclude_raw = defaults_raw.get("exclude", [])
     if not isinstance(exclude_raw, list) or not all(isinstance(p, str) for p in exclude_raw):
         raise ConfigError("defaults.exclude must be an array of strings")
+    fail_on = defaults_raw.get("fail_on")
+    if fail_on is not None and fail_on not in VALID_FAIL_ON:
+        raise ConfigError(f"defaults.fail_on must be one of {', '.join(VALID_FAIL_ON)}, got {fail_on!r}")
+    max_cost_usd = defaults_raw.get("max_cost_usd")
+    if max_cost_usd is not None:
+        if isinstance(max_cost_usd, bool) or not isinstance(max_cost_usd, (int, float)) or max_cost_usd <= 0:
+            raise ConfigError("defaults.max_cost_usd must be a positive number")
+        max_cost_usd = float(max_cost_usd)
     defaults = Defaults(
         agent=defaults_raw.get("agent"),
         depth=defaults_raw.get("depth"),
         timeout=defaults_raw.get("timeout"),
         exclude=list(exclude_raw),
+        fail_on=fail_on,
+        max_cost_usd=max_cost_usd,
     )
 
     servers = []

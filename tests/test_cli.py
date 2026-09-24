@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -394,6 +396,160 @@ def test_config_init_writes_file(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert config_path.exists()
     assert "mcp_servers" in config_path.read_text()
+
+
+def test_config_init_output_is_loadable(tmp_path, monkeypatch):
+    """The starter file must itself parse -- a duplicate key (which TOML
+    forbids) shipped once and made every fresh `secfoo run` fail on the
+    config it had just been told to create."""
+    from secfoo.settings import load_config
+
+    config_path = tmp_path / "config.toml"
+    monkeypatch.setattr("secfoo.cli.CONFIG_PATH", config_path)
+    assert runner.invoke(app, ["config", "init"]).exit_code == 0
+    cfg = load_config(config_path)
+    assert cfg.defaults.agent == "claude"
+
+
+# ---------------------------------------------------------------------------
+# CI gates: --fail-on, --max-cost, --json, exit codes
+# ---------------------------------------------------------------------------
+
+
+def _priced_outcome(status="success", *, cost=None, high=0, medium=0, critical=0, low=0, skill="sast"):
+    return RunOutcome(
+        run_uuid="u-" + skill,
+        skill_id=skill,
+        skill_name=skill.upper(),
+        agent_id="api",
+        status=status,
+        exit_code=0 if status == "success" else 1,
+        duration_seconds=2.0,
+        report_path="/tmp/r.md",
+        cost_usd=cost,
+        input_tokens=100 if cost is not None else None,
+        output_tokens=50 if cost is not None else None,
+        critical_count=critical,
+        high_count=high,
+        medium_count=medium,
+        low_count=low,
+    )
+
+
+def _no_config(monkeypatch):
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=[]))
+
+
+def test_fail_on_trips_at_or_above_threshold(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(high=1)])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--fail-on", "high"])
+    assert result.exit_code == 2
+    assert "FAILED" in result.stdout
+
+
+def test_fail_on_passes_when_only_lower_severities_present(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(medium=3, low=5)])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--fail-on", "high"])
+    assert result.exit_code == 0
+
+
+def test_fail_on_counts_critical_as_above_high(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(critical=1)])
+    assert runner.invoke(app, ["run", "--skill", "sast", "--fail-on", "high"]).exit_code == 2
+
+
+def test_no_fail_on_means_findings_never_fail_the_command(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(critical=9)])
+    assert runner.invoke(app, ["run", "--skill", "sast"]).exit_code == 0
+
+
+def test_max_cost_trips_when_summed_spend_exceeds_cap(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr(
+        "secfoo.cli.execute_runs",
+        lambda **kw: [_priced_outcome(cost=0.80, skill="sast"), _priced_outcome(cost=0.70, skill="sca")],
+    )
+    result = runner.invoke(app, ["run", "--skill", "sast", "--max-cost", "1.00"])
+    assert result.exit_code == 2
+
+
+def test_max_cost_passes_under_cap(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(cost=0.30)])
+    assert runner.invoke(app, ["run", "--skill", "sast", "--max-cost", "1.00"]).exit_code == 0
+
+
+def test_max_cost_with_no_reported_spend_passes_but_flags_unpriced(monkeypatch):
+    """An agent that reports no cost (cursor, agy) can't be judged against a
+    cap; that must not be a silent pass that looks like $0 -- the JSON
+    surfaces unpriced_runs so the pipeline can choose to fail on it."""
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(cost=None)])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--max-cost", "1.00", "--json"])
+    assert result.exit_code == 0
+    doc = json.loads(result.stdout)
+    assert doc["gates"]["cost"]["passed"] is True
+    assert doc["gates"]["cost"]["unpriced_runs"] == 1
+    assert doc["total_cost_usd"] is None
+
+
+def test_run_failure_takes_precedence_over_gate_exit_code(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome("failed", high=5)])
+    assert runner.invoke(app, ["run", "--skill", "sast", "--fail-on", "high"]).exit_code == 1
+
+
+def test_gate_defaults_come_from_config_file(monkeypatch):
+    monkeypatch.setattr(
+        "secfoo.cli.load_config",
+        lambda: SecfooConfig(defaults=Defaults(fail_on="medium", max_cost_usd=0.10), mcp_servers=[]),
+    )
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(cost=0.05, medium=1)])
+    assert runner.invoke(app, ["run", "--skill", "sast"]).exit_code == 2
+
+
+def test_cli_flag_overrides_config_gate(monkeypatch):
+    monkeypatch.setattr(
+        "secfoo.cli.load_config",
+        lambda: SecfooConfig(defaults=Defaults(fail_on="medium"), mcp_servers=[]),
+    )
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(medium=1)])
+    assert runner.invoke(app, ["run", "--skill", "sast", "--fail-on", "critical"]).exit_code == 0
+
+
+def test_json_output_is_a_single_parseable_document(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr(
+        "secfoo.cli.execute_runs", lambda **kw: [_priced_outcome(cost=0.42, high=2, medium=1)]
+    )
+    result = runner.invoke(
+        app, ["run", "--skill", "sast", "--json", "--fail-on", "high", "--max-cost", "5"]
+    )
+    assert result.exit_code == 2
+    doc = json.loads(result.stdout)  # would raise if the table/spinner leaked into stdout
+    assert doc["exit_code"] == 2
+    assert doc["runs"][0]["severity"] == {"critical": 0, "high": 2, "medium": 1, "low": 0, "info": 0}
+    assert doc["runs"][0]["cost_usd"] == 0.42
+    assert doc["total_cost_usd"] == 0.42
+    assert doc["gates"]["findings"] == {"threshold": "high", "count": 2, "passed": False}
+    assert doc["gates"]["cost"]["passed"] is True
+    assert doc["any_run_failed"] is False
+
+
+def test_json_output_suppresses_interactive_prompts(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_priced_outcome()])
+    monkeypatch.setattr("secfoo.cli._is_interactive", lambda: True)
+    monkeypatch.setattr(
+        "secfoo.cli.Prompt.ask", lambda *a, **k: (_ for _ in ()).throw(AssertionError("prompted"))
+    )
+    result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
+    assert result.exit_code == 0
+    json.loads(result.stdout)
 
 
 def test_config_init_refuses_to_overwrite_without_force(tmp_path, monkeypatch):

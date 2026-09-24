@@ -66,6 +66,13 @@ class RunOutcome:
     cost_usd: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # Severity counts parsed from the report's `### [SEVERITY] Fn:` headings,
+    # so CI gates (`secfoo run --fail-on`) don't have to re-read the report.
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    info_count: int = 0
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
@@ -296,6 +303,11 @@ def _run_single_skill(
             cost_usd=result.cost_usd,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            critical_count=severity.critical,
+            high_count=severity.high,
+            medium_count=severity.medium,
+            low_count=severity.low,
+            info_count=severity.info,
         )
     finally:
         repo.close()
