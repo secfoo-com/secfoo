@@ -72,6 +72,32 @@ def test_run_success_extracts_report_from_json(fake_popen, tmp_path, monkeypatch
     assert result.raw_report == "# Threat Report"
 
 
+def test_extract_cost_parses_total_cost_usd():
+    adapter = ClaudeAdapter()
+    stdout = json.dumps({"result": "ok", "total_cost_usd": 0.0412})
+    assert adapter.extract_cost(stdout) == 0.0412
+
+
+def test_extract_cost_returns_none_when_field_missing():
+    adapter = ClaudeAdapter()
+    assert adapter.extract_cost(json.dumps({"result": "ok"})) is None
+
+
+def test_extract_cost_returns_none_on_non_json():
+    adapter = ClaudeAdapter()
+    assert adapter.extract_cost("not json") is None
+
+
+def test_run_success_sets_cost_usd_from_json(fake_popen, tmp_path, monkeypatch):
+    monkeypatch.setattr("secfoo.agents.claude.load_config", lambda: _empty_config())
+    fake_popen(
+        returncode=0,
+        stdout=json.dumps({"result": "# Threat Report", "total_cost_usd": 0.0412}),
+        stderr="",
+    )
+    adapter = ClaudeAdapter()
+    result = adapter.run("review this", workdir=tmp_path)
+    assert result.cost_usd == 0.0412
 def test_extract_usage_reads_cost_and_sums_cached_input_tokens():
     stdout = json.dumps({
         "result": "report",

@@ -24,3 +24,7 @@ class CursorAdapter(AgentAdapter):
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         return [self.binary, "-p", prompt]
+
+    # No extract_cost() override: `agent -p` prints plain text, not a JSON
+    # envelope with a reported spend figure, so there's nothing to parse
+    # cost out of. secfoo cost will show `-` for runs through this adapter.

@@ -34,6 +34,37 @@ dashboard (like SAST's Open/Closed Findings register), look at
 templates as the reference shape — most skills don't need this and are
 fine with the generic activity page (`activities/detail.html`).
 
+## Adding or changing an agent adapter
+
+Agent adapters live under `src/secfoo/agents/*.py`. Each one subclasses
+`AgentAdapter` (`src/secfoo/agents/base.py`), which owns the shared
+subprocess/timeout/process-tree-kill contract, so a new adapter only
+needs to supply:
+
+- `name` / `binary` class vars, and `default_timeout_seconds` if the
+  1800s default doesn't fit
+- `build_command(prompt, *, workdir)` — the argv to invoke the CLI
+  non-interactively
+- `extract_report(stdout)` — optional, only for a CLI that wraps its
+  answer in a JSON envelope rather than printing the report directly
+- `extract_cost(stdout)` — optional, only if the CLI itself reports a USD
+  spend figure (e.g. Claude Code's `total_cost_usd` in `--output-format
+  json`; see `ClaudeAdapter`). Leave it unset if the CLI doesn't report
+  cost — don't estimate from token counts, since there's no pricing table
+  in this repo to keep current. `secfoo cost` shows `-` for runs whose
+  adapter doesn't provide this.
+
+Then register the class in `ADAPTERS` in
+`src/secfoo/agents/registry.py`. `secfoo agents`, `--agent`, and the web
+run form are all driven from that dict, so there's nothing else to wire
+up.
+
+The built-in `secfoo` agent (`src/secfoo/agents/secfoo.py`) is the one
+exception: it overrides `run()` directly instead of `build_command()`,
+since it runs in-process via LangGraph/LiteLLM rather than shelling out
+to an external CLI — use it as the reference if your adapter also needs
+to skip the subprocess path.
+
 ## Pull requests
 
 - Keep PRs focused — one behavior change per PR is easier to review

@@ -95,6 +95,12 @@ class AgentAdapter(ABC):
         """Pull the report text out of raw stdout. Default: stdout is the report."""
         return stdout
 
+    def extract_cost(self, stdout: str) -> float | None:
+        """Pull a CLI-reported USD spend figure out of raw stdout, if the CLI
+        reports one. Default: no cost data available. Only override this
+        with a value the CLI itself reports -- never a token-count estimate,
+        since we have no reliable, current pricing table to convert with."""
+        return None
     def extract_usage(self, stdout: str) -> Usage:
         """Pull token counts / cost out of raw stdout. Default: unknown."""
         return Usage()
@@ -143,6 +149,7 @@ class AgentAdapter(ABC):
                 timed_out=False,
                 status=status,
                 raw_report=self.extract_report(stdout) if status == "success" else "",
+                cost_usd=self.extract_cost(stdout) if status == "success" else None,
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cost_usd=usage.cost_usd,

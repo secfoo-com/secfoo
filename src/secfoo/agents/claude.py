@@ -56,6 +56,16 @@ class ClaudeAdapter(AgentAdapter):
             return stdout
         return payload.get("result", stdout)
 
+    def extract_cost(self, stdout: str) -> float | None:
+        # `--output-format json` includes `total_cost_usd`, Claude Code's own
+        # accounting of the spend for this invocation -- a real reported
+        # figure, not something we derive.
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            return None
+        value = payload.get("total_cost_usd")
+        return float(value) if isinstance(value, (int, float)) else None
     def extract_usage(self, stdout: str) -> Usage:
         # `--output-format json` reports total_cost_usd plus a usage block.
         # On a subscription login the cost is claude's API-price estimate,

@@ -26,3 +26,12 @@ def test_no_dangerously_skip_permissions_flag(tmp_path):
     adapter = AntigravityAdapter()
     cmd = adapter.build_command("hi", workdir=tmp_path)
     assert "--dangerously-skip-permissions" not in cmd
+
+
+def test_run_success_leaves_cost_usd_none(fake_popen, tmp_path):
+    """`agy --print` has no JSON output mode, so no reported spend figure to
+    parse -- cost_usd must stay None rather than a guessed/estimated value."""
+    fake_popen(returncode=0, stdout="# Report", stderr="")
+    adapter = AntigravityAdapter()
+    result = adapter.run("hi", workdir=tmp_path)
+    assert result.cost_usd is None

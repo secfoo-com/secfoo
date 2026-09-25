@@ -91,8 +91,11 @@ $env:SECFOO_MODEL = "openai/gpt-4o-mini"
 secfoo run --skill security-architecture-review --agent secfoo
 ```
 
-LiteLLM-reported spend is stored per run and can be reviewed from the
-dashboard or queried from the CLI:
+Spend is stored per run and can be reviewed from the dashboard or queried
+from the CLI, for any agent whose CLI reports its own cost -- currently
+the built-in `secfoo` agent (via LiteLLM) and `claude` (via Claude Code's
+own `total_cost_usd`); Cursor, Antigravity, and Gemini CLI don't report a
+spend figure yet, so those runs show `-`:
 
 ```bash
 secfoo cost
@@ -134,6 +137,10 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
   record every rescan.
 - **Concurrent by default**: multiple `--skill` flags run at the same
   time, not one after another.
+- **Bring your own agent**: Claude Code, Cursor, Antigravity, or Gemini
+  CLI — pick whichever you already use and trust. Want to wire up a
+  different CLI, or your own LangGraph/LiteLLM pipeline? See
+  [Adding or changing an agent adapter](CONTRIBUTING.md#adding-or-changing-an-agent-adapter).
 - **Bring your own agent**: Claude Code, Cursor, Antigravity, Gemini
   CLI, or Codex CLI — pick whichever you already use and trust.
 - **Open source CLI**: MIT licensed.

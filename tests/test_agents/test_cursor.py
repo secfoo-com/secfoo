@@ -23,3 +23,12 @@ def test_timeout_status_does_not_raise(fake_popen, tmp_path):
     assert result.timed_out is True
     assert result.exit_code is None
     assert result.raw_report == ""
+
+
+def test_run_success_leaves_cost_usd_none(fake_popen, tmp_path):
+    """`agent -p` prints plain text, no reported spend figure to parse --
+    cost_usd must stay None rather than a guessed/estimated value."""
+    fake_popen(returncode=0, stdout="plain text report", stderr="")
+    adapter = CursorAdapter()
+    result = adapter.run("hi", workdir=tmp_path)
+    assert result.cost_usd is None

@@ -38,6 +38,10 @@ class AntigravityAdapter(AgentAdapter):
     binary = "agy"
     default_timeout_seconds = 1800
 
+    # No extract_cost() override: `agy --print` has no JSON output mode (see
+    # module docstring), so there's no reported spend figure to parse.
+    # secfoo cost will show `-` for runs through this adapter.
+
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         effective_timeout = getattr(self, "_effective_timeout", self.default_timeout_seconds)
         return [self.binary, "--print", prompt, "--print-timeout", f"{effective_timeout}s"]
