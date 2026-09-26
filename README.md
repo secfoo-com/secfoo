@@ -81,24 +81,6 @@ secfoo cost --by skill --since 2026-09-01
 secfoo cost --project checkout
 ```
 
-Secfoo also includes a built-in LangGraph agent whose model calls are routed
-through LiteLLM. Configure the provider key and model in the environment;
-credentials are never stored in the repository:
-
-```powershell
-$env:OPENAI_API_KEY = "your-key"
-$env:SECFOO_MODEL = "openai/gpt-4o-mini"
-secfoo run --skill security-architecture-review --agent secfoo
-```
-
-LiteLLM-reported spend is stored per run and can be reviewed from the
-dashboard or queried from the CLI:
-
-```bash
-secfoo cost
-secfoo cost --project "Checkout Service"
-```
-
 See [Getting Started](https://secfoo.com/docs/index.html#quickstart) or
 the [CLI reference](https://secfoo.com/docs/cli.html) for more.
 

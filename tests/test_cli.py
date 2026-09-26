@@ -204,7 +204,7 @@ def test_run_command_shows_per_skill_progress(monkeypatch):
 def test_agents_command_lists_all_adapters():
     result = runner.invoke(app, ["agents"])
     assert result.exit_code == 0
-    for agent_id in ["claude", "agent", "agy", "gemini", "secfoo", "codex"]:
+    for agent_id in ["claude", "agent", "agy", "gemini", "codex"]:
         assert agent_id in result.stdout
 
 
