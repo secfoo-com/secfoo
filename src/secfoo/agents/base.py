@@ -106,6 +106,7 @@ class AgentAdapter(ABC):
         """Pull token counts / cost out of raw stdout. Default: unknown."""
         return Usage()
 
+    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit passed through; CLI adapters ignore it.
     def detect_failure(self, stdout: str, stderr: str) -> str | None:
         """Return a reason when a zero-exit run still didn't do the job (e.g.
         every tool call was refused, so the agent never saw the target and

@@ -24,7 +24,7 @@ class _SleepyAdapter(AgentAdapter):
     def is_available(self) -> bool:
         return True
 
-    def run(self, prompt, *, workdir, timeout=None):
+    def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
         time.sleep(0.15)
         return AgentResult(
             agent=self.name,
@@ -69,7 +69,7 @@ def test_execute_runs_runs_skills_concurrently(tmp_path, monkeypatch):
         def is_available(self) -> bool:
             return True
 
-        def run(self, prompt, *, workdir, timeout=None):
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
             barrier.wait()
             return AgentResult(
                 agent=self.name,
@@ -379,7 +379,7 @@ def test_execute_runs_persists_report_files(tmp_path, monkeypatch):
 
 def test_execute_runs_strips_preamble_from_persisted_report(tmp_path, monkeypatch):
     class _ChattyAdapter(_SleepyAdapter):
-        def run(self, prompt, *, workdir, timeout=None):
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
             result = super().run(prompt, workdir=workdir, timeout=timeout)
             result.raw_report = "Sounds good, here's the report:\n\n" + result.raw_report
             return result
@@ -552,7 +552,7 @@ class _ScaAdapter(AgentAdapter):
     def is_available(self) -> bool:
         return True
 
-    def run(self, prompt, *, workdir, timeout=None):
+    def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
         return AgentResult(
             agent=self.name, exit_code=0, stdout="ok", stderr="", duration_seconds=0.1,
             timed_out=False, status="success", raw_report=_SCA_REPORT,
@@ -693,7 +693,7 @@ class _SastAdapter(AgentAdapter):
     def is_available(self) -> bool:
         return True
 
-    def run(self, prompt, *, workdir, timeout=None):
+    def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
         return AgentResult(
             agent=self.name, exit_code=0, stdout="ok", stderr="", duration_seconds=0.1,
             timed_out=False, status="success", raw_report=self._report,

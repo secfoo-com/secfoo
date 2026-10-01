@@ -331,6 +331,18 @@ class RunRepository:
         )
         self._conn.commit()
 
+    def get_last_commit(self, *, project_id: int, skill_id: str) -> str | None:
+        """Return the HEAD SHA from the most recent successful run for this
+        project+skill, or None if no prior run exists.
+        Used by Memory Bank to compute incremental diffs on rescans."""
+        row = self._conn.execute(
+            "SELECT target_commit FROM runs WHERE project_id = ? AND skill_id = ? "
+            "AND status = 'success' AND target_commit IS NOT NULL "
+            "ORDER BY rowid DESC LIMIT 1",
+            (project_id, skill_id),
+        ).fetchone()
+        return row["target_commit"] if row else None
+
     def mark_run_synced(self, run_uuid: str) -> None:
         """Records that this run has been pushed to the enterprise portal.
         Called by `secfoo cloud` after a successful `push_run()` -- see
