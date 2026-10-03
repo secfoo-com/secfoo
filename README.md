@@ -69,14 +69,10 @@ secfoo run --skill sast --agent api --target https://github.com/org/repo
 It suits small and medium repositories: the whole target has to fit in one
 request, and larger ones are rejected with a message suggesting `--exclude`.
 
-(`--agent secfoo` is a minimal variant of the same LiteLLM path that sends
-only the rendered prompt, without the target's source files, and reads
-`SECFOO_MODEL` instead. Prefer `api` unless you have a reason not to.)
-
 ### Tracking AI spend
 
 Every run records tokens and cost where the agent reports them (`api`,
-`secfoo`, `claude`; `gemini` reports tokens only; `agent` and `agy` report
+`claude`; `gemini` reports tokens only; `agent` and `agy` report
 neither and show as unpriced rather than $0). See it per run in
 `secfoo run`, `secfoo list`, the dashboard and the enterprise portal, or
 summarised:

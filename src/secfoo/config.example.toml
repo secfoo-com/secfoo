@@ -6,7 +6,7 @@
 # Used whenever --agent / --depth / --timeout aren't passed on the command
 # line. CLI flags always win over these.
 # Agent CLIs: claude | agent (Cursor) | agy (Antigravity) | gemini | codex | copilot
-# API-key agents (no CLI): api | secfoo
+# API-key agent (no CLI): api
 agent = "claude"
 depth = "quick"        # quick | standard
 # timeout = 1800       # seconds; omit to use each agent's own default
