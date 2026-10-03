@@ -422,7 +422,7 @@ How MCP servers reach each agent varies by what its CLI actually supports:
 
 | Agent | Mechanism |
 |---|---|
-| `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
+| `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched) |
 | `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
 | `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
 | `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |

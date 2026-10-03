@@ -122,13 +122,6 @@ class AgentAdapter(ABC):
         """
         return Usage()
 
-    def describe_failure(self, stdout: str, stderr: str) -> str | None:
-        """Return the reason for a non-zero exit when the CLI reports it
-        somewhere other than stderr (e.g. Claude Code puts it in its stdout
-        JSON and leaves stderr empty), so the run isn't recorded as failed
-        with no explanation. Default: stderr already says why."""
-        return None
-
     def _collect_usage(self, stdout: str, stderr: str) -> Usage:
         usage = self.extract_usage(stdout)
         if usage == Usage():
@@ -194,8 +187,6 @@ class AgentAdapter(ABC):
             status: Status = "success" if proc.returncode == 0 else "failed"
             if status == "success" and (reason := self.detect_failure(stdout, stderr)):
                 status = "failed"
-                stderr = f"secfoo: {reason}\n{stderr}"
-            elif status == "failed" and (reason := self.describe_failure(stdout, stderr)):
                 stderr = f"secfoo: {reason}\n{stderr}"
             usage = self.extract_usage(stdout)
             usage = self._collect_usage(stdout, stderr)

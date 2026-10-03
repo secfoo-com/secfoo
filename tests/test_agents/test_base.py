@@ -45,12 +45,10 @@ def test_stdin_is_devnull_so_interactive_prompts_fail_fast_not_hang(fake_popen, 
     prompt) from stdin must hit immediate EOF rather than blocking on the
     caller's real terminal, which they can't see (stdout/stderr are
     captured into pipes) and therefore can't ever answer."""
-    # Cursor: an adapter that passes its prompt as argv. Adapters that pipe
-    # the prompt (claude, codex, copilot) get EOF once it has been written.
-    from secfoo.agents.cursor import CursorAdapter
-
+    _no_mcp_config(monkeypatch)
     fake = fake_popen(returncode=0, stdout="ok", stderr="")
-    CursorAdapter().run("hi", workdir=tmp_path)
+    adapter = ClaudeAdapter()
+    adapter.run("hi", workdir=tmp_path)
     assert fake.call_kwargs["stdin"] == subprocess.DEVNULL
 
 
@@ -145,36 +143,3 @@ def test_run_prefers_stdout_usage_over_stderr(fake_popen, tmp_path, monkeypatch)
     fake_popen(returncode=0, stdout="# Report", stderr="tokens used\n15,201\n")
     result = CodexAdapter().run("hi", workdir=tmp_path)
     assert (result.input_tokens, result.output_tokens) == (7, 3)
-
-
-def test_failed_run_is_not_given_a_reason_by_default(fake_popen, tmp_path):
-    from secfoo.agents.codex import CodexAdapter
-
-    fake_popen(returncode=1, stdout="", stderr="boom")
-    result = CodexAdapter().run("hi", workdir=tmp_path)
-    assert result.status == "failed"
-    assert result.stderr == "boom"
-
-
-def test_describe_failure_reason_is_prepended_to_stderr_of_a_failed_run(fake_popen, tmp_path, monkeypatch):
-    from secfoo.agents.codex import CodexAdapter
-
-    monkeypatch.setattr(
-        CodexAdapter, "describe_failure", lambda self, stdout, stderr: f"reason from stdout: {stdout}"
-    )
-    fake_popen(returncode=1, stdout="quota", stderr="")
-    result = CodexAdapter().run("hi", workdir=tmp_path)
-    assert result.status == "failed"
-    assert result.raw_report == ""
-    assert result.stderr == "secfoo: reason from stdout: quota\n"
-
-
-def test_describe_failure_is_not_consulted_on_success(fake_popen, tmp_path, monkeypatch):
-    from secfoo.agents.codex import CodexAdapter
-
-    def _must_not_be_called(self, stdout, stderr):
-        raise AssertionError("describe_failure is only for non-zero exits")
-
-    monkeypatch.setattr(CodexAdapter, "describe_failure", _must_not_be_called)
-    fake_popen(returncode=0, stdout="report", stderr="")
-    assert CodexAdapter().run("hi", workdir=tmp_path).status == "success"
