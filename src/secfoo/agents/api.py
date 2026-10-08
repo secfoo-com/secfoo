@@ -50,6 +50,7 @@ class _State(TypedDict):
     workdir: str
     model: str
     timeout: int
+    prev_commit: str | None  # Memory Bank: SHA of the last scanned commit; None = full scan.
     messages: list[dict]
     report: str
     attempts: int
@@ -63,21 +64,59 @@ def _matches(name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(name, p) for p in patterns)
 
 
-def collect_files(workdir: Path) -> str:
-    """Return every readable text file under `workdir` as one labelled string."""
+def _git_changed_files(workdir: Path, prev_commit: str) -> tuple[list[str], list[str]]:
+    """Return (changed_paths, deleted_paths) between prev_commit and HEAD.
+    Falls back to ([], []) if git is unavailable or the commit isn't found.
+    Handles shallow clones by fetching enough history to reach prev_commit."""
+    import subprocess
+    try:
+        # Shallow clones only have the tip commit; deepen until prev_commit is reachable.
+        subprocess.run(
+            ["git", "-C", str(workdir), "fetch", "--unshallow"],
+            capture_output=True, text=True, timeout=60,
+        )
+        result = subprocess.run(
+            ["git", "-C", str(workdir), "diff", "--name-status", f"{prev_commit}..HEAD"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return [], []
+        changed, deleted = [], []
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            status, *parts = line.split("\t")
+            fname = parts[-1]  # rename lines have two filenames; take the new one
+            if status.startswith("D"):
+                deleted.append(fname)
+            else:
+                changed.append(fname)
+        return changed, deleted
+    except Exception:
+        return [], []
+
+
+def collect_files(workdir: Path, *, changed_only: list[str] | None = None) -> str:
+    """Return readable text files under `workdir` as one labelled string.
+    If `changed_only` is given, only those paths are included (incremental scan)."""
+    # Build a set of allowed relative paths when doing an incremental scan.
+    allowed = set(changed_only) if changed_only is not None else None
     chunks: list[str] = []
     total = 0
     for root, dirs, files in os.walk(workdir):
         dirs[:] = sorted(d for d in dirs if not _matches(d, DIR_PATTERNS))
         for name in sorted(files):
             path = Path(root) / name
+            rel = path.relative_to(workdir).as_posix()
+            if allowed is not None and rel not in allowed:
+                continue  # skip unchanged files in incremental mode
             if _matches(name, FILE_PATTERNS) or path.stat().st_size > MAX_FILE_BYTES:
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue  # binary file (image, font, ...)
-            chunk = f"\n===== FILE: {path.relative_to(workdir).as_posix()} =====\n{text}\n"
+            chunk = f"\n===== FILE: {rel} =====\n{text}\n"
             total += len(chunk)
             if total > MAX_TOTAL_CHARS:
                 raise ValueError(
@@ -93,9 +132,36 @@ def build_graph(litellm, StateGraph, START, END):
     run the real graph against a fake LiteLLM."""
 
     def collect(state: _State) -> dict:
-        code = collect_files(Path(state["workdir"]))
+        workdir = Path(state["workdir"])
+        prev_commit = state["prev_commit"]
+        deleted: list[str] = []
+
+        if prev_commit:
+            changed, deleted = _git_changed_files(workdir, prev_commit)
+            if changed or deleted:
+                # Incremental scan: only send changed files to the model.
+                code = collect_files(workdir, changed_only=changed)
+                scan_scope = (
+                    f"Note: this is an incremental scan. Only files changed since "
+                    f"commit {prev_commit[:8]} are included below.\n\n"
+                )
+            else:
+                # No diff (e.g. same commit or git error) — fall back to full scan.
+                code = collect_files(workdir)
+                scan_scope = ""
+        else:
+            # First scan ever for this project+skill — send the full codebase.
+            code = collect_files(workdir)
+            scan_scope = ""
+
+        deleted_note = (
+            "## Deleted files\nThe following files were deleted since the last scan "
+            "and are no longer present:\n" + "\n".join(f"- {f}" for f in deleted) + "\n\n"
+            if deleted else ""
+        )
         content = (
-            f"{state['prompt']}\n\n## Source files\nYou cannot open files. "
+            f"{state['prompt']}\n\n{scan_scope}{deleted_note}"
+            f"## Source files\nYou cannot open files. "
             f"The complete target source is included below.\n{code}"
         )
         return {"messages": [{"role": "user", "content": content}]}
@@ -149,7 +215,7 @@ class ApiAdapter(AgentAdapter):
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         return []  # required by the base class; there is no program to launch
 
-    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
+    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit triggers incremental diff scan.
         started = time.monotonic()
         _strip_key_whitespace()
         if not self.is_available():
@@ -167,6 +233,7 @@ class ApiAdapter(AgentAdapter):
                 "workdir": str(workdir),
                 "model": os.environ.get("SECFOO_API_MODEL", DEFAULT_MODEL),
                 "timeout": timeout or self.default_timeout_seconds,
+                "prev_commit": prev_commit,  # Memory Bank: None = full scan, SHA = incremental diff.
                 "messages": [],
                 "report": "",
                 "attempts": 0,
