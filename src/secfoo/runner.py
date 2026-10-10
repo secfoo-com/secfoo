@@ -21,17 +21,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from secfoo import cloud, cvss, osv
+from secfoo import cloud, cvss, memory, osv
 from secfoo.agents.registry import get_adapter
 from secfoo.config import ensure_store_dirs, run_dir
+from secfoo.report import sca as sca_report
+from secfoo.report import secret_scanning as secret_report
 from secfoo.report.markdown import strip_preamble
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
 from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
 from secfoo.report.sca import osv_keys_for_report
+from secfoo.report.secret_scanning import SKILL_ID as SECRET_SKILL_ID
 from secfoo.report.severity import count_severities
 from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
+from secfoo.stack import Stack, detect_stack, language_for_ecosystem, language_for_path
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.github import clone_shallow
 from secfoo.targets.resolver import ResolvedTarget, TargetKind, resolve_target
@@ -119,6 +123,18 @@ def _try_osv_enrich(repo: RunRepository, report_text: str) -> None:
         pass
 
 
+def _stack_fields(stack: Stack | None, language: str | None) -> dict[str, str | None]:
+    """language + framework columns for one finding. Framework is the
+    comma-joined frameworks detected for that finding's own language, or
+    None when unknown (cloud ingest has no workdir to detect from)."""
+    frameworks = stack.frameworks_for(language) if stack is not None else []
+    return {"language": language, "framework": ",".join(frameworks) or None}
+
+
+def _closed_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def update_sast_findings(
     repo: RunRepository,
     *,
@@ -126,6 +142,7 @@ def update_sast_findings(
     run_id: int,
     report_text: str,
     workdir: Path | None = None,
+    stack: Stack | None = None,
 ) -> None:
     """Matches this run's Findings Register against the project's
     currently-open sast_findings rows by fingerprint (report/sast.py),
@@ -182,6 +199,8 @@ def update_sast_findings(
             description=row.get("description") or None,
             recommendation=row.get("recommendation") or None,
             run_id=run_id,
+            construct=row.get("construct") or None,
+            **_stack_fields(stack, language_for_path(row["location_file"])),
         )
         seen_fingerprints.append(row["fingerprint"])
 
@@ -189,7 +208,80 @@ def update_sast_findings(
         project_id=project_id,
         run_id=run_id,
         seen_fingerprints=seen_fingerprints,
-        closed_at=datetime.now(timezone.utc).isoformat(),
+        closed_at=_closed_now(),
+    )
+
+
+def update_sca_findings(
+    repo: RunRepository,
+    *,
+    project_id: int,
+    run_id: int,
+    report_text: str,
+    stack: Stack | None = None,
+) -> None:
+    """update_sast_findings' lifecycle for the SCA Risk Register."""
+    seen_fingerprints = []
+    for row in sca_report.findings_with_fingerprints(report_text):
+        repo.upsert_sca_finding(
+            project_id=project_id,
+            fingerprint=row["fingerprint"],
+            run_id=run_id,
+            current_ref=row["id"],
+            package=row["package"],
+            version=row.get("version") or None,
+            ecosystem=row.get("ecosystem") or None,
+            issue=row.get("issue") or None,
+            severity=row["severity"],
+            reachability=row.get("reachability") or None,
+            fixed_in=row.get("fixed_in") or None,
+            cve=row.get("cve") or None,
+            reachability_evidence=row.get("reachability_evidence") or None,
+            recommendation=row.get("recommendation") or None,
+            construct=row.get("construct") or None,
+            **_stack_fields(stack, language_for_ecosystem(row.get("ecosystem"))),
+        )
+        seen_fingerprints.append(row["fingerprint"])
+    repo.close_stale_findings(
+        SCA_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
+        closed_at=_closed_now(),
+    )
+
+
+def update_secret_findings(
+    repo: RunRepository,
+    *,
+    project_id: int,
+    run_id: int,
+    report_text: str,
+    workdir: Path | None = None,
+    stack: Stack | None = None,
+) -> None:
+    """update_sast_findings' lifecycle for the Secret Scanning register."""
+    seen_fingerprints = []
+    for row in secret_report.findings_with_fingerprints(report_text, workdir=workdir):
+        repo.upsert_secret_finding(
+            project_id=project_id,
+            fingerprint=row["fingerprint"],
+            run_id=run_id,
+            current_ref=row["id"],
+            secret_type=row["secret_type"],
+            location_file=row["location_file"],
+            location_line=row.get("location_line"),
+            code_region_hash=row.get("code_region_hash"),
+            source=row.get("source") or None,
+            validity=row.get("validity") or None,
+            severity=row["severity"],
+            evidence=row.get("evidence"),
+            exposure=row.get("exposure") or None,
+            remediation=row.get("remediation") or None,
+            construct=row.get("construct") or None,
+            **_stack_fields(stack, language_for_path(row["location_file"])),
+        )
+        seen_fingerprints.append(row["fingerprint"])
+    repo.close_stale_findings(
+        SECRET_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
+        closed_at=_closed_now(),
     )
 
 
@@ -209,6 +301,36 @@ def _mark_run_crashed(repo: RunRepository, run_uuid: str, *, duration_seconds: f
         )
     except Exception:
         logger.exception("Failed to mark crashed run %s as failed", run_uuid)
+
+
+STRUCTURED_FINDINGS_SKILLS = frozenset({SAST_SKILL_ID, SCA_SKILL_ID, SECRET_SKILL_ID})
+
+
+def update_structured_findings(
+    repo: RunRepository,
+    *,
+    skill_id: str,
+    project_id: int,
+    run_id: int,
+    report_text: str,
+    workdir: Path | None = None,
+    stack: Stack | None = None,
+) -> None:
+    """Dispatches one successful run's report to its skill's findings
+    lifecycle (a no-op for skills without one). The single entry point both
+    callers use -- _run_single_skill after a local run, and
+    portal/routes/ingest.py after a pushed one (no workdir there, so no
+    region hashes or framework detection)."""
+    if skill_id == SAST_SKILL_ID:
+        update_sast_findings(
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack
+        )
+    elif skill_id == SCA_SKILL_ID:
+        update_sca_findings(repo, project_id=project_id, run_id=run_id, report_text=report_text, stack=stack)
+    elif skill_id == SECRET_SKILL_ID:
+        update_secret_findings(
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack
+        )
 
 
 @contextmanager
@@ -235,9 +357,13 @@ def _run_single_skill(
     on_skill_complete: Callable[[str, str], None] | None,
     assessment_id: int | None = None,
     exclude_paths: list[str] | None = None,
+    stack: Stack | None = None,
 ) -> RunOutcome:
     skill = load_skill(skill_id)
-    prompt = render_prompt(skill, target_ctx, depth=depth, exclude_paths=exclude_paths)
+    memory_enabled = memory.is_active_for_agent(agent_id)
+    prompt = render_prompt(
+        skill, target_ctx, depth=depth, exclude_paths=exclude_paths, memory_enabled=memory_enabled, stack=stack
+    )
 
     # A fresh connection per worker thread: sqlite3 connections may not be
     # shared across threads.
@@ -298,6 +424,7 @@ def _run_single_skill(
                 output_tokens=result.output_tokens,
                 cost_usd=result.cost_usd,
                 target_commit=target_commit,  # Memory Bank: persisted for incremental diff rescans.
+                memory_enabled=memory_enabled,
             )
         except BaseException:
             # BaseException so Ctrl+C mid-run is recorded too; re-raised
@@ -309,18 +436,20 @@ def _run_single_skill(
             _try_cloud_sync(repo, run_uuid)
             if skill.id == SCA_SKILL_ID:
                 _try_osv_enrich(repo, report_text)
-            if skill.id == SAST_SKILL_ID:
+            if skill.id in STRUCTURED_FINDINGS_SKILLS:
                 try:
                     completed_run = repo.get_run(run_uuid)
-                    update_sast_findings(
+                    update_structured_findings(
                         repo,
+                        skill_id=skill.id,
                         project_id=project_id,
                         run_id=completed_run.id,
                         report_text=report_text,
                         workdir=target_ctx.local_path,
+                        stack=stack,
                     )
                 except Exception:
-                    logger.exception("Failed to update SAST finding lifecycle for run %s", run_uuid)
+                    logger.exception("Failed to update %s finding lifecycle for run %s", skill.id, run_uuid)
 
         return RunOutcome(
             run_uuid=run_uuid,
@@ -440,6 +569,8 @@ def execute_runs(
                 display_source=resolved.display_name,
                 confluence_urls=confluence_urls,
             )
+            # Once per target, not per skill: every skill scans the same tree.
+            stack = detect_stack(workdir)
             with ThreadPoolExecutor(max_workers=max(1, len(skill_ids))) as pool:
                 futures = [
                     pool.submit(
@@ -456,6 +587,7 @@ def execute_runs(
                         on_skill_complete=on_skill_complete,
                         assessment_id=assessment_id,
                         exclude_paths=exclude_paths,
+                        stack=stack,
                     )
                     for skill_id in skill_ids
                 ]

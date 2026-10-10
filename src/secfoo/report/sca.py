@@ -19,6 +19,7 @@ than being duplicated between "core" and "web" callers.
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from secfoo import osv
@@ -55,6 +56,14 @@ _CVE_FIELD_RE = re.compile(r"\*\*CVE:\*\*\s*([^\n,]+)")
 # the next comma.
 _REACHABILITY_FIELD_RE = re.compile(r"\*\*Reachability:\*\*\s*([^\n]+)")
 _RECOMMENDATION_FIELD_RE = re.compile(r"\*\*Recommendation:\*\*\s*([^\n]+)")
+# Code-free description of the vulnerable usage -- see report/sast.py's
+# _CONSTRUCT_FIELD_RE for why this field exists.
+_CONSTRUCT_FIELD_RE = re.compile(r"\*\*Construct:\*\*\s*([^\n]+)")
+
+# A CVE/GHSA/OSV-style identifier. Anything else the model wrote in the
+# CVE field ("unverified", prose) is not an identity.
+_ADVISORY_ID_RE = re.compile(r"^(CVE-\d{4}-\d{4,}|GHSA(-[23456789cfghjmpqrvwx]{4}){3}|PYSEC-\d{4}-\d+)$", re.IGNORECASE)
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
 _SEPARATOR_CELL_RE = re.compile(r"^[\s:\-]+$")
 
@@ -146,6 +155,9 @@ def extract_narrative_by_dependency_id(report_markdown: str) -> dict[str, dict[s
         recommendation_match = _RECOMMENDATION_FIELD_RE.search(block)
         if recommendation_match:
             fields["recommendation"] = recommendation_match.group(1).strip()
+        construct_match = _CONSTRUCT_FIELD_RE.search(block)
+        if construct_match:
+            fields["construct"] = construct_match.group(1).strip()
         if fields:
             result[dep_id] = fields
     return result
@@ -190,3 +202,75 @@ def osv_keys_for_report(report_markdown: str) -> set[tuple[str, str, str]]:
         if ecosystem_osv_value:
             keys.add((ecosystem_osv_value, row["package"].strip(), row["version"].strip()))
     return keys
+
+
+def is_advisory_id(value: str | None) -> bool:
+    return bool(value) and bool(_ADVISORY_ID_RE.match(value.strip()))
+
+
+def fingerprint_for_row(
+    row: dict[str, str], *, ecosystem: str | None, advisory_id: str | None, issue_key: str | None = None
+) -> str:
+    """Stable cross-run identity for one Risk Register row: skill +
+    ecosystem + package, plus the advisory ID when the report named a real
+    one. Deliberately NOT the version -- a bump that doesn't fix the issue
+    is still the same open finding, and a bump that does fix it simply
+    stops being reported and closes it. `issue_key` is the same-run
+    collision guard (see findings_with_fingerprints).
+    """
+    parts = [SKILL_ID, (ecosystem or "").strip().lower(), row["package"].strip().lower()]
+    if advisory_id:
+        parts.append(advisory_id.strip().upper())
+    elif issue_key:
+        parts.append(f"issue:{issue_key}")
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
+def findings_with_fingerprints(report_markdown: str) -> list[dict[str, str | None]]:
+    """One dict per Risk Register row, joined with its ecosystem (from the
+    same report's Dependency Inventory), its Detailed Findings narrative
+    (CVE, reachability evidence, recommendation, construct) and its
+    fingerprint -- what runner.update_sca_findings persists.
+
+    Same-run collision guard, mirroring report/sast.py: only when two rows
+    in this one report share ecosystem + package and neither names a real
+    advisory ID does the normalized issue text get appended, so two real
+    findings never silently collapse into one lifecycle entry.
+    """
+    rows = extract_risk_register_rows(report_markdown)
+    inventory = inventory_lookup(report_markdown)
+    cves = extract_cve_by_dependency_id(report_markdown)
+    narratives = extract_narrative_by_dependency_id(report_markdown)
+
+    prepared = []
+    groups: dict[tuple[str, str], int] = {}
+    for row in rows:
+        ecosystem_raw, ecosystem_osv_value = resolve_ecosystem(row["package"], row["version"], inventory)
+        ecosystem = ecosystem_osv_value or ecosystem_raw
+        cve_text = cves.get(row["id"], "")
+        advisory_id = cve_text.strip() if is_advisory_id(cve_text) else None
+        key = ((ecosystem or "").lower(), row["package"].strip().lower())
+        if advisory_id is None:
+            groups[key] = groups.get(key, 0) + 1
+        prepared.append((row, ecosystem, cve_text, advisory_id, key))
+
+    results = []
+    for row, ecosystem, cve_text, advisory_id, key in prepared:
+        issue_key = None
+        if advisory_id is None and groups.get(key, 0) > 1:
+            issue_key = _NON_ALNUM_RE.sub("-", row["issue"].lower()).strip("-")
+        narrative = narratives.get(row["id"], {})
+        results.append(
+            {
+                **row,
+                "ecosystem": ecosystem,
+                "cve": cve_text or None,
+                "reachability_evidence": narrative.get("reachability_evidence", ""),
+                "recommendation": narrative.get("recommendation", ""),
+                "construct": narrative.get("construct", ""),
+                "fingerprint": fingerprint_for_row(
+                    row, ecosystem=ecosystem, advisory_id=advisory_id, issue_key=issue_key
+                ),
+            }
+        )
+    return results

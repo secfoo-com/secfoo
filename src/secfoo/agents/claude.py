@@ -30,7 +30,7 @@ import json
 from pathlib import Path
 
 from secfoo.agents.base import AgentAdapter, Usage
-from secfoo.mcp import write_claude_mcp_config
+from secfoo.mcp import effective_servers, write_claude_mcp_config
 from secfoo.settings import load_config
 
 # Minimal read-only tool grant: the assessment only needs to read the
@@ -61,8 +61,9 @@ class ClaudeAdapter(AgentAdapter):
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         # MCP servers from ~/.secfoo/config.toml are injected here, scoped
         # to just this invocation (claude's --mcp-config), never touching
-        # the user's own global Claude config.
-        mcp_servers = load_config().mcp_servers
+        # the user's own global Claude config. Includes the default
+        # secfoo-memory server when memory is on (mcp.effective_servers).
+        mcp_servers = effective_servers(load_config().mcp_servers)
         mcp_config_path = write_claude_mcp_config(mcp_servers)
 
         # `mcp__<server-name>` (server-level, no tool suffix) grants every

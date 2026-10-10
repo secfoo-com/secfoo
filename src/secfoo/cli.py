@@ -16,6 +16,7 @@ from rich.table import Table
 
 from secfoo import cloud as cloud_module
 from secfoo import mcp as mcp_module
+from secfoo import memory as memory_module
 from secfoo.agents.registry import ADAPTERS, get_adapter
 from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
@@ -38,7 +39,11 @@ miss_app = typer.Typer(name="miss", help="Record threats a threat model missed, 
 accept_app = typer.Typer(name="accept", help="Record a human risk acceptance for a specific threat.")
 cloud_app = typer.Typer(name="cloud", help="Connect to the secfoo enterprise portal.")
 vendor_app = typer.Typer(name="vendor", help="Fetch optional local assets for the dashboard.")
+memory_app = typer.Typer(name="memory", help="Connect to secfoo-memory, the vulnerability pattern service.")
+findings_app = typer.Typer(name="findings", help="Query the structured findings recorded by past runs.")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(memory_app, name="memory")
+app.add_typer(findings_app, name="findings")
 app.add_typer(config_app, name="config")
 app.add_typer(assessment_app, name="assessment")
 app.add_typer(exception_app, name="exception")
@@ -259,6 +264,12 @@ def run(
         help="Print one JSON document (per-skill outcomes, severity counts, "
         "spend, gate results) to stdout instead of the table -- for CI.",
     ),
+    no_memory: bool = typer.Option(
+        False,
+        "--no-memory",
+        help="Don't give the agent the secfoo-memory pattern tools for this run, "
+        "even if `secfoo memory signup/login` has configured a key.",
+    ),
 ) -> None:
     """Run one or more security skills against a target using the chosen agent.
 
@@ -292,6 +303,9 @@ def run(
     except ConfigError as exc:
         err_console.print(f"[red]Error in {CONFIG_PATH}:[/] {exc}")
         raise typer.Exit(code=1) from None
+
+    if no_memory:
+        memory_module.disable_for_this_process()
 
     if agent is None:
         agent = AgentId(file_defaults.agent) if file_defaults.agent else AgentId.CLAUDE
@@ -1285,6 +1299,170 @@ def cloud_sync() -> None:
     console.print(f"Synced {synced_count}/{len(unsynced)} run(s).")
 
 
+def _memory_whoami_line(info: dict) -> str:
+    plan = info.get("plan", "unknown")
+    used, quota = info.get("used_today"), info.get("daily_quota")
+    usage = f", {used}/{quota} lookups used today" if used is not None and quota is not None else ""
+    return f"plan [bold]{plan}[/]{usage}"
+
+
+@memory_app.command(name="signup")
+def memory_signup(
+    email: Optional[str] = typer.Option(None, "--email", help="Where to send the one-time verification code."),
+    code: Optional[str] = typer.Option(
+        None, "--code", help="The emailed code, for a non-interactive second step (skips sending a new one)."
+    ),
+    url: str = typer.Option(memory_module.DEFAULT_MEMORY_URL, "--url", help="Override the secfoo-memory service URL."),
+) -> None:
+    """Get a free secfoo-memory key (email verification) and save it.
+
+    Once saved, every `secfoo run` with claude (or gemini/Cursor, after
+    `secfoo mcp sync`) can look up known vulnerability patterns while it
+    assesses. Only short, code-free descriptions are ever sent -- the
+    service rejects anything that looks like source code.
+    """
+    if email is None:
+        if not _is_interactive():
+            err_console.print("[red]--email is required when not running in a terminal.[/]")
+            raise typer.Exit(code=1)
+        email = Prompt.ask("Email", console=console)
+    email = email.strip()
+
+    if code is None:
+        try:
+            memory_module.request_signup(email, url=url)
+        except memory_module.MemoryServiceError as exc:
+            err_console.print(f"[red]Signup failed:[/] {exc}")
+            raise typer.Exit(code=1) from None
+        if not _is_interactive():
+            console.print(
+                f"Verification code sent to {email}. Finish with: "
+                f"[bold]secfoo memory signup --email {email} --code <code>[/]"
+            )
+            return
+        code = Prompt.ask(f"Verification code sent to {email}", console=console)
+
+    try:
+        api_key = memory_module.verify_signup(email, code.strip(), url=url)
+    except memory_module.MemoryServiceError as exc:
+        err_console.print(f"[red]Verification failed:[/] {exc}")
+        raise typer.Exit(code=1) from None
+
+    memory_module.save_memory_config(memory_module.MemoryConfig(api_key=api_key, url=url))
+    console.print(f"Saved your secfoo-memory key to {memory_module.MEMORY_CONFIG_PATH}.")
+    console.print("Pattern lookups are now on for claude runs. Opt out per run with [bold]--no-memory[/].")
+
+
+@memory_app.command(name="login")
+def memory_login(
+    api_key: str = typer.Option(..., "--api-key", help="A secfoo-memory key (free, team, or enterprise)."),
+    url: str = typer.Option(
+        memory_module.DEFAULT_MEMORY_URL, "--url",
+        help="Override for a self-hosted enterprise memory service or a non-default region.",
+    ),
+) -> None:
+    """Save an existing secfoo-memory key after validating it."""
+    config = memory_module.MemoryConfig(api_key=api_key.strip(), url=url)
+    try:
+        info = memory_module.whoami(config)
+    except memory_module.MemoryServiceError as exc:
+        err_console.print(f"[red]Login failed:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    memory_module.save_memory_config(config)
+    console.print(f"Connected to secfoo-memory at {url} -- {_memory_whoami_line(info)}.")
+
+
+@memory_app.command(name="logout")
+def memory_logout() -> None:
+    """Remove the saved secfoo-memory key (runs go back to no pattern lookups)."""
+    if not memory_module.MEMORY_CONFIG_PATH.exists():
+        console.print("No secfoo-memory key saved.")
+        return
+    memory_module.delete_memory_config()
+    console.print("Removed the secfoo-memory key. Runs no longer use pattern lookups.")
+
+
+@memory_app.command(name="status")
+def memory_status() -> None:
+    """Show whether pattern lookups are on, and this key's plan/usage."""
+    try:
+        config = memory_module.load_memory_config()
+    except memory_module.MemoryServiceError as exc:
+        err_console.print(f"[red]{exc}[/]")
+        raise typer.Exit(code=1) from None
+    if config is None:
+        console.print("Not set up. Run [bold]secfoo memory signup[/] for a free key.")
+        return
+    if memory_module.disabled_by_env():
+        console.print(f"[yellow]Disabled by {memory_module.ENV_TOGGLE} in the environment.[/]")
+    elif memory_module.memory_server(config) is None:
+        console.print(f"[yellow]Disabled in {CONFIG_PATH}[/] ([memory] enabled = false).")
+    else:
+        console.print("Pattern lookups: [green]on[/] for claude (gemini/Cursor after `secfoo mcp sync`).")
+    try:
+        info = memory_module.whoami(config)
+    except memory_module.MemoryServiceError as exc:
+        err_console.print(f"[yellow]Key saved, but couldn't reach {config.url} just now:[/] {exc}")
+        return
+    console.print(f"Service {config.url} -- {_memory_whoami_line(info)}.")
+
+
+class FindingsSkill(str, Enum):
+    SAST = "sast"
+    SCA = "sca-reachability"
+    SECRET = "secret-scanning"
+
+
+class FindingsStatus(str, Enum):
+    OPEN = "open"
+    CLOSED = "closed"
+    ALL = "all"
+
+
+# Lifecycle bookkeeping that means nothing outside this one SQLite file.
+_EXPORT_DROP_COLUMNS = {"id", "project_id", "first_seen_run_id", "last_seen_run_id", "closed_in_run_id"}
+_EXPORT_LOCATION_COLUMNS = {"location_file", "location_line", "code_region_hash", "reachability_evidence"}
+
+
+@findings_app.command(name="export")
+def findings_export(
+    skill: list[FindingsSkill] = typer.Option([], "--skill", "-s", help="Limit to these skills. Repeatable."),
+    project: Optional[int] = typer.Option(None, "--project", help="Limit to one project id."),
+    status: FindingsStatus = typer.Option(FindingsStatus.OPEN, "--status", help="open, closed, or all."),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write JSONL here instead of stdout."),
+    no_locations: bool = typer.Option(
+        False, "--no-locations",
+        help="Drop file paths, line numbers, code-region hashes and reachability evidence.",
+    ),
+) -> None:
+    """Export structured findings (SAST, SCA, secret scanning) as JSON Lines.
+
+    One record per finding, with its skill, severity, stack (language/
+    framework) and code-free construct description -- the same shape for
+    every skill, for feeding other tools.
+    """
+    with RunRepository() as repo:
+        rows = repo.list_structured_findings(
+            skill_ids=[s.value for s in skill] or None,
+            project_id=project,
+            status=None if status is FindingsStatus.ALL else status.value,
+        )
+    lines = []
+    for skill_id, row in rows:
+        record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
+        for column, value in row.items():
+            if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
+                continue
+            record[column] = value
+        lines.append(json.dumps(record, sort_keys=True))
+    text = "\n".join(lines) + ("\n" if lines else "")
+    if output is None:
+        sys.stdout.write(text)
+        return
+    output.write_text(text, encoding="utf-8")
+    err_console.print(f"Wrote {len(lines)} finding(s) to {output}.")
+
+
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
 
 
@@ -1350,16 +1528,20 @@ def mcp_list() -> None:
         err_console.print(f"[red]Error in {CONFIG_PATH}:[/] {exc}")
         raise typer.Exit(code=1) from None
 
-    if not cfg.mcp_servers:
+    servers = mcp_module.effective_servers(cfg.mcp_servers)
+    if not servers:
         console.print(f"No MCP servers configured. Add a [[mcp_servers]] entry to {CONFIG_PATH}.")
         return
 
+    user_names = {server.name for server in cfg.mcp_servers}
     table = Table(title="Configured MCP servers")
     table.add_column("Name")
     table.add_column("Target")
     table.add_column("Transport")
-    for server in cfg.mcp_servers:
-        table.add_row(server.name, server.url or server.command or "", server.transport)
+    table.add_column("Source")
+    for server in servers:
+        source = "config.toml" if server.name in user_names else "secfoo memory (default)"
+        table.add_row(server.name, server.url or server.command or "", server.transport, source)
     console.print(table)
     console.print(
         "\n[bold]claude[/] picks these up automatically on every run (--mcp-config, "
@@ -1383,7 +1565,8 @@ def mcp_sync(
         err_console.print(f"[red]Error in {CONFIG_PATH}:[/] {exc}")
         raise typer.Exit(code=1) from None
 
-    if not cfg.mcp_servers:
+    servers = mcp_module.effective_servers(cfg.mcp_servers)
+    if not servers:
         console.print(f"No MCP servers configured in {CONFIG_PATH} -- nothing to sync.")
         return
 
@@ -1392,7 +1575,7 @@ def mcp_sync(
         return
 
     try:
-        results = mcp_module.sync(agent.value, cfg.mcp_servers)
+        results = mcp_module.sync(agent.value, servers)
     except ValueError as exc:
         err_console.print(f"[red]Error:[/] {exc}")
         raise typer.Exit(code=1) from None

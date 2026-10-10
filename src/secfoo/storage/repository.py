@@ -46,6 +46,8 @@ from secfoo.storage.models import (
     ProjectRecord,
     RunRecord,
     SastFindingRecord,
+    ScaFindingRecord,
+    SecretFindingRecord,
     ThreatAcceptanceRecord,
 )
 
@@ -74,6 +76,7 @@ _RUNS_MIGRATIONS = {
     "cost_usd": "ALTER TABLE runs ADD COLUMN cost_usd REAL",
     # Memory Bank: git HEAD SHA at scan time; foundation for incremental diff-based rescans.
     "target_commit": "ALTER TABLE runs ADD COLUMN target_commit TEXT",
+    "memory_enabled": "ALTER TABLE runs ADD COLUMN memory_enabled INTEGER",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -82,7 +85,15 @@ _ASSESSMENTS_MIGRATIONS = {
 
 _SAST_FINDINGS_MIGRATIONS = {
     "code_region_hash": "ALTER TABLE sast_findings ADD COLUMN code_region_hash TEXT",
+    "language": "ALTER TABLE sast_findings ADD COLUMN language TEXT",
+    "framework": "ALTER TABLE sast_findings ADD COLUMN framework TEXT",
+    "construct": "ALTER TABLE sast_findings ADD COLUMN construct TEXT",
 }
+
+# Skill id -> its per-finding lifecycle table. Every one of these tables
+# shares the open/closed + first/last-seen columns, which is what lets
+# close_stale_findings and list_structured_findings serve all three.
+_FINDINGS_TABLES = {"sast": "sast_findings", "sca-reachability": "sca_findings", "secret-scanning": "secret_findings"}
 
 _ASSESSMENT_UPDATE_FIELDS = {
     "assessment_type", "status", "application_id", "sar_number", "reviewer", "review_date", "notes",
@@ -303,12 +314,13 @@ class RunRepository:
         output_tokens: int | None = None,
         cost_usd: float | None = None,
         target_commit: str | None = None,  # Memory Bank: HEAD SHA of the scanned repo.
+        memory_enabled: bool | None = None,
     ) -> None:
         self._conn.execute(
             "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
             "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
-            "cost_usd = ?, target_commit = ? WHERE run_uuid = ?",
+            "cost_usd = ?, target_commit = ?, memory_enabled = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,
@@ -326,6 +338,7 @@ class RunRepository:
                 output_tokens,
                 cost_usd,
                 target_commit,
+                None if memory_enabled is None else int(memory_enabled),
                 run_uuid,
             ),
         )
@@ -1198,6 +1211,9 @@ class RunRepository:
         description: str | None = None,
         recommendation: str | None = None,
         code_region_hash: str | None = None,
+        language: str | None = None,
+        framework: str | None = None,
+        construct: str | None = None,
     ) -> None:
         """Inserts a newly-seen finding as open, or -- on a conflicting
         (project_id, fingerprint) -- refreshes it from this run's report
@@ -1209,23 +1225,25 @@ class RunRepository:
         now = _now()
         self._conn.execute(
             "INSERT INTO sast_findings (project_id, fingerprint, current_ref, title, severity, cwe, "
-            "owasp, verdict, location_file, location_line, code_region_hash, cvss_vector, cvss_score, "
+            "owasp, verdict, location_file, location_line, code_region_hash, language, framework, construct, "
+            "cvss_vector, cvss_score, "
             "description, recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, "
             "last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
             "ON CONFLICT(project_id, fingerprint) DO UPDATE SET "
             "current_ref = excluded.current_ref, title = excluded.title, severity = excluded.severity, "
             "cwe = excluded.cwe, owasp = excluded.owasp, verdict = excluded.verdict, "
             "location_file = excluded.location_file, location_line = excluded.location_line, "
             "code_region_hash = excluded.code_region_hash, "
+            "language = excluded.language, framework = excluded.framework, construct = excluded.construct, "
             "cvss_vector = excluded.cvss_vector, cvss_score = excluded.cvss_score, "
             "description = excluded.description, recommendation = excluded.recommendation, status = 'open', "
             "last_seen_run_id = excluded.last_seen_run_id, last_seen_at = excluded.last_seen_at, "
             "closed_in_run_id = NULL, closed_at = NULL",
             (
                 project_id, fingerprint, current_ref, title, severity, cwe, owasp, verdict,
-                location_file, location_line, code_region_hash, cvss_vector, cvss_score,
-                description, recommendation, run_id, now, run_id, now,
+                location_file, location_line, code_region_hash, language, framework, construct,
+                cvss_vector, cvss_score, description, recommendation, run_id, now, run_id, now,
             ),
         )
         self._conn.commit()
@@ -1260,21 +1278,177 @@ class RunRepository:
         didn't re-report. Called once per successful sast run, after every
         row from that run has been upserted via upsert_sast_finding.
         """
+        self.close_stale_findings(
+            "sast", project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints, closed_at=closed_at
+        )
+
+    def close_stale_findings(
+        self, skill_id: str, *, project_id: int, run_id: int, seen_fingerprints: list[str], closed_at: str
+    ) -> None:
+        """close_stale_sast_findings for any of the _FINDINGS_TABLES."""
+        table = _FINDINGS_TABLES[skill_id]
         if seen_fingerprints:
             placeholders = ",".join("?" * len(seen_fingerprints))
             query = (
-                "UPDATE sast_findings SET status = 'closed', closed_in_run_id = ?, closed_at = ? "
-                f"WHERE project_id = ? AND status = 'open' AND fingerprint NOT IN ({placeholders})"  # nosec B608 -- placeholders are ? binds, not user SQL
+                f"UPDATE {table} SET status = 'closed', closed_in_run_id = ?, closed_at = ? "  # nosec B608 -- table from a fixed dict, placeholders are ? binds
+                f"WHERE project_id = ? AND status = 'open' AND fingerprint NOT IN ({placeholders})"
             )
             params: list[object] = [run_id, closed_at, project_id, *seen_fingerprints]
         else:
             query = (
-                "UPDATE sast_findings SET status = 'closed', closed_in_run_id = ?, closed_at = ? "
+                f"UPDATE {table} SET status = 'closed', closed_in_run_id = ?, closed_at = ? "  # nosec B608 -- table from a fixed dict
                 "WHERE project_id = ? AND status = 'open'"
             )
             params = [run_id, closed_at, project_id]
         self._conn.execute(query, params)
         self._conn.commit()
+
+    def _upsert_finding(
+        self, table: str, *, project_id: int, fingerprint: str, run_id: int, fields: dict[str, object]
+    ) -> None:
+        """Generic form of upsert_sast_finding's lifecycle semantics: insert
+        as open, or refresh every field and reopen on a repeat fingerprint,
+        never touching first_seen_*. `fields` keys are column names chosen
+        by this module's own callers, never user input."""
+        now = _now()
+        columns = list(fields)
+        insert_columns = ["project_id", "fingerprint", *columns, "status", "first_seen_run_id",
+                          "first_seen_at", "last_seen_run_id", "last_seen_at"]
+        placeholders = ", ".join("?" for _ in insert_columns)
+        updates = ", ".join(f"{column} = excluded.{column}" for column in columns)
+        self._conn.execute(
+            f"INSERT INTO {table} ({', '.join(insert_columns)}) VALUES ({placeholders}) "  # nosec B608 -- fixed table/column names, values are ? binds
+            f"ON CONFLICT(project_id, fingerprint) DO UPDATE SET {updates}, status = 'open', "
+            "last_seen_run_id = excluded.last_seen_run_id, last_seen_at = excluded.last_seen_at, "
+            "closed_in_run_id = NULL, closed_at = NULL",
+            (project_id, fingerprint, *fields.values(), "open", run_id, now, run_id, now),
+        )
+        self._conn.commit()
+
+    def upsert_sca_finding(
+        self,
+        *,
+        project_id: int,
+        fingerprint: str,
+        run_id: int,
+        current_ref: str,
+        package: str,
+        severity: str,
+        version: str | None = None,
+        ecosystem: str | None = None,
+        issue: str | None = None,
+        reachability: str | None = None,
+        fixed_in: str | None = None,
+        cve: str | None = None,
+        reachability_evidence: str | None = None,
+        recommendation: str | None = None,
+        language: str | None = None,
+        framework: str | None = None,
+        construct: str | None = None,
+    ) -> None:
+        self._upsert_finding(
+            "sca_findings",
+            project_id=project_id,
+            fingerprint=fingerprint,
+            run_id=run_id,
+            fields={
+                "current_ref": current_ref, "package": package, "version": version, "ecosystem": ecosystem,
+                "issue": issue, "severity": severity, "reachability": reachability, "fixed_in": fixed_in,
+                "cve": cve, "reachability_evidence": reachability_evidence, "recommendation": recommendation,
+                "language": language, "framework": framework, "construct": construct,
+            },
+        )
+
+    def upsert_secret_finding(
+        self,
+        *,
+        project_id: int,
+        fingerprint: str,
+        run_id: int,
+        current_ref: str,
+        secret_type: str,
+        location_file: str,
+        severity: str,
+        location_line: str | None = None,
+        code_region_hash: str | None = None,
+        source: str | None = None,
+        validity: str | None = None,
+        evidence: str | None = None,
+        exposure: str | None = None,
+        remediation: str | None = None,
+        language: str | None = None,
+        framework: str | None = None,
+        construct: str | None = None,
+    ) -> None:
+        self._upsert_finding(
+            "secret_findings",
+            project_id=project_id,
+            fingerprint=fingerprint,
+            run_id=run_id,
+            fields={
+                "current_ref": current_ref, "secret_type": secret_type, "location_file": location_file,
+                "location_line": location_line, "code_region_hash": code_region_hash, "source": source,
+                "validity": validity, "severity": severity, "evidence": evidence, "exposure": exposure,
+                "remediation": remediation, "language": language, "framework": framework,
+                "construct": construct,
+            },
+        )
+
+    def _list_findings(
+        self, table: str, *, project_id: int | None, status: str | None, limit: int
+    ) -> list[sqlite3.Row]:
+        query = (
+            f"SELECT {table}.*, projects.display_name FROM {table} "  # nosec B608 -- table from a fixed dict
+            f"JOIN projects ON projects.id = {table}.project_id WHERE 1=1"
+        )
+        params: list[object] = []
+        if project_id is not None:
+            query += f" AND {table}.project_id = ?"
+            params.append(project_id)
+        if status is not None:
+            query += f" AND {table}.status = ?"
+            params.append(status)
+        query += f" ORDER BY {table}.last_seen_at DESC, {table}.id DESC LIMIT ?"
+        params.append(limit)
+        return self._conn.execute(query, params).fetchall()
+
+    def list_sca_findings(
+        self, *, project_id: int | None = None, status: str | None = None, limit: int = 1000
+    ) -> list[ScaFindingRecord]:
+        rows = self._list_findings("sca_findings", project_id=project_id, status=status, limit=limit)
+        return [self._row_to_finding(ScaFindingRecord, row) for row in rows]
+
+    def list_secret_findings(
+        self, *, project_id: int | None = None, status: str | None = None, limit: int = 1000
+    ) -> list[SecretFindingRecord]:
+        rows = self._list_findings("secret_findings", project_id=project_id, status=status, limit=limit)
+        return [self._row_to_finding(SecretFindingRecord, row) for row in rows]
+
+    @staticmethod
+    def _row_to_finding(record_cls, row: sqlite3.Row):
+        data = dict(row)
+        project_display_name = data.pop("display_name", None)
+        return record_cls(project_display_name=project_display_name, **data)
+
+    def list_structured_findings(
+        self,
+        *,
+        skill_ids: list[str] | None = None,
+        project_id: int | None = None,
+        status: str | None = None,
+        limit: int = 100_000,
+    ) -> list[tuple[str, dict]]:
+        """(skill_id, row-as-dict) across every findings table, for
+        `secfoo findings export`. Plain dicts rather than records so the
+        exporter can emit whatever columns a table has without a per-table
+        mapping."""
+        result: list[tuple[str, dict]] = []
+        for skill_id, table in _FINDINGS_TABLES.items():
+            if skill_ids and skill_id not in skill_ids:
+                continue
+            for row in self._list_findings(table, project_id=project_id, status=status, limit=limit):
+                result.append((skill_id, dict(row)))
+        return result
 
     def list_sast_findings(
         self,

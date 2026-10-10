@@ -42,6 +42,7 @@ class RunRecord:
     cost_usd: float | None = None
     project_display_name: str | None = None
     target_commit: str | None = None  # Memory Bank: git HEAD SHA at scan time.
+    memory_enabled: int | None = None  # 1/0: secfoo-memory tools wired in; NULL = unknown (older run).
 
 
 @dataclass(frozen=True)
@@ -158,6 +159,67 @@ class SastFindingRecord:
     closed_at: str | None
     description: str | None = None
     recommendation: str | None = None
+    language: str | None = None
+    framework: str | None = None
+    construct: str | None = None
+    project_display_name: str | None = None
+
+
+@dataclass(frozen=True)
+class ScaFindingRecord:
+    id: int
+    project_id: int
+    fingerprint: str
+    current_ref: str
+    package: str
+    version: str | None
+    ecosystem: str | None
+    issue: str | None
+    severity: str
+    reachability: str | None
+    fixed_in: str | None
+    cve: str | None
+    reachability_evidence: str | None
+    recommendation: str | None
+    language: str | None
+    framework: str | None
+    construct: str | None
+    status: str
+    first_seen_run_id: int
+    first_seen_at: str
+    last_seen_run_id: int
+    last_seen_at: str
+    closed_in_run_id: int | None
+    closed_at: str | None
+    project_display_name: str | None = None
+
+
+@dataclass(frozen=True)
+class SecretFindingRecord:
+    id: int
+    project_id: int
+    fingerprint: str
+    current_ref: str
+    secret_type: str
+    location_file: str
+    location_line: str | None
+    code_region_hash: str | None
+    source: str | None
+    validity: str | None
+    severity: str
+    evidence: str | None
+    exposure: str | None
+    remediation: str | None
+    language: str | None
+    framework: str | None
+    construct: str | None
+    status: str
+    first_seen_run_id: int
+    first_seen_at: str
+    last_seen_run_id: int
+    last_seen_at: str
+    closed_in_run_id: int | None
+    closed_at: str | None
     project_display_name: str | None = None
 
 

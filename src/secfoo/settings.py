@@ -65,6 +65,10 @@ VALID_FAIL_ON = ("critical", "high", "medium", "low")
 class SecfooConfig:
     defaults: Defaults
     mcp_servers: list[MCPServerConfig]
+    # [memory] enabled -- whether the secfoo-memory MCP server is wired in
+    # once a memory key exists (secfoo memory signup/login). On by default;
+    # without a key there is nothing to wire in either way.
+    memory_enabled: bool = True
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
@@ -126,4 +130,11 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         seen_names.add(name)
         servers.append(_parse_mcp_server(name, entry))
 
-    return SecfooConfig(defaults=defaults, mcp_servers=servers)
+    memory_raw = data.get("memory", {})
+    if not isinstance(memory_raw, dict):
+        raise ConfigError("[memory] must be a table")
+    memory_enabled = memory_raw.get("enabled", True)
+    if not isinstance(memory_enabled, bool):
+        raise ConfigError("memory.enabled must be true or false")
+
+    return SecfooConfig(defaults=defaults, mcp_servers=servers, memory_enabled=memory_enabled)

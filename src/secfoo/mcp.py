@@ -40,6 +40,20 @@ class SyncResult:
     message: str
 
 
+def effective_servers(configured: list[MCPServerConfig]) -> list[MCPServerConfig]:
+    """The user's own [[mcp_servers]] plus the default secfoo-memory
+    server when memory is on (memory.memory_server). A user-defined server
+    with the same name wins -- that is how a self-hosted enterprise memory
+    service, or a staging URL, replaces the default."""
+    from secfoo import memory
+
+    servers = list(configured)
+    default = memory.memory_server()
+    if default is not None and all(server.name != default.name for server in servers):
+        servers.append(default)
+    return servers
+
+
 def _server_to_standard_shape(server: MCPServerConfig) -> dict:
     """The de facto standard mcpServers entry shape shared by Claude Code,
     VS Code, and Cursor's own config files."""
@@ -68,6 +82,9 @@ def write_claude_mcp_config(servers: list[MCPServerConfig]) -> Path | None:
     payload = {"mcpServers": {s.name: _server_to_standard_shape(s) for s in servers}}
     STORE_DIR.mkdir(parents=True, exist_ok=True)
     CLAUDE_MCP_CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Header values (the secfoo-memory bearer key, or any user server's
+    # auth header) are secrets -- same 0600 as cloud.toml/memory.toml.
+    CLAUDE_MCP_CONFIG_PATH.chmod(0o600)
     return CLAUDE_MCP_CONFIG_PATH
 
 
