@@ -25,6 +25,18 @@ depth = "quick"        # quick | standard
 # cost noticeably on large trees.
 # exclude = ["vendor/", "third_party/", "some-cloned-repo/"]
 
+[memory]
+# secfoo-memory: a hosted service of curated vulnerability patterns the
+# agent can consult mid-assessment (known trigger conditions, remediation,
+# known false positives). Only active once you have a key -- run
+# `secfoo memory signup` for a free one. The agent sends short, code-free
+# descriptions only ("SQL query built from a request parameter"); the
+# service rejects anything that looks like source code. Registered as the
+# default `secfoo-memory` MCP server; define your own [[mcp_servers]] entry
+# with that name to point at a self-hosted instance instead.
+# Opt out per run with `secfoo run --no-memory`, or entirely here:
+enabled = true
+
 # Define MCP servers once here instead of wiring each agent CLI separately.
 # How this reaches an agent depends on what that agent's CLI supports:
 #   - claude: picked up automatically on every `secfoo run` (via

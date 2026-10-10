@@ -57,6 +57,12 @@ _DETAIL_HEADING_RE = re.compile(r"^###\s*\[[A-Za-z]+\]\s*(?P<id>F\d+):", re.MULT
 
 _DESCRIPTION_FIELD_RE = re.compile(r"\*\*Description:\*\*\s*([^\n]+)")
 _RECOMMENDATION_FIELD_RE = re.compile(r"\*\*Recommendation:\*\*\s*([^\n]+)")
+# Code-free one-line description of the vulnerable construct, stored on
+# the structured findings tables and emitted by `secfoo findings export`.
+# It is the one per-finding field written to be comparable across repos
+# (no paths, identifiers, or code). Absent from reports that predate this
+# contract field.
+_CONSTRUCT_FIELD_RE = re.compile(r"\*\*Construct:\*\*\s*([^\n]+)")
 
 # "`app/db.py:42`" -> ("app/db.py", "42"); the line group is optional since
 # a location without one ("`app/db.py`") should still parse.
@@ -106,6 +112,16 @@ def extract_recommendation_by_id(report_markdown: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for finding_id, block in _iter_detail_blocks(report_markdown):
         match = _RECOMMENDATION_FIELD_RE.search(block)
+        if match:
+            result[finding_id] = match.group(1).strip()
+    return result
+
+
+def extract_construct_by_id(report_markdown: str) -> dict[str, str]:
+    """Fn -> the report's own `**Construct:**` text."""
+    result: dict[str, str] = {}
+    for finding_id, block in _iter_detail_blocks(report_markdown):
+        match = _CONSTRUCT_FIELD_RE.search(block)
         if match:
             result[finding_id] = match.group(1).strip()
     return result
@@ -171,6 +187,7 @@ def findings_with_fingerprints(
     rows = extract_findings_register_rows(report_markdown)
     descriptions = extract_description_by_id(report_markdown)
     recommendations = extract_recommendation_by_id(report_markdown)
+    constructs = extract_construct_by_id(report_markdown)
 
     # Group indices by (cwe, file) to detect same-run collisions before
     # computing any fingerprint.
@@ -206,6 +223,7 @@ def findings_with_fingerprints(
                 "legacy_fingerprint": legacy_fingerprint,
                 "description": descriptions.get(row["id"], ""),
                 "recommendation": recommendations.get(row["id"], ""),
+                "construct": constructs.get(row["id"], ""),
             }
         )
     return results

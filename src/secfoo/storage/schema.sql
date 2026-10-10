@@ -72,7 +72,11 @@ CREATE TABLE IF NOT EXISTS runs (
     -- portal. NULL means never synced (offline, or no `cloud login` yet).
     cloud_synced_at   TEXT,
     -- Memory Bank: git HEAD SHA at scan time; enables future incremental diff-based rescans.
-    target_commit     TEXT
+    target_commit     TEXT,
+    -- 1 if the agent had the secfoo-memory pattern tools wired in for this
+    -- run, 0 if not, NULL for runs from before this column existed. Lets
+    -- evaluation compare memory-on vs memory-off runs of the same target.
+    memory_enabled    INTEGER
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other
@@ -200,6 +204,12 @@ CREATE TABLE IF NOT EXISTS sast_findings (
     location_file     TEXT NOT NULL,
     location_line     TEXT,
     code_region_hash  TEXT,
+    -- Stack + code-free construct description (see stack.py and the
+    -- `**Construct:**` contract field): the fields that make a finding
+    -- comparable across repos, for `secfoo findings export`.
+    language          TEXT,
+    framework         TEXT,
+    construct         TEXT,
     cvss_vector       TEXT,
     cvss_score        REAL,
     description       TEXT,   -- the report's own Detailed Findings narrative, refreshed each run
@@ -216,3 +226,70 @@ CREATE TABLE IF NOT EXISTS sast_findings (
 
 CREATE INDEX IF NOT EXISTS idx_sast_findings_project_status ON sast_findings(project_id, status);
 
+
+-- SCA (sca-reachability) per-finding lifecycle -- same open/closed model
+-- as sast_findings, keyed by report/sca.py:fingerprint_for_row (ecosystem
+-- + package [+ advisory ID]), never by the model's issue prose.
+CREATE TABLE IF NOT EXISTS sca_findings (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id            INTEGER NOT NULL REFERENCES projects(id),
+    fingerprint           TEXT NOT NULL,
+    current_ref           TEXT NOT NULL,   -- this run's Dn id, display only
+    package               TEXT NOT NULL,
+    version               TEXT,
+    ecosystem             TEXT,
+    issue                 TEXT,
+    severity              TEXT NOT NULL,
+    reachability          TEXT,
+    fixed_in              TEXT,
+    cve                   TEXT,            -- as the report wrote it ("unverified" or an ID)
+    reachability_evidence TEXT,
+    recommendation        TEXT,
+    language              TEXT,
+    framework             TEXT,
+    construct             TEXT,
+    status                TEXT NOT NULL CHECK (status IN ('open','closed')),
+    first_seen_run_id     INTEGER NOT NULL REFERENCES runs(id),
+    first_seen_at         TEXT NOT NULL,
+    last_seen_run_id      INTEGER NOT NULL REFERENCES runs(id),
+    last_seen_at          TEXT NOT NULL,
+    closed_in_run_id      INTEGER REFERENCES runs(id),
+    closed_at             TEXT,
+    UNIQUE (project_id, fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sca_findings_project_status ON sca_findings(project_id, status);
+
+-- Secret-scanning per-finding lifecycle. `evidence` is re-redacted to a
+-- few leading characters before it is stored (report/secret_scanning.py:
+-- redact_evidence) -- this table must never become a copy of the secrets
+-- it tracks.
+CREATE TABLE IF NOT EXISTS secret_findings (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id        INTEGER NOT NULL REFERENCES projects(id),
+    fingerprint       TEXT NOT NULL,
+    current_ref       TEXT NOT NULL,   -- this run's Sn id, display only
+    secret_type       TEXT NOT NULL,
+    location_file     TEXT NOT NULL,
+    location_line     TEXT,
+    code_region_hash  TEXT,
+    source            TEXT,            -- code / config / history / docs
+    validity          TEXT,            -- Looks live / Unclear / Placeholder
+    severity          TEXT NOT NULL,
+    evidence          TEXT,
+    exposure          TEXT,
+    remediation       TEXT,
+    language          TEXT,
+    framework         TEXT,
+    construct         TEXT,
+    status            TEXT NOT NULL CHECK (status IN ('open','closed')),
+    first_seen_run_id INTEGER NOT NULL REFERENCES runs(id),
+    first_seen_at     TEXT NOT NULL,
+    last_seen_run_id  INTEGER NOT NULL REFERENCES runs(id),
+    last_seen_at      TEXT NOT NULL,
+    closed_in_run_id  INTEGER REFERENCES runs(id),
+    closed_at         TEXT,
+    UNIQUE (project_id, fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_secret_findings_project_status ON secret_findings(project_id, status);

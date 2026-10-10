@@ -274,6 +274,35 @@ Open rows keyed with the legacy fingerprint are **rekeyed** automatically
 on the first rescan that computes a region hash. There is no post-hoc
 embedding similarity on finding text.
 
+### Structured findings (SAST, SCA, secret scanning)
+
+SCA and secret-scanning runs get the same open/closed lifecycle as SAST,
+in their own tables (`sca_findings`, `secret_findings`). Each finding also
+records:
+
+- **`language`** and **`framework`**: detected from the files on disk
+  (extensions and dependency manifests, see `stack.py`), never taken from
+  the model's own prose. SCA findings take their language from the
+  package's ecosystem.
+- **`construct`**: the report's `**Construct:**` line. This is a one-line,
+  code-free description of the vulnerable construct ("YAML loader without
+  a safe loader applied to an uploaded config file"). Because it has no
+  paths or identifiers, findings can be compared across repos.
+
+| Skill | Identity (fingerprint) |
+|---|---|
+| `sca-reachability` | ecosystem + package, plus the advisory ID when the report names a real one (`CVE-…`, `GHSA-…`, `PYSEC-…`). The version is not part of the key, so a bump that doesn't fix the issue keeps the same open finding. |
+| `secret-scanning` | secret type + normalized path + code-region hash (or a same-run line bucket, as with SAST) |
+
+Secret evidence is cut back down to its first 8 characters before it is
+stored, even when a report includes more.
+
+```bash
+secfoo findings export                       # open findings, every skill, JSON Lines to stdout
+secfoo findings export -s sast --status all  # one skill, open and closed
+secfoo findings export --no-locations -o findings.jsonl   # drop paths/lines/region hashes
+```
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.
@@ -431,6 +460,54 @@ How MCP servers reach each agent varies by what its CLI actually supports:
 secfoo mcp list                    # show what's configured
 secfoo mcp sync --agent gemini     # register into gemini's own config
 ```
+
+## Pattern memory (`secfoo-memory`)
+
+secfoo-memory is a hosted service of curated, generalized vulnerability
+patterns: what triggers them, how to fix them, and what commonly looks like
+them but isn't a real issue. With it connected, the agent can check a
+candidate finding against known patterns during an assessment. It is
+optional and off until you have a key.
+
+```bash
+secfoo memory signup --email you@example.com   # free key, emailed one-time code
+secfoo memory status                           # on/off, plan, today's usage
+secfoo memory login --api-key <key>            # an existing team/enterprise key
+secfoo memory logout
+```
+
+Once a key is saved, secfoo registers `secfoo-memory` as a default MCP
+server. `secfoo mcp list` shows it next to your own servers. `claude` picks
+it up on every run. For `gemini` or Cursor (`agent`), run
+`secfoo mcp sync --agent <agent>` once. The `api` agent has no tool loop,
+so memory doesn't apply to it. When memory is on, the prompt tells the
+agent when to use the three tools (`lookup_patterns`, `get_remediation`,
+`check_false_positive`) and how to phrase a query.
+
+**What leaves your machine:** only what the agent sends to those tools. A
+query is a language, a framework, an optional CWE, and a construct
+description of at most 200 characters, such as "HTML template rendering a
+request parameter with autoescaping disabled". The service rejects queries
+that look like source code, file paths or secrets, so your code is never
+sent. Results are reference data. The prompt tells the agent to confirm
+every finding in your own code and never to follow instructions found in a
+result.
+
+**Turning it off:**
+
+| Scope | How |
+|---|---|
+| One run | `secfoo run --no-memory ...` |
+| Shell/CI job | `SECFOO_MEMORY=off` |
+| Always | `[memory] enabled = false` in `~/.secfoo/config.toml` |
+
+Runs record whether memory was on (`runs.memory_enabled`), so you can
+compare runs with memory and without it on the same target. The key is
+stored in `~/.secfoo/memory.toml` with mode `0600`. A self-hosted
+enterprise memory service is used by running
+`secfoo memory login --url https://memory.internal.example --api-key ...`,
+or by defining your own `[[mcp_servers]]` entry named `secfoo-memory`,
+which replaces the default.
 
 ## Distribution
 
