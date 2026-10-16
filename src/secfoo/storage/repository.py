@@ -77,6 +77,8 @@ _RUNS_MIGRATIONS = {
     # Memory Bank: git HEAD SHA at scan time; foundation for incremental diff-based rescans.
     "target_commit": "ALTER TABLE runs ADD COLUMN target_commit TEXT",
     "memory_enabled": "ALTER TABLE runs ADD COLUMN memory_enabled INTEGER",
+    # Memory Bank: JSON list of paths an incremental scan covered; NULL = full scan.
+    "scan_scope": "ALTER TABLE runs ADD COLUMN scan_scope TEXT",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -94,6 +96,9 @@ _SAST_FINDINGS_MIGRATIONS = {
 # shares the open/closed + first/last-seen columns, which is what lets
 # close_stale_findings and list_structured_findings serve all three.
 _FINDINGS_TABLES = {"sast": "sast_findings", "sca-reachability": "sca_findings", "secret-scanning": "secret_findings"}
+# Findings tables with a location_file column, i.e. ones an incremental
+# scan's file scope can be applied to (see close_stale_findings).
+_FILE_SCOPED_TABLES = frozenset({"sast_findings", "secret_findings"})
 
 _ASSESSMENT_UPDATE_FIELDS = {
     "assessment_type", "status", "application_id", "sar_number", "reviewer", "review_date", "notes",
@@ -315,12 +320,13 @@ class RunRepository:
         cost_usd: float | None = None,
         target_commit: str | None = None,  # Memory Bank: HEAD SHA of the scanned repo.
         memory_enabled: bool | None = None,
+        scan_scope: list[str] | None = None,  # Memory Bank: None = full scan.
     ) -> None:
         self._conn.execute(
             "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
             "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
             "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
-            "cost_usd = ?, target_commit = ?, memory_enabled = ? WHERE run_uuid = ?",
+            "cost_usd = ?, target_commit = ?, memory_enabled = ?, scan_scope = ? WHERE run_uuid = ?",
             (
                 status,
                 exit_code,
@@ -339,10 +345,29 @@ class RunRepository:
                 cost_usd,
                 target_commit,
                 None if memory_enabled is None else int(memory_enabled),
+                None if scan_scope is None else json.dumps(scan_scope),
                 run_uuid,
             ),
         )
         self._conn.commit()
+
+    def find_project_id(self, identifier: str) -> int | None:
+        """The id of an existing project, without creating one (unlike
+        upsert_project). Used to check for a repeat scan before running."""
+        row = self._conn.execute("SELECT id FROM projects WHERE identifier = ?", (identifier,)).fetchone()
+        return row["id"] if row else None
+
+    def get_last_commit(self, *, project_id: int, skill_id: str) -> str | None:
+        """Return the HEAD SHA from the most recent successful run for this
+        project+skill, or None if no prior run exists.
+        Used by Memory Bank to compute incremental diffs on rescans."""
+        row = self._conn.execute(
+            "SELECT target_commit FROM runs WHERE project_id = ? AND skill_id = ? "
+            "AND status = 'success' AND target_commit IS NOT NULL "
+            "ORDER BY rowid DESC LIMIT 1",
+            (project_id, skill_id),
+        ).fetchone()
+        return row["target_commit"] if row else None
 
     def mark_run_synced(self, run_uuid: str) -> None:
         """Records that this run has been pushed to the enterprise portal.
@@ -373,6 +398,8 @@ class RunRepository:
         data = dict(row)
         confluence_urls = json.loads(data.pop("confluence_urls") or "[]")
         project_display_name = data.pop("display_name", None)
+        if data.get("scan_scope") is not None:
+            data["scan_scope"] = json.loads(data["scan_scope"])
         return RunRecord(confluence_urls=confluence_urls, project_display_name=project_display_name, **data)
 
     def total_cost_usd(self, *, project_id: int | None = None) -> float:
@@ -1274,7 +1301,13 @@ class RunRepository:
         self._conn.commit()
 
     def close_stale_sast_findings(
-        self, *, project_id: int, run_id: int, seen_fingerprints: list[str], closed_at: str
+        self,
+        *,
+        project_id: int,
+        run_id: int,
+        seen_fingerprints: list[str],
+        closed_at: str,
+        only_files: list[str] | None = None,
     ) -> None:
         """Closes every currently-open finding for this project NOT among
         `seen_fingerprints` -- i.e. whatever this run's Findings Register
@@ -1282,27 +1315,49 @@ class RunRepository:
         row from that run has been upserted via upsert_sast_finding.
         """
         self.close_stale_findings(
-            "sast", project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints, closed_at=closed_at
+            "sast",
+            project_id=project_id,
+            run_id=run_id,
+            seen_fingerprints=seen_fingerprints,
+            closed_at=closed_at,
+            only_files=only_files,
         )
 
     def close_stale_findings(
-        self, skill_id: str, *, project_id: int, run_id: int, seen_fingerprints: list[str], closed_at: str
+        self,
+        skill_id: str,
+        *,
+        project_id: int,
+        run_id: int,
+        seen_fingerprints: list[str],
+        closed_at: str,
+        only_files: list[str] | None = None,
     ) -> None:
-        """close_stale_sast_findings for any of the _FINDINGS_TABLES."""
+        """close_stale_sast_findings for any of the _FINDINGS_TABLES.
+
+        `only_files` is the scope of an incremental scan (Memory Bank): only
+        findings located in those files can be closed, since the run never
+        looked at the rest. A table with no file column (SCA) closes nothing
+        for an incremental run, because its findings can't be placed in or
+        out of the scope.
+        """
         table = _FINDINGS_TABLES[skill_id]
+        if only_files is not None and (table not in _FILE_SCOPED_TABLES or not only_files):
+            return
+        query = (
+            f"UPDATE {table} SET status = 'closed', closed_in_run_id = ?, closed_at = ? "  # nosec B608 -- table from a fixed dict, placeholders are ? binds
+            "WHERE project_id = ? AND status = 'open'"
+        )
+        params: list[object] = [run_id, closed_at, project_id]
         if seen_fingerprints:
-            placeholders = ",".join("?" * len(seen_fingerprints))
-            query = (
-                f"UPDATE {table} SET status = 'closed', closed_in_run_id = ?, closed_at = ? "  # nosec B608 -- table from a fixed dict, placeholders are ? binds
-                f"WHERE project_id = ? AND status = 'open' AND fingerprint NOT IN ({placeholders})"
-            )
-            params: list[object] = [run_id, closed_at, project_id, *seen_fingerprints]
-        else:
-            query = (
-                f"UPDATE {table} SET status = 'closed', closed_in_run_id = ?, closed_at = ? "  # nosec B608 -- table from a fixed dict
-                "WHERE project_id = ? AND status = 'open'"
-            )
-            params = [run_id, closed_at, project_id]
+            query += f" AND fingerprint NOT IN ({','.join('?' * len(seen_fingerprints))})"
+            params.extend(seen_fingerprints)
+        if only_files is not None:
+            # Same normalisation as report.sast._normalize_path, which is
+            # what the stored location_file values are matched by elsewhere.
+            scope = sorted({path.strip().lstrip("./").lower() for path in only_files})
+            query += f" AND LOWER(LTRIM(TRIM(location_file), './')) IN ({','.join('?' * len(scope))})"
+            params.extend(scope)
         self._conn.execute(query, params)
         self._conn.commit()
 

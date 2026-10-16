@@ -11,7 +11,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from secfoo import cloud as cloud_module
@@ -23,7 +23,7 @@ from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
 from secfoo.cost import format_cost, format_tokens, sum_optional
-from secfoo.runner import _project_display_name, execute_runs
+from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
 from secfoo.skills.loader import load_all_skills
 from secfoo.skills.renderer import merge_excludes as _merge_excludes
@@ -271,6 +271,12 @@ def run(
         help="Don't give the agent the secfoo-memory pattern tools for this run, "
         "even if `secfoo memory signup/login` has configured a key.",
     ),
+    rescan: bool = typer.Option(
+        False,
+        "--rescan",
+        help="Scan even when this exact commit was already scanned for a skill. Without it, "
+        "a run on a terminal asks first; a non-interactive run (CI, --json) always scans.",
+    ),
 ) -> None:
     """Run one or more security skills against a target using the chosen agent.
 
@@ -321,6 +327,24 @@ def run(
     # Exclusions are additive rather than override: --exclude adds to the
     # config's list, so naming one path can't silently drop the others.
     exclude_paths = _merge_excludes(file_defaults.exclude, exclude)
+
+    # Memory Bank: on a terminal, ask before repeating a scan of a commit that
+    # was already scanned. Only here, never in execute_runs(), which the
+    # dashboard and CI also call with no terminal to answer.
+    if not rescan and _is_interactive() and not json_output:
+        try:
+            head, repeats = already_scanned_skills(skill_ids=[s.value for s in skill], target=target)
+        except TargetResolutionError:
+            head, repeats = None, []  # execute_runs reports the bad target below
+        if head and repeats and not Confirm.ask(
+            f"Commit {head[:8]} was already scanned for {', '.join(repeats)}. Scan again?",
+            default=False,
+            console=console,
+        ):
+            skill = [s for s in skill if s.value not in repeats]
+            if not skill:
+                console.print("Nothing new to scan. Use --rescan to scan this commit again.")
+                raise typer.Exit(code=0)
 
     task_ids: dict[str, int] = {}
     # In --json mode nothing but the final document may reach stdout, so

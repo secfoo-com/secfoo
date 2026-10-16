@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import subprocess  # nosec B404 -- fixed git argv, no shell
 import time
 from pathlib import Path
 from typing import TypedDict
@@ -50,6 +51,10 @@ class _State(TypedDict):
     workdir: str
     model: str
     timeout: int
+    prev_commit: str | None  # Memory Bank: SHA of the last scanned commit; None = full scan.
+    # Memory Bank: paths an incremental scan covered (files sent + files
+    # deleted); None = full scan. The runner only closes findings in these.
+    scan_scope: list[str] | None
     messages: list[dict]
     report: str
     attempts: int
@@ -63,21 +68,75 @@ def _matches(name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(name, p) for p in patterns)
 
 
-def collect_files(workdir: Path) -> str:
-    """Return every readable text file under `workdir` as one labelled string."""
+def _git(workdir: Path, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(  # nosec B603 B607 -- fixed git argv, no shell
+        ["git", "-C", str(workdir), *args], capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+def _ensure_commit_available(workdir: Path, commit: str) -> bool:
+    """GitHub targets are depth-1 clones, so the previous scan's commit is
+    usually missing. Fetch only that commit (all a diff against it needs)
+    rather than unshallowing the whole history on every rescan."""
+    if _git(workdir, "cat-file", "-e", f"{commit}^{{commit}}").returncode == 0:
+        return True
+    _git(workdir, "fetch", "--depth=1", "origin", commit, timeout=60)
+    return _git(workdir, "cat-file", "-e", f"{commit}^{{commit}}").returncode == 0
+
+
+def _git_changed_files(workdir: Path, prev_commit: str) -> tuple[list[str], list[str]] | None:
+    """Return (changed_paths, deleted_paths), relative to `workdir`, for
+    everything that differs between prev_commit and the files on disk now:
+    commits since prev_commit, uncommitted edits, and untracked files.
+
+    Renames come back as a delete of the old path plus a new path
+    (--no-renames), so findings recorded against the old path are covered.
+
+    None means the diff couldn't be computed (git missing, commit not
+    reachable); the caller then falls back to a full scan.
+    """
+    try:
+        if not _ensure_commit_available(workdir, prev_commit):
+            return None
+        # `git diff <commit>` (no `..HEAD`) compares against the working
+        # tree, so staged and unstaged edits are included, not just commits.
+        diff = _git(workdir, "diff", "--name-status", "--no-renames", "--relative", "-z", prev_commit)
+        untracked = _git(workdir, "ls-files", "--others", "--exclude-standard", "-z")
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if diff.returncode != 0 or untracked.returncode != 0:
+        return None
+    changed: set[str] = set()
+    deleted: set[str] = set()
+    tokens = diff.stdout.split("\0")
+    for status, path in zip(tokens[0::2], tokens[1::2]):
+        if path:
+            (deleted if status.startswith("D") else changed).add(path)
+    changed.update(path for path in untracked.stdout.split("\0") if path)
+    return sorted(changed), sorted(deleted)
+
+
+def _read_files(workdir: Path, *, changed_only: list[str] | None = None) -> tuple[str, list[str]]:
+    """collect_files, plus the relative paths that actually made it into the
+    text (after exclusions, size limits and binary detection)."""
+    allowed = set(changed_only) if changed_only is not None else None
     chunks: list[str] = []
+    included: list[str] = []
     total = 0
     for root, dirs, files in os.walk(workdir):
         dirs[:] = sorted(d for d in dirs if not _matches(d, DIR_PATTERNS))
         for name in sorted(files):
             path = Path(root) / name
+            rel = path.relative_to(workdir).as_posix()
+            if allowed is not None and rel not in allowed:
+                continue  # incremental scan: unchanged file
             if _matches(name, FILE_PATTERNS) or path.stat().st_size > MAX_FILE_BYTES:
                 continue
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue  # binary file (image, font, ...)
-            chunk = f"\n===== FILE: {path.relative_to(workdir).as_posix()} =====\n{text}\n"
+            chunk = f"\n===== FILE: {rel} =====\n{text}\n"
             total += len(chunk)
             if total > MAX_TOTAL_CHARS:
                 raise ValueError(
@@ -85,7 +144,14 @@ def collect_files(workdir: Path) -> str:
                     "Use --exclude to narrow it, or use a CLI agent."
                 )
             chunks.append(chunk)
-    return "".join(chunks)
+            included.append(rel)
+    return "".join(chunks), included
+
+
+def collect_files(workdir: Path, *, changed_only: list[str] | None = None) -> str:
+    """Return readable text files under `workdir` as one labelled string.
+    If `changed_only` is given, only those paths are included (incremental scan)."""
+    return _read_files(workdir, changed_only=changed_only)[0]
 
 
 def build_graph(litellm, StateGraph, START, END):
@@ -93,12 +159,41 @@ def build_graph(litellm, StateGraph, START, END):
     run the real graph against a fake LiteLLM."""
 
     def collect(state: _State) -> dict:
-        code = collect_files(Path(state["workdir"]))
+        workdir = Path(state["workdir"])
+        prev_commit = state["prev_commit"]
+        scan_scope: list[str] | None = None
+        scope_note = ""
+        code = ""
+        if prev_commit:
+            diff = _git_changed_files(workdir, prev_commit)
+            if diff is not None:
+                changed, deleted = diff
+                code, included = _read_files(workdir, changed_only=changed)
+                # Go incremental only if at least one changed file is actually
+                # scannable. A commit touching only images, lock files or
+                # excluded directories would otherwise send the model no
+                # source at all -- and an empty report would read as "every
+                # open finding is fixed".
+                if included:
+                    scan_scope = sorted(set(included) | set(deleted))
+                    scope_note = (
+                        f"Note: this is an incremental scan. Only files changed since "
+                        f"commit {prev_commit[:8]} are included below.\n\n"
+                    )
+                    if deleted:
+                        scope_note += (
+                            "## Deleted files\nThe following files were deleted since the last scan "
+                            "and are no longer present:\n" + "\n".join(f"- {f}" for f in deleted) + "\n\n"
+                        )
+        if scan_scope is None:
+            # First scan, nothing scannable changed, or git couldn't diff: full scan.
+            code = collect_files(workdir)
         content = (
-            f"{state['prompt']}\n\n## Source files\nYou cannot open files. "
+            f"{state['prompt']}\n\n{scope_note}"
+            f"## Source files\nYou cannot open files. "
             f"The complete target source is included below.\n{code}"
         )
-        return {"messages": [{"role": "user", "content": content}]}
+        return {"messages": [{"role": "user", "content": content}], "scan_scope": scan_scope}
 
     def assess(state: _State) -> dict:
         response = litellm.completion(
@@ -149,7 +244,7 @@ class ApiAdapter(AgentAdapter):
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         return []  # required by the base class; there is no program to launch
 
-    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
+    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit triggers incremental diff scan.
         started = time.monotonic()
         _strip_key_whitespace()
         if not self.is_available():
@@ -170,6 +265,8 @@ class ApiAdapter(AgentAdapter):
                 "workdir": str(workdir),
                 "model": os.environ.get("SECFOO_API_MODEL", DEFAULT_MODEL),
                 "timeout": timeout or self.default_timeout_seconds,
+                "prev_commit": prev_commit,  # Memory Bank: None = full scan, SHA = incremental diff.
+                "scan_scope": None,
                 "messages": [],
                 "report": "",
                 "attempts": 0,
@@ -186,7 +283,9 @@ class ApiAdapter(AgentAdapter):
             cost_usd=None if final["unpriced"] else final["cost_usd"],
         )
         report = final["report"]
-        return self._result("success", started, stdout=report, report=report, usage=usage)
+        return self._result(
+            "success", started, stdout=report, report=report, usage=usage, scan_scope=final.get("scan_scope")
+        )
 
     def _result(
         self,
@@ -197,6 +296,7 @@ class ApiAdapter(AgentAdapter):
         stderr: str = "",
         report: str = "",
         usage: Usage | None = None,
+        scan_scope: list[str] | None = None,
     ) -> AgentResult:
         usage = usage or Usage()
         return AgentResult(
@@ -211,6 +311,7 @@ class ApiAdapter(AgentAdapter):
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
+            scan_scope=scan_scope,
         )
 
 

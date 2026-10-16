@@ -59,6 +59,50 @@ def _git_head_commit(path: Path) -> str | None:
         return None
 
 
+def _git_tree_dirty(path: Path) -> bool:
+    """True if `path` has uncommitted or untracked changes (or git fails,
+    so a caller never treats an unknown state as "nothing changed")."""
+    import subprocess
+
+    try:
+        result = subprocess.run(  # nosec B603 B607 -- fixed git argv, no shell
+            ["git", "-C", str(path), "status", "--porcelain", "--", "."],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return result.returncode != 0 or bool(result.stdout.strip())
+
+
+def already_scanned_skills(
+    *, skill_ids: list[str], target: str | None, repo: RunRepository | None = None
+) -> tuple[str | None, list[str]]:
+    """Memory Bank: (HEAD SHA, skills whose last successful run already
+    scanned exactly this commit with a clean working tree). The CLI uses
+    this to ask before repeating a scan; execute_runs never prompts, since
+    it also runs under the dashboard and CI with no terminal.
+
+    Local targets only: a GitHub target's HEAD isn't known without cloning
+    it, so it always reports nothing to skip.
+    """
+    resolved = resolve_target(target)
+    if resolved.kind is not TargetKind.LOCAL or resolved.path is None:
+        return None, []
+    head = _git_head_commit(resolved.path)
+    if head is None or _git_tree_dirty(resolved.path):
+        return head, []
+    owns_repo = repo is None
+    repo = repo or RunRepository()
+    try:
+        project_id = repo.find_project_id(resolved.display_name)
+        if project_id is None:
+            return head, []
+        return head, [s for s in skill_ids if repo.get_last_commit(project_id=project_id, skill_id=s) == head]
+    finally:
+        if owns_repo:
+            repo.close()
+
+
 @dataclass
 class RunOutcome:
     run_uuid: str
@@ -143,6 +187,7 @@ def update_sast_findings(
     report_text: str,
     workdir: Path | None = None,
     stack: Stack | None = None,
+    scan_scope: list[str] | None = None,
 ) -> None:
     """Matches this run's Findings Register against the project's
     currently-open sast_findings rows by fingerprint (report/sast.py),
@@ -204,11 +249,14 @@ def update_sast_findings(
         )
         seen_fingerprints.append(row["fingerprint"])
 
+    # scan_scope (Memory Bank incremental scan): only findings in files this
+    # run actually looked at can be closed; everything else stays as it was.
     repo.close_stale_sast_findings(
         project_id=project_id,
         run_id=run_id,
         seen_fingerprints=seen_fingerprints,
         closed_at=_closed_now(),
+        only_files=scan_scope,
     )
 
 
@@ -219,6 +267,7 @@ def update_sca_findings(
     run_id: int,
     report_text: str,
     stack: Stack | None = None,
+    scan_scope: list[str] | None = None,
 ) -> None:
     """update_sast_findings' lifecycle for the SCA Risk Register."""
     seen_fingerprints = []
@@ -244,7 +293,7 @@ def update_sca_findings(
         seen_fingerprints.append(row["fingerprint"])
     repo.close_stale_findings(
         SCA_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
-        closed_at=_closed_now(),
+        closed_at=_closed_now(), only_files=scan_scope,
     )
 
 
@@ -256,6 +305,7 @@ def update_secret_findings(
     report_text: str,
     workdir: Path | None = None,
     stack: Stack | None = None,
+    scan_scope: list[str] | None = None,
 ) -> None:
     """update_sast_findings' lifecycle for the Secret Scanning register."""
     seen_fingerprints = []
@@ -281,7 +331,7 @@ def update_secret_findings(
         seen_fingerprints.append(row["fingerprint"])
     repo.close_stale_findings(
         SECRET_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
-        closed_at=_closed_now(),
+        closed_at=_closed_now(), only_files=scan_scope,
     )
 
 
@@ -315,6 +365,7 @@ def update_structured_findings(
     report_text: str,
     workdir: Path | None = None,
     stack: Stack | None = None,
+    scan_scope: list[str] | None = None,
 ) -> None:
     """Dispatches one successful run's report to its skill's findings
     lifecycle (a no-op for skills without one). The single entry point both
@@ -323,13 +374,17 @@ def update_structured_findings(
     region hashes or framework detection)."""
     if skill_id == SAST_SKILL_ID:
         update_sast_findings(
-            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack,
+            scan_scope=scan_scope,
         )
     elif skill_id == SCA_SKILL_ID:
-        update_sca_findings(repo, project_id=project_id, run_id=run_id, report_text=report_text, stack=stack)
+        update_sca_findings(
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, stack=stack, scan_scope=scan_scope
+        )
     elif skill_id == SECRET_SKILL_ID:
         update_secret_findings(
-            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack,
+            scan_scope=scan_scope,
         )
 
 
@@ -393,7 +448,9 @@ def _run_single_skill(
                 on_skill_start(skill.name)
 
             adapter = get_adapter(agent_id)
-            result = adapter.run(prompt, workdir=target_ctx.local_path, timeout=timeout)
+            # Memory Bank: look up the last successful commit so the adapter can diff and send only changed files.
+            prev_commit = repo.get_last_commit(project_id=project_id, skill_id=skill.id)
+            result = adapter.run(prompt, workdir=target_ctx.local_path, timeout=timeout, prev_commit=prev_commit)
             # Memory Bank: capture HEAD SHA so future runs can diff against this baseline.
             target_commit = _git_head_commit(target_ctx.local_path)
 
@@ -425,6 +482,7 @@ def _run_single_skill(
                 cost_usd=result.cost_usd,
                 target_commit=target_commit,  # Memory Bank: persisted for incremental diff rescans.
                 memory_enabled=memory_enabled,
+                scan_scope=result.scan_scope,
             )
         except BaseException:
             # BaseException so Ctrl+C mid-run is recorded too; re-raised
@@ -447,6 +505,7 @@ def _run_single_skill(
                         report_text=report_text,
                         workdir=target_ctx.local_path,
                         stack=stack,
+                        scan_scope=result.scan_scope,
                     )
                 except Exception:
                     logger.exception("Failed to update %s finding lifecycle for run %s", skill.id, run_uuid)

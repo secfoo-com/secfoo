@@ -173,7 +173,7 @@ class _CapturingAdapter(AgentAdapter):
     def is_available(self) -> bool:
         return True
 
-    def run(self, prompt, *, workdir, timeout=None):
+    def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
         _CapturingAdapter.prompts.append(prompt)
         return AgentResult(
             agent=self.name, exit_code=0, stdout="ok", stderr="", duration_seconds=0.1,

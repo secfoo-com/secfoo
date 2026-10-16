@@ -76,7 +76,11 @@ CREATE TABLE IF NOT EXISTS runs (
     -- 1 if the agent had the secfoo-memory pattern tools wired in for this
     -- run, 0 if not, NULL for runs from before this column existed. Lets
     -- evaluation compare memory-on vs memory-off runs of the same target.
-    memory_enabled    INTEGER
+    memory_enabled    INTEGER,
+    -- Memory Bank: JSON list of the paths an incremental scan covered (files
+    -- sent plus files deleted). NULL means a full scan. Findings lifecycle
+    -- only closes findings inside this set for an incremental run.
+    scan_scope        TEXT
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other
