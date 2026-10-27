@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from secfoo.config import STORE_DIR
 from secfoo.web.routes import (
     activities,
+    agents,
     assessments,
     overview,
     projects,
@@ -34,6 +35,17 @@ def mermaid_bundle_available() -> bool:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="secfoo dashboard")
+
+    @app.middleware("http")
+    async def revalidate_static(request, call_next):
+        # Make the browser re-check stylesheets/scripts on each load (a cheap
+        # 304 via ETag when unchanged). Without this, heuristic caching can
+        # keep serving an old design-system.css -- and its @import-ed
+        # component files -- after an upgrade, so a new UI looks broken.
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
     # Mounted BEFORE /static: Starlette matches mounts in registration
     # order, so the broader /static would otherwise swallow /static/vendor.
     VENDOR_DIR.mkdir(parents=True, exist_ok=True)
@@ -41,6 +53,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(overview.router)
     app.include_router(activities.router)
+    app.include_router(agents.router)
     app.include_router(assessments.router)
     app.include_router(third_party.router)
     app.include_router(responsible_ai.router)

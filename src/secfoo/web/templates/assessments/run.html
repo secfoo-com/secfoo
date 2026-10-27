@@ -8,16 +8,34 @@
   Runs against <strong>{{ assessment.project_display_name }}</strong> and attaches the result(s) to this assessment.
 </p>
 
-<div class="card" style="max-width:36rem">
+<div class="card" style="max-width:52rem">
   <form method="post" action="/assessments/{{ assessment.id }}/runs">
+    {% if starters %}
     <div class="field">
-      <label class="field__label">Skills</label>
-      {% for s in skills %}
-      <label class="checkbox" style="display:block;margin-bottom:var(--space-2)">
-        <input type="checkbox" name="skill" value="{{ s.id }}"> {{ s.name }}
-      </label>
-      {% endfor %}
+      <span class="field__label">Start from a template</span>
+      <div class="starter-grid">
+        {% for st in starters %}
+        <button type="button" class="starter" aria-pressed="false" data-starter-skills="{{ st.skills | join(',') }}" data-starter-depth="{{ st.depth }}">
+          <span class="starter__title">{{ st.title }}</span>
+          <span class="starter__meta">{{ st.meta }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      <span class="field__helper">Picks the skills and depth below. You can still change them.</span>
     </div>
+    {% endif %}
+    <fieldset class="field" style="border:0;padding:0;margin-inline:0">
+      <legend class="field__label">Skills</legend>
+      <div class="skill-grid">
+        {% for s in skills %}
+        <label class="skill-card">
+          <input type="checkbox" name="skill" value="{{ s.id }}">
+          <span class="skill-card__name">{{ s.nav_label }}</span>
+          <span class="skill-card__desc" title="{{ s.description }}">{{ s.description }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
     <div class="field">
       <label class="field__label">Agent</label>
       <select class="select" name="agent">
@@ -25,6 +43,7 @@
         <option value="{{ a.id }}">{{ a.id }}{% if not a.available %} (not installed){% endif %}</option>
         {% endfor %}
       </select>
+      <span class="field__helper">Not sure an agent is set up? <a href="/agents">Check agent health</a>.</span>
     </div>
     <div class="field">
       <label class="field__label">Depth</label>
@@ -52,3 +71,4 @@
   </form>
 </div>
 {% endblock %}
+{% block scripts_extra %}<script src="/static/js/run-form.js"></script>{% endblock %}

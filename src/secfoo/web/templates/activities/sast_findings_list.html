@@ -28,12 +28,12 @@
   <table class="table">
     <thead>
       <tr>
-        <th>Project</th><th>Access</th><th>Title</th><th>Source location</th><th>Last seen</th><th>CVSS</th>
+        <th>Project</th><th>Access</th><th>Title</th><th>Source location</th><th>Last seen</th><th>CVSS</th><th>Review</th>
       </tr>
     </thead>
     <tbody>
       {% for f in findings %}
-      <tr class="run-row" data-href="/activities/sast/findings/{{ f.fingerprint }}">
+      <tr class="run-row" data-href="/activities/sast/findings/{{ f.fingerprint }}" data-sev="{{ f.cvss_score | cvss_rating_label }}">
         <td>{{ f.project_display_name }}</td>
         <td>
           {% if f.verdict and f.verdict.lower() == 'confirmed' %}<span class="badge badge--success">Verified</span>{% endif %}
@@ -48,6 +48,12 @@
           {% else %}
           <span class="badge badge--neutral">No vector</span>
           {% endif %}
+        </td>
+        <td>
+          {% if f.review_status == 'confirmed' %}<span class="badge badge--error">Confirmed</span>
+          {% elif f.review_status == 'false_positive' %}<span class="badge badge--neutral">False positive</span>
+          {% elif f.review_status == 'accepted_risk' %}<span class="badge badge--warning">Risk accepted</span>
+          {% else %}<span class="ds-caption">Awaiting</span>{% endif %}
         </td>
       </tr>
       {% endfor %}

@@ -10,7 +10,7 @@
     <span class="stat-card__value">{{ dash.coverage_pct }}%</span>
     <span class="stat-card__label">Coverage — {{ dash.coverage_reviewed }} / {{ dash.coverage_in_scope }} in-scope systems</span>
   </div>
-  <div class="stat-card" style="{% if dash.exceptions_past_expiry %}border-top-color:var(--color-error){% endif %}">
+  <div class="stat-card{% if dash.exceptions_past_expiry %} stat-card--error{% endif %}">
     <span class="stat-card__value" style="{% if dash.exceptions_past_expiry %}color:var(--color-error){% endif %}">{{ dash.exceptions_past_expiry }}</span>
     <span class="stat-card__label">Exceptions past expiry</span>
   </div>
@@ -76,7 +76,7 @@
     <div class="card" style="margin-top:var(--space-6)">
       <h4 class="card__title">Exception aging</h4>
       <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3)">
-        <div class="stat-card" style="flex:1;{% if dash.exception_aging.past_expiry %}border-top-color:var(--color-error){% endif %}">
+        <div class="stat-card{% if dash.exception_aging.past_expiry %} stat-card--error{% endif %}" style="flex:1">
           <span class="stat-card__value" style="{% if dash.exception_aging.past_expiry %}color:var(--color-error){% endif %}">{{ dash.exception_aging.past_expiry }}</span>
           <span class="stat-card__label">Past expiry</span>
         </div>

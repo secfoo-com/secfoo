@@ -90,11 +90,12 @@ def test_sidebar_marks_exactly_the_active_activity(client):
     import re
 
     resp = client.get("/activities/sast")
-    links = re.findall(r'<a class="sidebar__link"[^>]*>[^<]*</a>', resp.text, re.S)
+    # Links lead with an inline <svg> icon, so match through to </a>.
+    links = re.findall(r'<a class="sidebar__link".*?</a>', resp.text, re.S)
     active = [re.sub(r"\s+", " ", link) for link in links if "aria-current" in link]
     assert len(active) == 1, f"expected exactly one active link, got {active}"
     assert 'href="/activities/sast"' in active[0]
-    assert ">SAST</a>" in active[0]
+    assert active[0].endswith(">SAST</a>")
 
 
 def test_project_page_shows_activity_coverage_including_gaps(client):

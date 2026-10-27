@@ -56,6 +56,7 @@ def build(repo: RunRepository) -> SastDashboard:
     verified_count = 0
     severe_count = 0
     exploitable_count = 0
+    awaiting_signoff = 0
 
     for finding in dash.open_findings:
         band = _cvss_band(finding.cvss_score)
@@ -66,6 +67,8 @@ def build(repo: RunRepository) -> SastDashboard:
             verified_count += 1
         if band in ("high", "critical"):
             severe_count += 1
+            if finding.review_status is None:
+                awaiting_signoff += 1
         if (finding.verdict or "").strip().lower() != "latent":
             exploitable_count += 1
 
@@ -76,6 +79,7 @@ def build(repo: RunRepository) -> SastDashboard:
         "exploitable": exploitable_count,
         "verified": verified_count,
         "severe": severe_count,
+        "awaiting_signoff": awaiting_signoff,
     }
 
     return dash

@@ -221,6 +221,10 @@ CREATE TABLE IF NOT EXISTS sast_findings (
     last_seen_at      TEXT NOT NULL,
     closed_in_run_id  INTEGER REFERENCES runs(id),
     closed_at         TEXT,
+    review_status     TEXT,   -- reviewer sign-off: confirmed / false_positive / accepted_risk, NULL = awaiting
+    review_note       TEXT,
+    reviewed_by       TEXT,
+    reviewed_at       TEXT,
     UNIQUE (project_id, fingerprint)
 );
 

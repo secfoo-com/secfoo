@@ -3,9 +3,8 @@
 {% set verdict_projects = projects | selectattr("design_verdict") | list %}
 {% block title %}{{ skill.nav_label }} — secfoo{% endblock %}
 {% block content %}
-<span class="ds-overline">Activity</span>
-<h1>{{ skill.name }}</h1>
-<p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">{{ skill.description }}</p>
+{% from "_page.html" import page_head %}
+{{ page_head(skill.id, "Activity", skill.name, skill.description) }}
 
 {% if dash %}
 {% include "activities/architecture_dashboard.html" %}

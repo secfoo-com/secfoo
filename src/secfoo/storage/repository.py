@@ -88,7 +88,16 @@ _SAST_FINDINGS_MIGRATIONS = {
     "language": "ALTER TABLE sast_findings ADD COLUMN language TEXT",
     "framework": "ALTER TABLE sast_findings ADD COLUMN framework TEXT",
     "construct": "ALTER TABLE sast_findings ADD COLUMN construct TEXT",
+    # Reviewer sign-off (dashboard Confirm / False positive / Accept risk).
+    # Stored on the finding row so a sign-off survives the finding being
+    # re-seen by later runs -- the upsert never touches these columns.
+    "review_status": "ALTER TABLE sast_findings ADD COLUMN review_status TEXT",
+    "review_note": "ALTER TABLE sast_findings ADD COLUMN review_note TEXT",
+    "reviewed_by": "ALTER TABLE sast_findings ADD COLUMN reviewed_by TEXT",
+    "reviewed_at": "ALTER TABLE sast_findings ADD COLUMN reviewed_at TEXT",
 }
+
+SAST_REVIEW_STATUSES = ("confirmed", "false_positive", "accepted_risk")
 
 # Skill id -> its per-finding lifecycle table. Every one of these tables
 # shares the open/closed + first/last-seen columns, which is what lets
@@ -414,6 +423,22 @@ class RunRepository:
         params.append(limit)
         rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_run(row) for row in rows]
+
+    def agent_run_stats(self) -> dict[str, dict]:
+        """Per-agent run count, last run, last success and last status --
+        backs the dashboard's agent health cards."""
+        rows = self._conn.execute(
+            "SELECT agent_id, COUNT(*) runs, MAX(started_at) last_run_at, "
+            "MAX(CASE WHEN status = 'success' THEN started_at END) last_success_at "
+            "FROM runs GROUP BY agent_id"
+        ).fetchall()
+        stats = {row["agent_id"]: dict(row) for row in rows}
+        for row in self._conn.execute(
+            "SELECT agent_id, status FROM runs r WHERE started_at = "
+            "(SELECT MAX(started_at) FROM runs WHERE agent_id = r.agent_id)"
+        ).fetchall():
+            stats[row["agent_id"]]["last_status"] = row["status"]
+        return stats
 
     def get_run(self, run_uuid: str) -> RunRecord | None:
         row = self._conn.execute(
@@ -1452,6 +1477,35 @@ class RunRepository:
             for row in self._list_findings(table, project_id=project_id, status=status, limit=limit):
                 result.append((skill_id, dict(row)))
         return result
+
+    def review_sast_finding(
+        self,
+        finding_id: int,
+        *,
+        review_status: str | None,
+        note: str | None = None,
+        reviewed_by: str | None = None,
+    ) -> None:
+        """Records (or, with review_status=None, clears) a reviewer's
+        sign-off on one finding. Accepting a risk needs a reason -- a bare
+        "accepted" with nothing behind it is exactly what an auditor flags.
+        """
+        if review_status is not None and review_status not in SAST_REVIEW_STATUSES:
+            raise ValueError(f"unknown review status {review_status!r}")
+        if review_status == "accepted_risk" and not (note or "").strip():
+            raise ValueError("accepting a risk needs a reason")
+        self._conn.execute(
+            "UPDATE sast_findings SET review_status = ?, review_note = ?, reviewed_by = ?, reviewed_at = ? "
+            "WHERE id = ?",
+            (
+                review_status,
+                (note or "").strip() or None if review_status else None,
+                (reviewed_by or "").strip() or None if review_status else None,
+                _now() if review_status else None,
+                finding_id,
+            ),
+        )
+        self._conn.commit()
 
     def list_sast_findings(
         self,

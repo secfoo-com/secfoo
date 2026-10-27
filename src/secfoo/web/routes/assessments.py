@@ -20,7 +20,8 @@ from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill
 from secfoo.skills.renderer import merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
-from secfoo.web.templating import severity_rows, templates
+from secfoo.web.run_status import assessment_pipeline
+from secfoo.web.templating import SIDEBAR_ACTIVITY_IDS, ordered_skills, severity_rows, templates
 from secfoo.web.third_party_dashboard import SKILL_ID as THIRD_PARTY_RISK_SKILL_ID
 
 router = APIRouter()
@@ -91,9 +92,38 @@ def _run_third_party_risk_assessment(assessment_id: int, project_id: int) -> Non
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+# One-click presets on the Run Assessment form (static/js/run-form.js ticks
+# the matching skill boxes and sets depth). Skills missing from this
+# install are dropped rather than breaking the card.
+RUN_STARTERS = [
+    {"title": "Quick code triage", "skills": ["sast", "secret-scanning"], "depth": "quick",
+     "meta": "SAST + secrets · quick"},
+    {"title": "Full design review", "skills": ["security-architecture-review", "threat-modeling"],
+     "depth": "standard", "meta": "architecture + threat model · standard"},
+    {"title": "Dependency check", "skills": ["sca-reachability"], "depth": "quick",
+     "meta": "SCA reachability · quick"},
+    {"title": "AI system review", "skills": ["prompt-review", "responsible-ai-compliance"], "depth": "standard",
+     "meta": "prompts + responsible AI · standard"},
+]
+
+
+def _pipeline_skills(runs) -> list:
+    """The five core review activities always, plus any other skill that
+    actually ran on this assessment (e.g. responsible-ai-compliance)."""
+    ran = {r.skill_id for r in runs}
+    return [s for s in ordered_skills() if s.id in SIDEBAR_ACTIVITY_IDS or s.id in ran]
+
+
 def _run_form_context() -> dict:
+    skills = load_all_skills()
+    starters = []
+    for starter in RUN_STARTERS:
+        present = [skill_id for skill_id in starter["skills"] if skill_id in skills]
+        if present:
+            starters.append({**starter, "skills": present})
     return {
-        "skills": sorted(load_all_skills().values(), key=lambda s: s.name),
+        "starters": starters,
+        "skills": [skill for skill in ordered_skills() if skill.id in skills],
         "agent_options": [
             {"id": agent_id, "available": get_adapter(agent_id).is_available()} for agent_id in ADAPTERS
         ],
@@ -195,6 +225,7 @@ def assessment_detail(request: Request, assessment_id: int):
             "models_count": models_count,
             "tools_count": tools_count,
             "has_running_run": has_running_run,
+            "pipeline": assessment_pipeline(runs, _pipeline_skills(runs)),
             "severity_rows": severity_rows(
                 assessment.critical_count,
                 assessment.high_count,

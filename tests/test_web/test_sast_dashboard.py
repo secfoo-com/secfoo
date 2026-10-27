@@ -41,7 +41,7 @@ def test_build_empty_state(tmp_path):
     dash = sast_dashboard.build(repo)
     assert dash.open_findings == []
     assert dash.closed_findings == []
-    assert dash.funnel == {"findings": 0, "exploitable": 0, "verified": 0, "severe": 0}
+    assert dash.funnel == {"findings": 0, "exploitable": 0, "verified": 0, "severe": 0, "awaiting_signoff": 0}
     assert dash.cvss_band_counts == {"critical": 0, "high": 0, "medium": 0, "low": 0, "none": 0}
     repo.close()
 
@@ -126,3 +126,18 @@ def test_build_open_findings_by_key_matches_the_list(tmp_path):
     assert len(dash.open_findings) == 1
     finding = dash.open_findings[0]
     assert dash.open_findings_by_key[finding.fingerprint] is finding
+
+
+def test_build_awaiting_signoff_counts_only_unreviewed_severe_findings(tmp_path):
+    repo = _repo(tmp_path)
+    project_id = repo.upsert_project("p", "p", "local")
+    run_id = _seed_run(repo, project_id)
+    _seed_finding(repo, project_id=project_id, run_id=run_id, fingerprint="a")
+    _seed_finding(repo, project_id=project_id, run_id=run_id, fingerprint="b")
+    _seed_finding(repo, project_id=project_id, run_id=run_id, fingerprint="c", cvss_score=3.1)
+    reviewed = next(f for f in repo.list_sast_findings() if f.fingerprint == "b")
+    repo.review_sast_finding(reviewed.id, review_status="confirmed", reviewed_by="sam")
+
+    dash = sast_dashboard.build(repo)
+    assert dash.funnel["severe"] == 2
+    assert dash.funnel["awaiting_signoff"] == 1

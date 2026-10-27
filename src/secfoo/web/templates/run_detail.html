@@ -2,53 +2,92 @@
 {% block title %}{{ run.skill_name }} — secfoo{% endblock %}
 {% block content %}
 <a href="/projects/{{ run.project_id }}" class="ds-caption">&larr; Back to project</a>
-<h1 style="margin-top:var(--space-4)">{{ run.skill_name }}</h1>
+<div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-4)">
+  <h1 style="margin:0">{{ run.skill_name }}</h1>
+  {% if blocked %}<span class="badge badge--error">Blocked</span>
+  {% else %}<span class="badge {{ run.status | status_badge }}">{{ run.status }}</span>{% endif %}
+</div>
+<p class="ds-body" style="color:var(--color-text-muted);margin-bottom:var(--space-6)">
+  {{ run.project_display_name or 'Project' }} &middot; {{ run.agent_id }} &middot; started {{ run.started_at | fmt_time }}
+</p>
 
-<div class="card" style="margin-bottom:var(--space-6)">
-  <div class="meta-row">
-    <div><span class="ds-caption">Status</span><br><span class="badge {{ run.status | status_badge }}">{{ run.status }}</span></div>
-    <div><span class="ds-caption">Agent</span><br>{{ run.agent_id }}</div>
-    <div><span class="ds-caption">Started</span><br>{{ run.started_at | fmt_time }}</div>
-    <div><span class="ds-caption">Duration</span><br>{{ run.duration_seconds | fmt_duration }}</div>
-    <div><span class="ds-caption">AI cost</span><br>{{ run.cost_usd | fmt_cost }}</div>
-    <div><span class="ds-caption">Tokens (in / out)</span><br>{{ run.input_tokens | fmt_tokens }} / {{ run.output_tokens | fmt_tokens }}</div>
-    <div><span class="ds-caption">Exit code</span><br>{{ run.exit_code if run.exit_code is not none else '-' }}</div>
+<div class="run-top">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)">
+      <h4 class="card__title">Progress</h4>
+      {% if elapsed is not none %}
+      <span class="ds-caption run-elapsed" data-elapsed="{{ elapsed | int }}" {% if not is_active %}data-elapsed-frozen="true"{% endif %}>{{ (elapsed // 60) | int }}m {{ '%02d' % ((elapsed % 60) | int) }}s</span>
+      {% endif %}
+    </div>
+    <ol class="run-steps" {% if is_active %}data-live-run="/runs/{{ run.run_uuid }}/status.json"{% endif %}>
+      {% for step in steps %}
+      <li class="run-steps__item" data-step="{{ loop.index0 }}" data-state="{{ step.state }}">
+        <span class="run-steps__dot" aria-hidden="true"></span>
+        <span class="run-steps__label">{{ step.label }}</span>
+        <span class="run-steps__detail">{% if step.state == 'live' %}in progress{% else %}{{ step.detail }}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% if is_active %}
+    <p class="ds-caption" style="color:var(--color-text-muted);margin-top:var(--space-3)">Updates live. The report appears here when the agent finishes.</p>
+    {% endif %}
   </div>
 
-  {% if run.confluence_urls %}
-  <div style="margin-top:var(--space-4)">
-    <span class="ds-caption">Confluence context</span>
-    <ul>
+  <div class="card">
+    <h4 class="card__title">Run receipt</h4>
+    <div class="receipt">
+      <div class="receipt__line"><span>agent</span><span>{{ run.agent_id }}</span></div>
+      <div class="receipt__line"><span>skill</span><span>{{ run.skill_id }}</span></div>
+      <div class="receipt__line"><span>confluence pages</span><span>{{ run.confluence_urls | length }}</span></div>
+      <div class="receipt__line"><span>duration</span><span>{{ run.duration_seconds | fmt_duration }}</span></div>
+      <div class="receipt__line"><span>exit code</span><span>{{ run.exit_code if run.exit_code is not none else '-' }}</span></div>
+      <div class="receipt__line"><span>tokens in / out</span><span>{{ run.input_tokens | fmt_tokens }} / {{ run.output_tokens | fmt_tokens }}</span></div>
+      <div class="receipt__line"><span>findings C/H/M/L</span><span>{{ run.critical_count }} / {{ run.high_count }} / {{ run.medium_count }} / {{ run.low_count }}</span></div>
+      <div class="receipt__line receipt__line--total"><span>AI cost</span><span>{% if run.cost_usd is none and run.status not in ('running', 'pending') %}not reported{% else %}{{ run.cost_usd | fmt_cost }}{% endif %}</span></div>
+    </div>
+    {% if run.confluence_urls %}
+    <ul class="ds-caption" style="margin-top:var(--space-3);padding-left:var(--space-4);overflow-wrap:anywhere">
       {% for url in run.confluence_urls %}<li><a href="{{ url }}" target="_blank" rel="noreferrer">{{ url }}</a></li>{% endfor %}
     </ul>
-  </div>
-  {% endif %}
-
-  <div style="margin-top:var(--space-4)">
-    <a class="btn btn--outline btn--sm" href="/runs/{{ run.run_uuid }}/report.md">Download raw report</a>
-  </div>
-</div>
-
-<div class="card">
-  {% if report_html %}
-    {{ report_html | safe }}
-  {% else %}
-    <p class="ds-body" style="color:var(--color-text-muted)">
-      {% if run.status == 'running' %}This assessment is still running.
-      {% elif run.status == 'timeout' %}This run timed out before producing a report.
-      {% elif run.status == 'binary_not_found' %}The selected agent's CLI was not found on PATH.
-      {% else %}No report content available.{% endif %}
-    </p>
-    {% if run.stderr_excerpt %}
-    <div class="alert alert--error" style="margin-top:var(--space-4)">
-      <div>
-        <div class="alert__title">stderr</div>
-        <pre style="white-space:pre-wrap;margin:0;font:var(--text-body-sm)">{{ run.stderr_excerpt }}</pre>
-      </div>
-    </div>
     {% endif %}
+    <div class="receipt__actions">
+      {% if run.prompt_path %}<a class="btn btn--outline btn--sm" href="/runs/{{ run.run_uuid }}/prompt.md">Prompt sent to agent</a>{% endif %}
+      {% if report_html %}<a class="btn btn--outline btn--sm" href="/runs/{{ run.run_uuid }}/report.md">Raw report</a>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if blocked %}
+<div class="card blocked-card" style="margin-bottom:var(--space-6)">
+  <h3 class="blocked-card__title">{{ blocked.title }}</h3>
+  <p class="ds-body" style="color:var(--color-text-muted);margin:0">{{ blocked.explanation }}</p>
+  {% if blocked.fix %}
+  <div>
+    <span class="ds-caption">How to fix</span>
+    <div class="blocked-card__fix">{{ blocked.fix }}</div>
+  </div>
+  {% endif %}
+  {% if run.stderr_excerpt %}
+  <details>
+    <summary class="ds-caption" style="cursor:pointer">Error output from the agent</summary>
+    <pre style="white-space:pre-wrap;margin:var(--space-2) 0 0;font:var(--text-body-sm)">{{ run.stderr_excerpt }}</pre>
+  </details>
+  {% endif %}
+  {% if run.assessment_id %}
+  <a class="btn btn--primary btn--sm" style="justify-self:start" href="/assessments/{{ run.assessment_id }}/runs/new">Try again</a>
   {% endif %}
 </div>
+{% endif %}
+
+{% if report_html %}
+<div class="card">
+  {{ report_html | safe }}
+</div>
+{% elif not blocked and not is_active %}
+<div class="card">
+  <p class="ds-body" style="color:var(--color-text-muted)">No report content available.</p>
+</div>
+{% endif %}
 
 {% if mermaid_available %}
 {#

@@ -2,36 +2,96 @@
 {% from "_macros.html" import findings_badges %}
 {% block title %}secfoo — Dashboard{% endblock %}
 {% block content %}
-<span class="ds-overline">Dashboard</span>
-<h1>AI Security &amp; Assessment Hub</h1>
-<p class="ds-body" style="color:var(--color-text-muted);max-width:40rem">
-  All security assessments run across every project, in one place.
-</p>
+{% from "_icons.html" import icon %}
+{% set urgent = severity.critical + severity.high %}
+{% set sev_total = severity.critical + severity.high + severity.medium + severity.low %}
+<section class="posture">
+  <div class="posture__main">
+    <span class="posture__eyebrow">{{ icon("shield", "posture__eyebrow-icon") }}Security posture</span>
+    <h1 class="posture__title">
+      {% if urgent %}{{ urgent }} critical and high finding{{ 's' if urgent != 1 }} need attention
+      {% else %}No critical or high findings open{% endif %}
+    </h1>
+    <p class="posture__meta">
+      {{ projects | length }} application{{ 's' if projects | length != 1 }} &middot; {{ run_count }} run{{ 's' if run_count != 1 }}
+      {% if recent_runs %}&middot; last run {{ recent_runs[0].started_at | fmt_ago }}{% endif %}
+    </p>
+    <div class="posture__actions">
+      <a class="btn btn--signal btn--md" href="/assessments/new">{{ icon("plus", "btn__icon") }}New assessment</a>
+      <a class="btn btn--on-dark btn--md" href="#top-findings">Review top findings</a>
+    </div>
+  </div>
+  <div class="posture__meter" aria-label="Findings by severity">
+    <div class="posture__bar">
+      {% for key, count in [("critical", severity.critical), ("high", severity.high), ("medium", severity.medium), ("low", severity.low)] %}
+      {% if count %}<span class="posture__seg posture__seg--{{ key }}" style="flex-grow:{{ count }}"></span>{% endif %}
+      {% endfor %}
+      {% if not sev_total %}<span class="posture__seg posture__seg--none" style="flex-grow:1"></span>{% endif %}
+    </div>
+    <dl class="posture__legend">
+      <div><dt><i class="posture__dot posture__seg--critical"></i>Critical</dt><dd>{{ severity.critical }}</dd></div>
+      <div><dt><i class="posture__dot posture__seg--high"></i>High</dt><dd>{{ severity.high }}</dd></div>
+      <div><dt><i class="posture__dot posture__seg--medium"></i>Medium</dt><dd>{{ severity.medium }}</dd></div>
+      <div><dt><i class="posture__dot posture__seg--low"></i>Low</dt><dd>{{ severity.low }}</dd></div>
+    </dl>
+  </div>
+</section>
 
-<div class="stat-card-grid" style="margin-top:var(--space-8)">
+{% if not (setup | selectattr("done") | list | length == setup | length) %}
+{% set completed = setup | selectattr("done") | list | length %}
+<section class="setup" aria-label="Getting started">
+  <div class="setup__head">
+    <div>
+      <span class="ds-overline">Getting started</span>
+      <h2 style="margin:var(--space-1) 0 0">Four steps to your first signed-off review</h2>
+    </div>
+    <div class="setup__progress" role="img" aria-label="{{ completed }} of {{ setup | length }} steps done">
+      <span class="setup__count">{{ completed }}/{{ setup | length }}</span>
+      <span class="setup__bar"><span style="width:{{ (completed / setup | length * 100) | round }}%"></span></span>
+    </div>
+  </div>
+  <ol class="setup__steps">
+    {% for step in setup %}
+    <li class="setup__step" data-done="{{ 'true' if step.done else 'false' }}">
+      <a href="{{ step.href }}">
+        <span class="setup__num">{% if step.done %}&#10003;{% else %}{{ loop.index }}{% endif %}</span>
+        <span class="setup__text"><strong>{{ step.label }}</strong><span>{{ step.detail }}</span></span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<div class="stat-card-grid" style="margin-top:var(--space-6)">
   <div class="stat-card">
+    <span class="stat-card__icon">{{ icon("projects") }}</span>
     <span class="stat-card__value">{{ projects | length }}</span>
     <span class="stat-card__label">Applications reviewed</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card {{ 'stat-card--error' if urgent else 'stat-card--teal' }}">
+    <span class="stat-card__icon">{{ icon("findings") }}</span>
     <span class="stat-card__value">{{ severity.total }}</span>
     <span class="stat-card__label">Total findings</span>
   </div>
-  <div class="stat-card">
+  <a class="stat-card" href="/third-party" style="text-decoration:none;color:inherit">
+    <span class="stat-card__icon">{{ icon("third-party") }}</span>
     <span class="stat-card__value">{{ third_party_count }}</span>
     <span class="stat-card__label">Third-party assessments</span>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card stat-card--teal" href="/responsible-ai" style="text-decoration:none;color:inherit">
+    <span class="stat-card__icon">{{ icon("responsible-ai") }}</span>
     <span class="stat-card__value">{{ responsible_ai_count }}</span>
     <span class="stat-card__label">Responsible AI coverage</span>
-  </div>
-  <div class="stat-card">
+  </a>
+  <div class="stat-card stat-card--amber">
+    <span class="stat-card__icon">{{ icon("spend") }}</span>
     <span class="stat-card__value">{{ total_cost | fmt_cost }}</span>
     <span class="stat-card__label">AI spend</span>
   </div>
 </div>
 
-<h2 style="margin-top:var(--space-10)">Top findings across the program</h2>
+<h2 id="top-findings" style="margin-top:var(--space-10)">Top findings across the program</h2>
 <p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">
   The highest-severity items across every activity — SAST, SCA, third-party vendor assessments,
   secret scanning, past-due architecture exceptions, and unmitigated threat-model gaps — not just this activity's own coverage.
@@ -42,7 +102,7 @@
     <thead><tr><th>Severity</th><th>Source</th><th>Finding</th><th>Project</th><th>Detail</th></tr></thead>
     <tbody>
       {% for f in top_findings %}
-      <tr class="run-row" data-href="{{ f.url }}">
+      <tr class="run-row" data-href="{{ f.url }}" data-sev="{{ f.severity | lower }}">
         <td><span class="badge {{ f.severity | severity_badge }}">{{ f.severity | capitalize }}</span></td>
         <td><span class="badge badge--neutral">{{ f.source }}</span></td>
         <td>{{ f.title }}</td>
@@ -72,11 +132,12 @@
     {% endfor %}
   </div>
 
-  <div class="card">
+  <div class="card card--wide">
     <h4 class="card__title">Activity coverage</h4>
     <p class="card__body" style="margin-bottom:var(--space-4)">Projects with at least one successful run of each activity.</p>
+    <div class="coverage-grid">
     {% for skill in skill_coverage %}
-    <a href="/activities/{{ skill.id }}" style="display:block;margin-bottom:var(--space-4);text-decoration:none;color:inherit">
+    <a class="coverage-item" href="/activities/{{ skill.id }}">
       <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-1)">
         <span class="ds-caption">{{ skill.label }}</span>
         <span class="ds-caption">{{ skill.covered }}/{{ skill.total }}</span>
@@ -86,6 +147,7 @@
       </div>
     </a>
     {% endfor %}
+    </div>
   </div>
 
   <div class="card">
@@ -97,27 +159,71 @@
     <a class="btn btn--outline btn--sm" href="/responsible-ai" style="margin-top:var(--space-3)">Open Responsible AI view</a>
   </div>
 
-  <div class="card">
+  <div class="card card--wide">
     <h4 class="card__title">AI spend by agent</h4>
     {% if cost_by_agent %}
     <table class="table">
       <thead><tr><th>Agent</th><th>Runs</th><th>Tokens</th><th>Cost</th></tr></thead>
       <tbody>
         {% for row in cost_by_agent %}
+        {% set metered = row.label in cost_reporting_agents %}
+        {% set priced = row.unpriced_runs < row.runs %}
         <tr>
-          <td>{{ row.label }}</td>
+          <td>{{ row.label }}<br>{% if metered %}<span class="badge badge--neutral">Metered</span>{% else %}<span class="badge badge--teal">Subscription</span>{% endif %}</td>
           <td>{{ row.runs }}</td>
-          {% set priced = row.unpriced_runs < row.runs %}
-          <td>{{ ((row.input_tokens + row.output_tokens) | fmt_tokens) if (priced or row.input_tokens or row.output_tokens) else '-' }}</td>
-          <td>{{ (row.cost_usd | fmt_cost) if priced else '-' }}</td>
+          {# A priced run can still have no token counts (e.g. cost-only agents), so don't add None. #}
+          {% set tokens_known = row.input_tokens is not none or row.output_tokens is not none %}
+          <td>{{ (((row.input_tokens or 0) + (row.output_tokens or 0)) | fmt_tokens) if tokens_known else '-' }}</td>
+          <td>{% if priced %}{{ row.cost_usd | fmt_cost }}{% elif metered %}<span class="ds-caption">No cost recorded</span>{% else %}<span class="ds-caption">Not reported</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    <p class="ds-caption" style="margin-top:var(--space-3)">"-" means no cost was recorded: the agent doesn't report it (cursor, agy), or the runs predate cost tracking.</p>
+    <p class="ds-caption" style="margin-top:var(--space-3)">Subscription agents run on your own plan and don't report their cost to secfoo.</p>
     {% else %}
     <p class="card__body">No runs yet.</p>
     {% endif %}
+  </div>
+
+  <div class="card card--wide">
+    <h4 class="card__title">Recent runs</h4>
+    {% if recent_runs %}
+    <ul class="feed">
+      {% for r in recent_runs %}
+      {% set blocked = r.status in ('binary_not_found', 'failed', 'timeout') %}
+      <li>
+        <a class="feed__item" href="/runs/{{ r.run_uuid }}">
+          <span class="feed__dot feed__dot--{{ 'blocked' if blocked else r.status }}"></span>
+          <span class="feed__body">
+            <span class="feed__title">{{ r.skill_name }}</span>
+            <span class="feed__meta">{{ r.project_display_name }} &middot; {{ r.agent_id }} &middot; <time datetime="{{ r.started_at }}" title="{{ r.started_at | fmt_time }}">{{ r.started_at | fmt_ago }}</time></span>
+          </span>
+          {% if blocked %}<span class="badge badge--error">Blocked</span>
+          {% else %}<span class="badge {{ r.status | status_badge }}">{{ r.status }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="card__body">No runs yet. Start one from <a href="/assessments/new">New assessment</a>.</p>
+    {% endif %}
+  </div>
+
+  <div class="card card--full">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)">
+      <h4 class="card__title">Agents</h4>
+      <a class="ds-caption" href="/agents">All agents &rarr;</a>
+    </div>
+    <ul class="agent-list">
+      {% for a in agents %}
+      <li class="agent-list__item">
+        <span>{{ a.label }} <span class="agent-card__id">{{ a.id }}</span></span>
+        {% if not a.available %}<span class="badge badge--neutral">Not found</span>
+        {% elif a.last_status and a.last_status not in ('success', 'running', 'pending') %}<span class="badge badge--warning">Last run {{ a.last_status }}</span>
+        {% else %}<span class="badge badge--success">Ready</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
   </div>
 </div>
 

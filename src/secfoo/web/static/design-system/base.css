@@ -30,8 +30,8 @@ h1, h2, h3, h4, h5, h6, p, figure {
   margin: 0 0 var(--space-4) 0;
 }
 
-h1 { font: var(--text-h1); }
-h2 { font: var(--text-h2); }
+h1 { font: var(--text-h1); letter-spacing: -0.02em; text-wrap: balance; }
+h2 { font: var(--text-h2); letter-spacing: -0.01em; text-wrap: balance; }
 h3 { font: var(--text-h3); }
 h4 { font: var(--text-h4); }
 

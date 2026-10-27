@@ -1,0 +1,56 @@
+/*
+  Dark theme: component touch-ups
+  -------------------------------
+  The role tokens in tokens.css carry most of [data-theme="dark"], but a
+  handful of components paint with raw ramp steps (gray-100 tracks,
+  primary-50 tints, primary-700 text) that only read on a light ground.
+  This file re-points just those, so the dashboard's theme switch works
+  without rewriting every component.
+*/
+
+[data-theme="dark"] .badge--neutral,
+[data-theme="dark"] .badge:not([class*="badge--"]) { background-color: var(--color-gray-700); color: var(--color-gray-100); }
+[data-theme="dark"] .badge--primary { background-color: #0f3a4c; color: var(--color-primary-200); }
+[data-theme="dark"] .badge--teal { background-color: #0d3d3a; color: var(--color-teal-300); }
+[data-theme="dark"] .badge--amber { background-color: #3a2a14; color: var(--color-amber-300); }
+
+[data-theme="dark"] .segmented,
+[data-theme="dark"] .severity-bar__track,
+[data-theme="dark"] .conformance-bar__track,
+[data-theme="dark"] .stacked-bar,
+[data-theme="dark"] code,
+[data-theme="dark"] .input:disabled { background-color: var(--color-gray-900); }
+
+[data-theme="dark"] .segmented__option[aria-selected="true"] { background-color: var(--color-primary-500); }
+
+[data-theme="dark"] .sidebar { --sidebar-bg: #04161e; border-right: 1px solid var(--color-border); }
+
+[data-theme="dark"] .stat-card { --stat-accent-bg: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .stat-card--teal { --stat-accent: var(--color-teal-300); }
+[data-theme="dark"] .stat-card:not([class*="stat-card--"]) { --stat-accent: var(--color-primary-300); }
+[data-theme="dark"] .tabs__tab[aria-selected="true"],
+[data-theme="dark"] .nav__link[aria-current="page"] { color: var(--color-primary-200); }
+
+[data-theme="dark"] .table tbody tr:hover,
+[data-theme="dark"] tr.run-row:hover { background-color: #0f3a4c; }
+
+[data-theme="dark"] .btn--primary { background-color: var(--color-primary-500); }
+[data-theme="dark"] .btn--primary:hover { background-color: var(--color-primary-400); }
+[data-theme="dark"] .btn--outline,
+[data-theme="dark"] .btn--ghost { border-color: var(--color-primary-300); color: var(--color-primary-200); }
+[data-theme="dark"] .btn--outline:hover,
+[data-theme="dark"] .btn--ghost:hover { background-color: #0f3a4c; }
+
+[data-theme="dark"] .run-steps__item[data-state="live"] .run-steps__dot { background-color: #0d3d3a; }
+
+[data-theme="dark"] .table th { background-color: rgba(255, 255, 255, 0.03); }
+
+[data-theme="dark"] .sidebar .segmented { background-color: rgba(0, 0, 0, 0.3); }
+[data-theme="dark"] .sidebar .segmented__option[aria-selected="true"] { background-color: var(--color-teal-500); color: var(--color-primary-900); }
+[data-theme="dark"] .posture { background-color: #062230; border: 1px solid var(--color-border); }
+[data-theme="dark"] .feed__dot--running, [data-theme="dark"] .feed__dot--pending { box-shadow: 0 0 0 4px #0d3d3a; }
+[data-theme="dark"] .alert--info { color: var(--color-primary-100); border-color: var(--color-primary-600); }
+[data-theme="dark"] .alert--success { border-color: #2a5c3d; }
+[data-theme="dark"] .alert--warning { border-color: #6b4f22; }
+[data-theme="dark"] .alert--error { border-color: #6e2f2a; }
+[data-theme="dark"] .ds-overline { color: var(--color-teal-300); }

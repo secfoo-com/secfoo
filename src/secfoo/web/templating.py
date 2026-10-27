@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -190,6 +191,32 @@ def format_timestamp(value: str | None) -> str:
     return value[:19].replace("T", " ")
 
 
+def format_ago(value: str | None) -> str:
+    """ISO timestamp -> short relative time ("just now", "12m ago", "3h ago",
+    "2d ago"), falling back to the date past a week. Status lines read
+    faster as "3m ago" than as a full timestamp."""
+    from datetime import datetime, timezone
+
+    if not value:
+        return "-"
+    try:
+        then = datetime.fromisoformat(value)
+    except ValueError:
+        return format_timestamp(value)
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=timezone.utc)
+    seconds = (datetime.now(timezone.utc) - then).total_seconds()
+    if seconds < 60:
+        return "just now"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m ago"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)}h ago"
+    if seconds < 7 * 86400:
+        return f"{int(seconds // 86400)}d ago"
+    return value[:10]
+
+
 def format_duration(value: float | None) -> str:
     if value is None:
         return "-"
@@ -216,10 +243,44 @@ def severity_rows(critical: int, high: int, medium: int, low: int, info: int) ->
     ]
 
 
+# Path segments that have their own page, so the top bar's path crumbs
+# only link where a click actually lands somewhere.
+_LINKABLE_PATHS = re.compile(
+    r"^/(assessments|agents|third-party|responsible-ai)(/\d+)?$|^/activities/[a-z0-9-]+$|^/projects/\d+$"
+)
+
+
+def breadcrumbs(path: str) -> list[dict]:
+    """The current URL as path crumbs for the top bar (`~/secfoo/assessments/1`).
+    Run UUIDs and finding fingerprints are shortened to 8 characters."""
+    crumbs = []
+    href = ""
+    for segment in [s for s in path.strip("/").split("/") if s]:
+        href += "/" + segment
+        label = segment[:8] if len(segment) > 16 else segment
+        crumbs.append({"label": label, "href": href if _LINKABLE_PATHS.match(href) else None})
+    return crumbs
+
+
+def active_run_count() -> int:
+    """Runs in flight right now, for the top bar's live indicator. Never
+    lets a storage problem break page rendering."""
+    from secfoo.storage.repository import RunRepository
+
+    try:
+        with RunRepository() as repo:
+            return len(repo.list_runs(status="running", limit=100))
+    except Exception:
+        return 0
+
+
 templates.env.globals["sidebar_activities"] = _sidebar_activities()
+templates.env.globals["breadcrumbs"] = breadcrumbs
+templates.env.globals["active_run_count"] = active_run_count
 
 templates.env.filters["status_badge"] = status_badge_class
 templates.env.filters["fmt_time"] = format_timestamp
+templates.env.filters["fmt_ago"] = format_ago
 templates.env.filters["fmt_duration"] = format_duration
 templates.env.filters["fmt_cost"] = format_cost
 templates.env.filters["fmt_tokens"] = format_tokens

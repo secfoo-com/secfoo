@@ -26,3 +26,7 @@
 @import url("./components/conformance-bar.css");
 @import url("./components/stacked-bar.css");
 @import url("./components/donut.css");
+@import url("./components/run-ui.css");
+@import url("./components/dashboard.css");
+@import url("./components/workflow.css");
+@import url("./components/dark.css");

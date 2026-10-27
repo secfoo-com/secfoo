@@ -162,6 +162,10 @@ class SastFindingRecord:
     language: str | None = None
     framework: str | None = None
     construct: str | None = None
+    review_status: str | None = None
+    review_note: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: str | None = None
     project_display_name: str | None = None
 
 
