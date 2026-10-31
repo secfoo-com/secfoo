@@ -108,7 +108,9 @@
           <td>{{ row.label }}</td>
           <td>{{ row.runs }}</td>
           {% set priced = row.unpriced_runs < row.runs %}
-          <td>{{ ((row.input_tokens + row.output_tokens) | fmt_tokens) if (priced or row.input_tokens or row.output_tokens) else '-' }}</td>
+          {# A priced run can still have no token counts (e.g. cost-only agents), so don't add None. #}
+          {% set tokens_known = row.input_tokens is not none or row.output_tokens is not none %}
+          <td>{{ (((row.input_tokens or 0) + (row.output_tokens or 0)) | fmt_tokens) if tokens_known else '-' }}</td>
           <td>{{ (row.cost_usd | fmt_cost) if priced else '-' }}</td>
         </tr>
         {% endfor %}
