@@ -33,6 +33,18 @@ from secfoo.web.templating import severity_rows, templates
 
 router = APIRouter()
 
+
+def _project_id(value: str | None) -> int | None:
+    """The findings lists' "All projects" option submits project_id=
+    (empty). Declared as `int | None`, FastAPI rejected that with a 422, so
+    picking "All projects" -- or pressing Search with it selected, the
+    default -- showed a JSON error. Take the raw string instead; empty or
+    non-numeric means "all projects"."""
+    try:
+        return int((value or "").strip())
+    except ValueError:
+        return None
+
 _GATE_MIX_COLORS = {
     "approve": "var(--color-success)",
     "conditions": "var(--color-warning)",
@@ -177,7 +189,7 @@ def sast_findings_list(
     request: Request,
     status: str = "open",
     q: str | None = None,
-    project_id: int | None = None,
+    project_id: str | None = None,
 ):
     """The full, filterable SAST findings register -- the program
     dashboard itself only ever shows a short "Top findings" preview (see
@@ -185,6 +197,7 @@ def sast_findings_list(
     project filter the dashboard preview deliberately doesn't have (it's
     already cross-project by design).
     """
+    project_id = _project_id(project_id)
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(sast_dashboard.SKILL_ID)
         findings = repo.list_sast_findings(project_id=project_id, status=status, search=q or None)
@@ -246,7 +259,7 @@ def sast_finding_review(
 
 
 @router.get("/activities/{skill_id}/vulnerabilities")
-def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: int | None = None):
+def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: str | None = None):
     """The full SCA vulnerability register, filterable by project -- what
     the program dashboard's "Top vulnerabilities" preview links out to.
     Filtering happens post-aggregation, over sca_dashboard.build()'s
@@ -257,6 +270,7 @@ def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: int | 
     """
     if skill_id != sca_dashboard.SKILL_ID:
         raise HTTPException(status_code=404, detail="Not found")
+    project_id = _project_id(project_id)
 
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(sca_dashboard.SKILL_ID)
@@ -300,11 +314,12 @@ def sca_vulnerability_detail(request: Request, skill_id: str, key: str):
 
 
 @router.get("/activities/secret-scanning/findings")
-def secret_scanning_findings_list(request: Request, project_id: int | None = None):
+def secret_scanning_findings_list(request: Request, project_id: str | None = None):
     """The full secret findings register, filterable by project -- what
     the program dashboard's "Top findings" preview links out to, same
     pattern as SAST's and SCA's findings-list pages.
     """
+    project_id = _project_id(project_id)
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(secret_scanning_dashboard.SKILL_ID)
         dash = secret_scanning_dashboard.build(repo)

@@ -157,3 +157,11 @@ def test_sast_finding_detail_renders_for_a_real_finding(client):
 def test_sast_finding_detail_404s_for_unknown_fingerprint(client):
     resp = client.get("/activities/sast/findings/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_sast_findings_list_accepts_the_all_projects_option(client):
+    # The "All projects" option submits project_id= (empty); this used to 422.
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection")
+    resp = client.get("/activities/sast/findings?status=open&project_id=&q=")
+    assert resp.status_code == 200
+    assert "SQL Injection" in resp.text

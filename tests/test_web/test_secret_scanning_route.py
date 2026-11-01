@@ -136,3 +136,10 @@ def test_secret_scanning_finding_detail_renders_for_a_real_finding(client, tmp_p
 def test_secret_scanning_finding_detail_404s_for_unknown_key(client, tmp_path):
     resp = client.get("/activities/secret-scanning/findings/deadbeefdeadbeef")
     assert resp.status_code == 404
+
+
+def test_secret_scanning_findings_list_accepts_the_all_projects_option(client, tmp_path):
+    _seed(tmp_path)
+    resp = client.get("/activities/secret-scanning/findings?project_id=")
+    assert resp.status_code == 200
+    assert "AWS access key" in resp.text
