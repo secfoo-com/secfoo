@@ -95,6 +95,8 @@
 <p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">
   The highest-severity items across every activity — SAST, SCA, third-party vendor assessments,
   secret scanning, past-due architecture exceptions, and unmitigated threat-model gaps — not just this activity's own coverage.
+  Open, de-duplicated Critical and High items only; SAST findings are banded by CVSS score, so a finding written as High
+  in a report can appear here as Critical.
 </p>
 {% if top_findings %}
 <div class="table-wrap" style="margin-top:var(--space-4)">
@@ -122,6 +124,10 @@
 <div class="card-grid" style="margin-top:var(--space-10)">
   <div class="card">
     <h4 class="card__title">Findings by severity</h4>
+    <p class="ds-caption" id="severity-panel-note" style="margin-bottom:var(--space-3)">
+      Counts the severity written in each run's report, summed across all runs (repeat scans count again).
+      It can differ from "Top findings", which lists open, de-duplicated items scored by CVSS.
+    </p>
     {% for row in severity_rows %}
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
@@ -171,10 +177,11 @@
         <tr>
           <td>{{ row.label }}<br>{% if metered %}<span class="badge badge--neutral">Metered</span>{% else %}<span class="badge badge--teal">Subscription</span>{% endif %}</td>
           <td>{{ row.runs }}</td>
+          {% set priced = row.unpriced_runs < row.runs %}
           {# A priced run can still have no token counts (e.g. cost-only agents), so don't add None. #}
           {% set tokens_known = row.input_tokens is not none or row.output_tokens is not none %}
           <td>{{ (((row.input_tokens or 0) + (row.output_tokens or 0)) | fmt_tokens) if tokens_known else '-' }}</td>
-          <td>{% if priced %}{{ row.cost_usd | fmt_cost }}{% elif metered %}<span class="ds-caption">No cost recorded</span>{% else %}<span class="ds-caption">Not reported</span>{% endif %}</td>
+          <td>{{ (row.cost_usd | fmt_cost) if priced else '-' }}</td>
         </tr>
         {% endfor %}
       </tbody>

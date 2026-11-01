@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from secfoo.cost import sum_optional
 from secfoo.storage.repository import RunRepository
 from secfoo.web.run_status import COST_REPORTING_AGENTS, agent_health, setup_steps
 from secfoo.web.templating import ordered_skills, severity_rows, templates
@@ -66,11 +67,9 @@ def overview(request: Request):
             ),
             "run_count": sum(stats["runs"] for stats in agent_stats.values()),
             # None (rendered "-") until at least one run has a known cost,
-            # so runs that predate tracking don't read as free.
-            "total_cost": (
-                sum(row.cost_usd for row in cost_by_agent)
-                if any(row.unpriced_runs < row.runs for row in cost_by_agent)
-                else None
-            ),
+            # so runs that predate tracking don't read as free. An agent
+            # whose runs are all unpriced has cost_usd=None; skip it rather
+            # than adding it, same as the `secfoo cost` Total row.
+            "total_cost": sum_optional(row.cost_usd for row in cost_by_agent),
         },
     )
