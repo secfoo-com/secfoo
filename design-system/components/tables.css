@@ -10,6 +10,17 @@
   border: 1px solid var(--color-border);
 }
 
+/* Clickable rows (<tr class="run-row" data-href>; static/js/interactive.js
+   makes them focusable and opens them on Enter). A visible outline when
+   reached with the keyboard; the global :focus-visible box-shadow doesn't
+   render reliably on table rows, so use an inset outline instead. */
+tr.run-row:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: -2px;
+  box-shadow: none;
+  border-radius: 0;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

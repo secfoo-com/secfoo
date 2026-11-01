@@ -59,3 +59,22 @@ document.addEventListener("click", function (event) {
     window.location.href = row.dataset.href;
   }
 });
+
+// Keyboard access for clickable rows. A <tr> isn't focusable, so without
+// this Tab skips every .run-row and keyboard-only users can't open them.
+// Done here rather than with tabindex="0" in each template: the rows only
+// work through this script, so they only become focusable when it runs,
+// and any new .run-row is covered automatically.
+document.querySelectorAll(".run-row[data-href]").forEach(function (row) {
+  if (!row.hasAttribute("tabindex")) row.tabIndex = 0;
+});
+
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Enter") return;
+  // Only when the row itself is focused -- Enter on a link or button
+  // inside the row keeps that element's own behavior.
+  const row = event.target;
+  if (row.matches && row.matches(".run-row[data-href]")) {
+    window.location.href = row.dataset.href;
+  }
+});
