@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges, responsible_ai_badges %}
+{% from "_macros.html" import findings_badges, responsible_ai_badges, empty_state %}
 {% block title %}secfoo — Assessments{% endblock %}
 {% block content %}
 {% from "_page.html" import page_head %}
@@ -59,7 +59,12 @@
     </tbody>
   </table>
 </div>
+{% elif counts.all == 0 %}
+{% call empty_state("No assessments yet", "/assessments/new", "New Assessment") %}
+  An assessment groups the security checks for one application. Create one,
+  then choose which checks to run on it.
+{% endcall %}
 {% else %}
-<div class="alert alert--info" style="margin-top:var(--space-6)"><div>No assessments match these filters.</div></div>
+<div class="alert alert--info empty-state" role="status"><div>No assessments match these filters. <a href="/assessments">Clear filters</a></div></div>
 {% endif %}
 {% endblock %}

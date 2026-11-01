@@ -13,3 +13,18 @@
   <span class="badge {{ a.responsible_ai_status | responsible_ai_status_badge }}">{{ a.responsible_ai_status }}</span>
   {%- else %}<span class="ds-caption">&mdash;</span>{% endif -%}
 {% endmacro %}
+
+{#- Shared "nothing here yet" box: says what's missing and how to start.
+    Use for a page or list that has no data at all (not for "your filters
+    matched nothing" -- that should offer to clear the filters instead). -#}
+{% macro empty_state(title, action_href=None, action_label=None) %}
+<div class="alert alert--info empty-state" role="status">
+  <div>
+    <div class="alert__title">{{ title }}</div>
+    <div>{{ caller() }}</div>
+    {%- if action_href %}
+    <p class="empty-state__action"><a class="btn btn--primary btn--sm" href="{{ action_href }}">{{ action_label }}</a></p>
+    {%- endif %}
+  </div>
+</div>
+{% endmacro %}

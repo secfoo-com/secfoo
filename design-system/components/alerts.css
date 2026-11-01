@@ -47,3 +47,12 @@
   border-color: #f0b3af;
   color: var(--color-error);
 }
+
+/* "Nothing here yet" / "nothing matches" message at the top of a page or
+   list (the empty_state() macro in the dashboard's _macros.html). */
+.empty-state {
+  margin-top: var(--space-6);
+}
+.empty-state__action {
+  margin: var(--space-3) 0 0;
+}

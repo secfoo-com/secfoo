@@ -51,6 +51,23 @@ def test_activity_page_empty_state(client):
     assert "No project has been scanned with this activity yet" in resp.text
 
 
+@pytest.mark.parametrize("skill_id", ["sast", "security-architecture-review", "threat-modeling", "prompt-review"])
+def test_activity_page_explains_why_it_is_empty_before_the_first_run(client, skill_id):
+    # The dashboards render all-zero charts with no data, so the top of the
+    # page has to say nothing has run yet, and how to start.
+    resp = client.get(f"/activities/{skill_id}")
+    assert resp.status_code == 200
+    assert "runs yet" in resp.text
+    assert f"secfoo run --skill {skill_id}" in resp.text
+
+
+def test_activity_page_hides_the_no_runs_message_once_it_has_run(client):
+    _seed_run(skill_id="sast", high=1)
+    resp = client.get("/activities/sast")
+    assert resp.status_code == 200
+    assert "runs yet" not in resp.text
+
+
 def test_activity_page_shows_per_project_rollup(client):
     _seed_run(skill_id="sast", project_name="acme/app", high=2, medium=1)
     _seed_run(skill_id="sast", project_name="acme/other", high=1)

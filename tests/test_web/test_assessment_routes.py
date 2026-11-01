@@ -29,9 +29,22 @@ def _create_assessment(*, assessment_type: str = "internal", status: str = "read
 
 
 def test_assessments_list_empty_state(client):
+    # No assessments at all: say so and offer to create one -- not
+    # "no assessments match these filters", which reads as a filter problem.
     resp = client.get("/assessments")
     assert resp.status_code == 200
-    assert "No assessments match" in resp.text
+    assert "No assessments yet" in resp.text
+    assert "No assessments match" not in resp.text
+    assert 'href="/assessments/new"' in resp.text
+
+
+def test_assessments_list_filters_matching_nothing_offers_to_clear_them(client):
+    _create_assessment(status="ready")
+    resp = client.get("/assessments?status=completed")
+    assert resp.status_code == 200
+    assert "No assessments match these filters" in resp.text
+    assert "Clear filters" in resp.text
+    assert "No assessments yet" not in resp.text
 
 
 def test_assessments_list_shows_created_assessment(client):

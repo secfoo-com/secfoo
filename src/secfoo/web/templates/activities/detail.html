@@ -1,10 +1,18 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges %}
+{% from "_macros.html" import findings_badges, empty_state %}
 {% set verdict_projects = projects | selectattr("design_verdict") | list %}
 {% block title %}{{ skill.nav_label }} — secfoo{% endblock %}
 {% block content %}
 {% from "_page.html" import page_head %}
 {{ page_head(skill.id, "Activity", skill.name, skill.description) }}
+
+{% if run_count == 0 %}
+{% call empty_state("No " ~ skill.name ~ " runs yet", "/assessments", "Go to assessments") %}
+  The figures below fill in after the first run. Start one from an
+  assessment's <strong>Run Assessment</strong> page, or run
+  <code>secfoo run --skill {{ skill.id }}</code>.
+{% endcall %}
+{% endif %}
 
 {% if dash %}
 {% include "activities/architecture_dashboard.html" %}

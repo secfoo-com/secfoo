@@ -176,3 +176,19 @@ def test_mermaid_init_js_sanitizes_agent_generated_content():
 
     content = (STATIC_DIR / "js" / "mermaid-init.js").read_text()
     assert 'securityLevel: "strict"' in content
+
+
+def test_third_party_page_explains_it_is_empty(client):
+    resp = client.get("/third-party")
+    assert resp.status_code == 200
+    assert "No third-party assessments yet" in resp.text
+
+
+def test_third_party_page_hides_the_empty_message_once_one_exists(client, tmp_path):
+    project_id, _run_uuid = _seed_run(tmp_path)
+    repo = RunRepository()
+    repo.create_assessment(project_id=project_id, assessment_type="third_party", status="ready")
+    repo.close()
+    resp = client.get("/third-party")
+    assert resp.status_code == 200
+    assert "No third-party assessments yet" not in resp.text

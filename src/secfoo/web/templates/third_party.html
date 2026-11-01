@@ -1,10 +1,17 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges %}
+{% from "_macros.html" import findings_badges, empty_state %}
 {% block title %}secfoo — Third-Party{% endblock %}
 {% block content %}
 {% from "_page.html" import page_head %}
 {{ page_head("third-party", "Third-Party", "Third-party assessments", counts.total ~ " third-party assessment(s) · AI-BOM: " ~ models_count ~ " model(s), " ~ tools_count ~ " tool(s) tracked.") }}
 
+{% if counts.total == 0 %}
+{% call empty_state("No third-party assessments yet", "/assessments/new", "New Assessment") %}
+  Create an assessment with type <strong>Third-Party</strong> and upload the
+  vendor's documents (SOC 2 report, ISO certificate, pen test report or
+  questionnaire). The conformance view below fills in from that evidence.
+{% endcall %}
+{% endif %}
 <div class="card" style="margin-top:var(--space-6)">
   <h4 class="card__title">Vendor CCM v4 conformance</h4>
   <p class="card__body" style="margin-bottom:var(--space-4)">
