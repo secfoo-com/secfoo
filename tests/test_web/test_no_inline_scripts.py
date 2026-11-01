@@ -21,7 +21,9 @@ TEMPLATE_DIRS = [
     Path(__file__).parents[2] / "portal" / "templates",
 ]
 
-_ONCLICK_RE = re.compile(r"\bonclick\s*=")
+# Any inline event-handler attribute inside a tag (onclick, onchange,
+# onsubmit, oninput, ...) -- the CSP blocks all of them, not just onclick.
+_INLINE_HANDLER_RE = re.compile(r"<[^>]*\son[a-z]+\s*=", re.IGNORECASE)
 _INLINE_SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>")
 
 
@@ -29,17 +31,18 @@ def _all_templates() -> list[Path]:
     return [f for d in TEMPLATE_DIRS for f in d.rglob("*.html")]
 
 
-def test_no_template_uses_an_inline_onclick_attribute():
+def test_no_template_uses_an_inline_event_handler_attribute():
     offenders = {
         str(f): m.group(0)
         for f in _all_templates()
-        for m in [_ONCLICK_RE.search(f.read_text())]
+        for m in [_INLINE_HANDLER_RE.search(f.read_text())]
         if m
     }
     assert not offenders, (
-        f"Found onclick=... attributes, CSP-blocked on the portal: {offenders}. "
-        "Use data-href (row navigation) or data-confirm/data-delete-url "
-        "(confirm dialogs, delete buttons) with static/js/interactive.js instead."
+        f"Found inline on...= event handlers, CSP-blocked on the portal: {offenders}. "
+        "Use data-href (row navigation), data-confirm/data-delete-url "
+        "(confirm dialogs, delete buttons) or data-autosubmit (filter dropdowns) "
+        "with static/js/interactive.js instead."
     )
 
 

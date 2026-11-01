@@ -7,7 +7,7 @@
 
 <div style="display:flex;justify-content:flex-end;margin-top:var(--space-6)">
   <form method="get" action="/activities/{{ skill_id }}/vulnerabilities">
-    <select class="select" name="project_id" onchange="this.form.submit()">
+    <select class="select" name="project_id" data-autosubmit>
       <option value="">All projects</option>
       {% for p in projects %}
       <option value="{{ p.project_id }}" {% if selected_project_id == p.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>

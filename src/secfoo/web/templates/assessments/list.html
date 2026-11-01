@@ -15,7 +15,7 @@
   </div>
   <form method="get" action="/assessments" style="display:flex;gap:var(--space-3);align-items:center">
     <input type="hidden" name="type" value="{{ '' if active_type == 'all' else active_type }}">
-    <select class="select" name="status" onchange="this.form.submit()">
+    <select class="select" name="status" data-autosubmit>
       <option value="">All statuses</option>
       <option value="ready" {% if active_status == 'ready' %}selected{% endif %}>Ready</option>
       <option value="in_progress" {% if active_status == 'in_progress' %}selected{% endif %}>In Progress</option>

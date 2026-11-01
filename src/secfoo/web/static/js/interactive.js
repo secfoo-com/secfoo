@@ -22,6 +22,17 @@
 //     -- a normal form-submit button that just asks for confirmation
 //        first; cancelling prevents the submit (replaces the old
 //        onclick="return confirm(...)" pattern, also CSP-blocked).
+//   <select name="status" data-autosubmit>...</select>
+//     -- submits its enclosing form as soon as the selection changes
+//        (replaces the old onchange="this.form.submit()" filter dropdowns,
+//        which the CSP blocked the same way).
+document.addEventListener("change", function (event) {
+  const field = event.target.closest("[data-autosubmit]");
+  if (field && field.form) {
+    field.form.submit();
+  }
+});
+
 document.addEventListener("click", function (event) {
   const deleteButton = event.target.closest("[data-delete-url]");
   if (deleteButton) {

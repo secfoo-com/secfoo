@@ -101,7 +101,7 @@
 </p>
 {% if diagram_projects | length > 1 %}
 <form method="get" action="/activities/{{ skill.id }}" style="margin-top:var(--space-4);max-width:20rem">
-  <select class="select" name="diagram_project" onchange="this.form.submit()">
+  <select class="select" name="diagram_project" data-autosubmit>
     {% for p in diagram_projects %}
     <option value="{{ p.project_id }}" {% if selected_diagram_project and p.project_id == selected_diagram_project.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
     {% endfor %}

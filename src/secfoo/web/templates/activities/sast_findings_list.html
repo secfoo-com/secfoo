@@ -12,7 +12,7 @@
   </div>
   <form method="get" action="/activities/sast/findings" style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
     <input type="hidden" name="status" value="{{ selected_status }}">
-    <select class="select" name="project_id" onchange="this.form.submit()">
+    <select class="select" name="project_id" data-autosubmit>
       <option value="">All projects</option>
       {% for p in projects %}
       <option value="{{ p.project_id }}" {% if selected_project_id == p.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
