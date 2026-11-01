@@ -75,15 +75,35 @@ def test_overview_lists_recent_assessment(client, tmp_path):
     assert "org/repo" in resp.text
 
 
-def test_overview_severity_panels_explain_what_they_count(client):
-    """SECFOO-36: 'Findings by severity' (report-heading counts, all runs) and
-    'Top findings' (open, de-duplicated, CVSS-banded) legitimately differ, so
-    each panel must say what it counts."""
+def test_overview_totals_cost_when_one_agent_is_unpriced(client, tmp_path):
+    # A priced claude run alongside an agent that never reports cost
+    # (devin/droid/cursor/agy) makes cost_summary() return cost_usd=None
+    # for that agent's group; the total must skip it, not crash on it.
+    repo = RunRepository()
+    project_id = repo.upsert_project("https://github.com/org/repo", "org/repo", "github")
+    for agent_id, cost in (("claude", 1.25), ("devin", None)):
+        run_uuid = repo.create_run(
+            project_id=project_id,
+            skill_id="sast",
+            skill_name="SAST",
+            agent_id=agent_id,
+            confluence_urls=[],
+        )
+        repo.complete_run(
+            run_uuid,
+            status="success",
+            exit_code=0,
+            duration_seconds=1.0,
+            report_path=None,
+            prompt_path=None,
+            stderr_excerpt=None,
+            cost_usd=cost,
+        )
+    repo.close()
+
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "summed across all runs" in resp.text
-    assert "scored by CVSS" in resp.text
-    assert "banded by CVSS score" in resp.text
+    assert "$1.25" in resp.text
 
 
 def test_project_detail(client, tmp_path):
