@@ -2,13 +2,10 @@
 {% from "_macros.html" import findings_badges, responsible_ai_badges %}
 {% block title %}secfoo — Assessments{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);flex-wrap:wrap">
-  <div>
-    <span class="ds-overline">Assessments</span>
-    <h1>Assessment register</h1>
-  </div>
-  <a class="btn btn--primary btn--md" href="/assessments/new">New Assessment</a>
-</div>
+{% from "_page.html" import page_head %}
+{% call page_head("assessments", "Assessments", "Assessment register", "Every security review case file, across internal systems and third-party vendors.") %}
+  <a class="btn btn--primary btn--md" href="/assessments/new">New assessment</a>
+{% endcall %}
 
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6)">
   <div class="segmented">

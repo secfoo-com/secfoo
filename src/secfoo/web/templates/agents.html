@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Agents — secfoo{% endblock %}
+{% block content %}
+{% from "_page.html" import page_head %}
+{{ page_head("agents", "Agents", "Agent health", "Every agent secfoo can run assessments with, and whether it's ready on this machine. \"Ready\" means the CLI (or API key) was found. secfoo can't check a CLI's sign-in without launching it, so an expired login shows up as a failed run.") }}
+
+<div class="agent-grid" style="margin-top:var(--space-8)">
+  {% for a in agents %}
+  <div class="card agent-card">
+    <div class="agent-card__top">
+      <div>
+        <div class="agent-card__name">{{ a.label }}</div>
+        <div class="agent-card__id">--agent {{ a.id }}</div>
+      </div>
+      {% if a.available %}<span class="badge badge--success">Ready</span>
+      {% else %}<span class="badge badge--neutral">Not found</span>{% endif %}
+    </div>
+    <div class="receipt">
+      <div class="receipt__line"><span>runs</span><span>{{ a.runs }}</span></div>
+      <div class="receipt__line"><span>last run</span><span title="{{ a.last_run_at | fmt_time }}">{{ a.last_run_at | fmt_ago }}</span></div>
+      <div class="receipt__line"><span>last success</span><span title="{{ a.last_success_at | fmt_time }}">{{ a.last_success_at | fmt_ago }}</span></div>
+      <div class="receipt__line"><span>cost tracking</span><span>{{ 'reported by CLI' if a.reports_cost else 'not reported' }}</span></div>
+    </div>
+    {% if a.last_status and a.last_status not in ('success', 'running', 'pending') %}
+    <div class="alert alert--warning"><div>Last run ended as <strong>{{ a.last_status }}</strong>. Check the sign-in or open the run for the fix.</div></div>
+    {% endif %}
+    {% if a.install_hint %}
+    <div>
+      <span class="ds-caption">Set up</span>
+      <div class="blocked-card__fix">{{ a.install_hint }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

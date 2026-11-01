@@ -1,0 +1,279 @@
+/*
+  Run UI
+  ------
+  Components for following and auditing a run: the live step checklist,
+  the run receipt, the "Blocked" card, agent health cards, starter
+  templates and the selectable skill catalog on Run Assessment, and the
+  sidebar theme switch.
+*/
+
+/* ---------- Run page layout ---------- */
+.run-top {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+@media (max-width: 56rem) {
+  .run-top { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Step checklist ---------- */
+.run-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.run-steps__item {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding-block: var(--space-3);
+  border-bottom: 1px dashed var(--color-border);
+  font: var(--text-body-sm);
+}
+
+.run-steps__item:last-child { border-bottom: none; }
+
+.run-steps__dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  justify-self: center;
+}
+
+.run-steps__item[data-state="done"] .run-steps__dot { background-color: var(--color-success); border-color: var(--color-success); }
+.run-steps__item[data-state="failed"] .run-steps__dot { background-color: var(--color-error); border-color: var(--color-error); }
+.run-steps__item[data-state="live"] .run-steps__dot {
+  border-color: var(--color-teal-500);
+  background-color: var(--color-teal-100);
+  animation: run-steps-pulse 1.4s ease-in-out infinite;
+}
+.run-steps__item[data-state="todo"] .run-steps__label { color: var(--color-text-muted); }
+.run-steps__item[data-state="failed"] .run-steps__label { color: var(--color-error); font-weight: var(--font-weight-medium); }
+
+.run-steps__detail {
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes run-steps-pulse {
+  50% { box-shadow: 0 0 0 4px var(--color-teal-100); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-steps__item[data-state="live"] .run-steps__dot { animation: none; }
+}
+
+.run-elapsed {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Receipt ---------- */
+.receipt {
+  font-family: var(--font-family-mono);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt__line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 1px dotted var(--color-border);
+}
+
+.receipt__line > span:first-child { color: var(--color-text-muted); }
+.receipt__line > span:last-child { margin-left: auto; text-align: right; overflow-wrap: anywhere; }
+
+.receipt__line--total {
+  border-bottom: none;
+  padding-top: var(--space-2);
+  font-weight: var(--font-weight-bold);
+}
+
+.receipt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ---------- Blocked card ---------- */
+.blocked-card {
+  border-left: 4px solid var(--color-error);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.blocked-card__title { font: var(--text-h4); margin: 0; }
+.blocked-card__fix {
+  font-family: var(--font-family-mono);
+  font-size: 0.8125rem;
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ---------- Agent health ---------- */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--space-4);
+}
+
+.agent-card {
+  min-width: 0;
+  display: grid;
+  /* minmax(0, ...) so a long setup command scrolls inside its own box
+     instead of widening the whole card past its column. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.agent-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.agent-card__name { font-weight: var(--font-weight-bold); }
+.agent-card__id { font-family: var(--font-family-mono); font-size: 0.75rem; color: var(--color-text-muted); }
+
+.agent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.agent-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  font: var(--text-body-sm);
+}
+
+/* ---------- Starter templates + skill catalog ---------- */
+.starter-grid,
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.starter {
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.starter:hover { border-color: var(--color-primary-400); }
+.starter:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.starter[aria-pressed="true"] { border-color: var(--color-teal-500); box-shadow: inset 0 0 0 1px var(--color-teal-500); }
+.starter__title { font-weight: var(--font-weight-bold); font-size: 0.9375rem; }
+.starter__meta { font-family: var(--font-family-mono); font-size: 0.75rem; color: var(--color-text-muted); }
+
+.skill-card {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4) var(--space-3) 2.75rem;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.skill-card:hover { border-color: var(--color-primary-400); }
+.skill-card input {
+  position: absolute;
+  left: var(--space-4);
+  top: calc(var(--space-3) + 0.2rem);
+  accent-color: var(--color-teal-500);
+}
+.skill-card:has(input:checked) { border-color: var(--color-teal-500); box-shadow: inset 0 0 0 1px var(--color-teal-500); }
+.skill-card:has(input:focus-visible) { box-shadow: var(--shadow-focus); }
+.skill-card__name { font-weight: var(--font-weight-bold); font-size: 0.9375rem; }
+.skill-card__desc {
+  font: var(--text-caption);
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- Collapsible form section ---------- */
+.form-more {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.form-more > summary {
+  cursor: pointer;
+  font: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-link);
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- Review (sign-off) ---------- */
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.review-actions form { margin: 0; }
+
+/* ---------- Theme switch ---------- */
+.theme-switch {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.theme-switch .segmented { width: 100%; justify-content: space-between; }
+.theme-switch .segmented__option { padding-inline: var(--space-3); }
+
+@media (max-width: 64rem) {
+  .theme-switch { margin-top: 0; padding-top: 0; margin-left: auto; }
+  .theme-switch .sidebar__section-label { display: none; }
+}
+
+/* Dashboard cards that hold a table scroll it inside the card rather than
+   pushing the whole page sideways. */
+.card-grid > .card { min-width: 0; overflow-x: auto; }
+
+@media (min-width: 72rem) {
+  .card-grid > .card--wide { grid-column: span 2; }
+}

@@ -20,6 +20,7 @@
   padding-inline: var(--space-6);
   font: var(--text-button-sm);
   white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
   user-select: none;
   transition: background-color var(--duration-fast) var(--ease-standard),

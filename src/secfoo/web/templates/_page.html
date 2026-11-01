@@ -1,0 +1,20 @@
+{# Shared page header: icon tile + overline + title + description, with any
+   page actions passed through a {% call %} block on the right.
+
+     {% call page_head("assessments", "Assessments", "Assessment register") %}
+       <a class="btn btn--primary btn--md" href="/assessments/new">New</a>
+     {% endcall %}
+#}
+{% from "_icons.html" import icon %}
+
+{% macro page_head(icon_name, overline, title, description=None) -%}
+<header class="page-head">
+  <span class="page-head__tile">{{ icon(icon_name, "page-head__icon", 1.6, 22) }}</span>
+  <div class="page-head__text">
+    <span class="ds-overline">{{ overline }}</span>
+    <h1 class="page-head__title">{{ title }}</h1>
+    {% if description %}<p class="page-head__desc">{{ description }}</p>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="page-head__actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}

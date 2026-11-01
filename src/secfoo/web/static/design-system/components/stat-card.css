@@ -5,40 +5,69 @@
 */
 
 .stat-card {
+  --stat-accent: var(--color-primary-600);
+  --stat-accent-bg: var(--color-primary-50);
+  position: relative;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-top: 3px solid var(--color-primary-700);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  transition: box-shadow var(--duration-base) var(--ease-standard);
+  padding: var(--space-5);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "icon value" "icon label";
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  align-items: center;
+  overflow: hidden;
+  transition: box-shadow var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
 }
 
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: var(--stat-accent);
+  opacity: 0.85;
+}
+
+a.stat-card:hover,
 .stat-card:hover {
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
+.stat-card--teal { --stat-accent: var(--color-teal-500); --stat-accent-bg: var(--color-teal-100); }
+.stat-card--amber { --stat-accent: var(--color-amber-500); --stat-accent-bg: var(--color-amber-100); }
+.stat-card--error { --stat-accent: var(--color-error); --stat-accent-bg: var(--color-error-bg); }
+
 .stat-card__icon {
-  width: 2.5rem;
-  height: 2.5rem;
+  grid-area: icon;
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: var(--radius-md);
-  background-color: var(--color-primary-50);
-  color: var(--color-primary-700);
+  background-color: var(--stat-accent-bg);
+  color: var(--stat-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 1.25rem;
 }
 
+.stat-card__icon svg { width: 1.375rem; height: 1.375rem; }
+
 .stat-card__value {
-  font: var(--text-h2);
+  grid-area: value;
+  font: 700 1.75rem/1.1 var(--font-family-base);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text);
 }
 
 .stat-card__label {
+  grid-area: label;
   font: var(--text-body-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
@@ -46,6 +75,12 @@
 
 .stat-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: var(--space-4);
+}
+
+/* Cards without an icon (activity dashboards) drop the icon column. */
+.stat-card:not(:has(.stat-card__icon)) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "value" "label";
 }

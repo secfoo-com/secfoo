@@ -21,10 +21,14 @@
     <span class="stat-card__value">{{ sast_dash.funnel.verified }}</span>
     <span class="stat-card__label">Verified (Confirmed verdict)</span>
   </div>
-  <div class="stat-card" style="{% if sast_dash.funnel.severe %}border-top-color:var(--color-error){% endif %}">
+  <div class="stat-card{% if sast_dash.funnel.severe %} stat-card--error{% endif %}">
     <span class="stat-card__value" style="{% if sast_dash.funnel.severe %}color:var(--color-error){% endif %}">{{ sast_dash.funnel.severe }}</span>
     <span class="stat-card__label">Severe (CVSS High/Critical)</span>
   </div>
+  <a class="stat-card{% if sast_dash.funnel.awaiting_signoff %} stat-card--amber{% endif %}" href="/activities/sast/findings?status=open" style="text-decoration:none;color:inherit">
+    <span class="stat-card__value" style="{% if sast_dash.funnel.awaiting_signoff %}color:var(--color-warning){% endif %}">{{ sast_dash.funnel.awaiting_signoff }}</span>
+    <span class="stat-card__label">Severe, awaiting reviewer sign-off</span>
+  </a>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-8)">

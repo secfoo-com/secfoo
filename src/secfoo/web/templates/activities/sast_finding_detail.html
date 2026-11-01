@@ -46,6 +46,40 @@
   </div>
 
   <div>
+    <div class="card" style="margin-bottom:var(--space-6){% if finding.review_status is none %};border-top:3px solid var(--color-warning){% endif %}">
+      <h4 class="card__title">Reviewer sign-off</h4>
+      {% if finding.review_status %}
+      {% set labels = {'confirmed': ('Confirmed', 'badge--error'), 'false_positive': ('False positive', 'badge--neutral'), 'accepted_risk': ('Risk accepted', 'badge--warning')} %}
+      <span class="badge {{ labels[finding.review_status][1] }}">{{ labels[finding.review_status][0] }}</span>
+      <p class="ds-caption" style="color:var(--color-text-muted);margin-top:var(--space-2)">
+        {{ finding.reviewed_by or 'Unnamed reviewer' }} &middot; {{ finding.reviewed_at | fmt_time }}
+      </p>
+      {% if finding.review_note %}<p class="ds-body" style="margin-top:var(--space-2)">{{ finding.review_note }}</p>{% endif %}
+      <form method="post" action="/activities/sast/findings/{{ finding.fingerprint }}/review" style="margin-top:var(--space-3)">
+        <input type="hidden" name="finding_id" value="{{ finding.id }}">
+        <button class="btn btn--ghost btn--sm" type="submit" name="review_status" value="clear">Reopen review</button>
+      </form>
+      {% else %}
+      <p class="ds-caption" style="color:var(--color-text-muted);margin-bottom:var(--space-3)">Awaiting review. Sign-off stays with the finding when later runs see it again.</p>
+      <form method="post" action="/activities/sast/findings/{{ finding.fingerprint }}/review">
+        <input type="hidden" name="finding_id" value="{{ finding.id }}">
+        <div class="field">
+          <label class="field__label" for="reviewer">Reviewer</label>
+          <input class="input" id="reviewer" name="reviewer" placeholder="Your name">
+        </div>
+        <div class="field">
+          <label class="field__label" for="note">Note</label>
+          <textarea class="textarea" id="note" name="note" rows="2" placeholder="Required to accept a risk"></textarea>
+        </div>
+        <div class="review-actions">
+          <button class="btn btn--primary btn--sm" type="submit" name="review_status" value="confirmed">Confirm</button>
+          <button class="btn btn--outline btn--sm" type="submit" name="review_status" value="false_positive">False positive</button>
+          <button class="btn btn--outline btn--sm" type="submit" name="review_status" value="accepted_risk">Accept risk</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+
     <div class="card">
       <h4 class="card__title">Access</h4>
       {% if finding.verdict and finding.verdict.lower() == 'confirmed' %}<span class="badge badge--success" style="margin-bottom:var(--space-2)">Verified</span>{% endif %}

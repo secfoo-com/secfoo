@@ -463,10 +463,10 @@ def test_trigger_run_unknown_assessment_returns_404(client):
     assert resp.status_code == 404
 
 
-def test_assessment_detail_shows_running_banner_and_auto_refresh(client, tmp_path):
+def test_assessment_detail_shows_running_banner_and_live_polls_the_run(client, tmp_path):
     project_id, assessment_id = _create_assessment()
     repo = RunRepository()
-    repo.create_run(
+    run_uuid = repo.create_run(
         project_id=project_id, skill_id="security-architecture-review", skill_name="Security Architecture Review",
         agent_id="claude", confluence_urls=[], assessment_id=assessment_id,
     )
@@ -474,8 +474,9 @@ def test_assessment_detail_shows_running_banner_and_auto_refresh(client, tmp_pat
 
     resp = client.get(f"/assessments/{assessment_id}")
     assert resp.status_code == 200
-    assert "refreshes automatically" in resp.text
-    assert '<meta http-equiv="refresh" content="5">' in resp.text
+    assert "A run is in progress" in resp.text
+    assert f'data-live-runs="{run_uuid}"' in resp.text
+    assert 'http-equiv="refresh"' not in resp.text
 
 
 def test_third_party_page_lists_only_third_party(client):

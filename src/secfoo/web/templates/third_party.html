@@ -2,11 +2,8 @@
 {% from "_macros.html" import findings_badges %}
 {% block title %}secfoo — Third-Party{% endblock %}
 {% block content %}
-<span class="ds-overline">Third-Party</span>
-<h1>Third-party assessments</h1>
-<p class="ds-body" style="color:var(--color-text-muted)">
-  {{ counts.total }} third-party assessment(s) &middot; AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.
-</p>
+{% from "_page.html" import page_head %}
+{{ page_head("third-party", "Third-Party", "Third-party assessments", counts.total ~ " third-party assessment(s) · AI-BOM: " ~ models_count ~ " model(s), " ~ tools_count ~ " tool(s) tracked.") }}
 
 <div class="card" style="margin-top:var(--space-6)">
   <h4 class="card__title">Vendor CCM v4 conformance</h4>

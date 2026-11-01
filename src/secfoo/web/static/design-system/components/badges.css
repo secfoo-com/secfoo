@@ -6,14 +6,28 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding-block: var(--space-1);
-  padding-inline: var(--space-3);
+  gap: 0.375rem;
+  padding-block: 0.1875rem;
+  padding-inline: 0.625rem;
   border-radius: var(--radius-pill);
   font: var(--text-caption);
+  font-size: 0.6875rem;
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Status dot on semantic badges so state reads at a glance, not just by hue. */
+.badge--success::before,
+.badge--warning::before,
+.badge--error::before,
+.badge--primary::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background-color: currentColor;
 }
 
 .badge--neutral { background-color: var(--color-gray-100); color: var(--color-gray-700); }

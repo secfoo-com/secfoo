@@ -24,7 +24,7 @@
     <span class="stat-card__value">{{ sca_dash.vulnerabilities | length }}</span>
     <span class="stat-card__label">Distinct vulnerabilities across all projects</span>
   </div>
-  <div class="stat-card" style="{% if sca_dash.reachability_counts.reachable %}border-top-color:var(--color-error){% endif %}">
+  <div class="stat-card{% if sca_dash.reachability_counts.reachable %} stat-card--error{% endif %}">
     <span class="stat-card__value" style="{% if sca_dash.reachability_counts.reachable %}color:var(--color-error){% endif %}">{{ sca_dash.reachability_counts.reachable }}</span>
     <span class="stat-card__label">Reachable</span>
   </div>

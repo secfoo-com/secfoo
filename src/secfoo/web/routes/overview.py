@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from secfoo.cost import sum_optional
 from secfoo.storage.repository import RunRepository
+from secfoo.web.run_status import COST_REPORTING_AGENTS, agent_health, setup_steps
 from secfoo.web.templating import ordered_skills, severity_rows, templates
 from secfoo.web.top_findings import build_top_findings
 
@@ -22,6 +23,10 @@ def overview(request: Request):
         models_count, tools_count = repo.ai_bom_counts_total()
         top_findings = build_top_findings(repo)
         cost_by_agent = repo.cost_summary(group_by="agent")
+        agent_stats = repo.agent_run_stats()
+        recent_runs = repo.list_runs(limit=6)
+        assessment_count = repo.count_assessments()
+        reviewed_count = sum(1 for f in repo.list_sast_findings() if f.review_status)
 
     # Coverage is "projects that have had this activity run", so the
     # denominator is the project count -- see RunRepository.skill_coverage.
@@ -51,6 +56,16 @@ def overview(request: Request):
             "tools_count": tools_count,
             "top_findings": top_findings,
             "cost_by_agent": cost_by_agent,
+            "cost_reporting_agents": COST_REPORTING_AGENTS,
+            "agents": agent_health(agent_stats),
+            "recent_runs": recent_runs,
+            "setup": setup_steps(
+                agents=agent_health(agent_stats),
+                assessment_count=assessment_count,
+                run_count=sum(stats["runs"] for stats in agent_stats.values()),
+                reviewed_count=reviewed_count,
+            ),
+            "run_count": sum(stats["runs"] for stats in agent_stats.values()),
             # None (rendered "-") until at least one run has a known cost,
             # so runs that predate tracking don't read as free. An agent
             # whose runs are all unpriced has cost_usd=None; skip it rather

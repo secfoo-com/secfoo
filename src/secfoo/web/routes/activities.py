@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 
 from secfoo.report.architecture import count_trust_boundaries, extract_design_verdict, extract_mermaid_diagram
 from secfoo.skills.loader import SkillLoadError, load_skill
@@ -216,6 +217,32 @@ def sast_finding_detail(request: Request, fingerprint: str):
     return templates.TemplateResponse(
         request, "activities/sast_finding_detail.html", {"finding": finding}
     )
+
+
+@router.post("/activities/sast/findings/{fingerprint}/review")
+def sast_finding_review(
+    fingerprint: str,
+    finding_id: int = Form(...),
+    review_status: str = Form(...),
+    note: str = Form(""),
+    reviewer: str = Form(""),
+):
+    """Reviewer sign-off: Confirm, False positive, Accept risk (needs a
+    reason), or "clear" to put the finding back to awaiting review."""
+    with RunRepository() as repo:
+        finding = next((f for f in repo.list_sast_findings() if f.id == finding_id), None)
+        if finding is None or finding.fingerprint != fingerprint:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        try:
+            repo.review_sast_finding(
+                finding_id,
+                review_status=None if review_status == "clear" else review_status,
+                note=note,
+                reviewed_by=reviewer,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse(url=f"/activities/sast/findings/{fingerprint}", status_code=303)
 
 
 @router.get("/activities/{skill_id}/vulnerabilities")
