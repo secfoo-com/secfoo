@@ -21,7 +21,12 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from secfoo.report.architecture import count_trust_boundaries, extract_design_verdict, extract_mermaid_diagram
+from secfoo.report.architecture import (
+    count_trust_boundaries,
+    extract_design_verdict,
+    extract_mermaid_diagram,
+    split_design_verdict,
+)
 from secfoo.skills.loader import SkillLoadError, load_skill
 from secfoo.storage.repository import RunRepository
 from secfoo.web import architecture_dashboard as arch_dashboard
@@ -34,6 +39,10 @@ from secfoo.web.templating import severity_rows, templates
 
 router = APIRouter()
 
+
+# The Design verdicts panel shows only the newest reviews; the stat card
+# above it still counts every project.
+RECENT_VERDICTS_LIMIT = 5
 
 _GATE_MIX_COLORS = {
     "approve": "var(--color-success)",
@@ -81,6 +90,10 @@ def _attach_architecture_signals(projects: list[dict]) -> bool:
         text = Path(report_path).read_text(encoding="utf-8", errors="replace")
         project["diagram_source"] = extract_mermaid_diagram(text)
         project["design_verdict"] = extract_design_verdict(text)
+        if project["design_verdict"]:
+            # Agents write the verdict as a full sentence; badges show only
+            # the short label and the rest is displayed as wrapping text.
+            project["verdict_label"], project["verdict_reason"] = split_design_verdict(project["design_verdict"])
         project["boundary_count"] = count_trust_boundaries(text)
         if project["diagram_source"]:
             any_diagram = True
@@ -126,6 +139,12 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         )
 
     diagrams_available = _attach_architecture_signals(projects)
+    verdict_count = sum(1 for p in projects if p.get("design_verdict"))
+    recent_verdicts = sorted(
+        (p for p in projects if p.get("design_verdict")),
+        key=lambda p: p.get("latest_success_at") or "",
+        reverse=True,
+    )[:RECENT_VERDICTS_LIMIT]
 
     # A gallery rendering every project's diagram at once doesn't scale
     # past a couple of projects -- instead show one at a time, picked via
@@ -150,6 +169,8 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         ),
         "run_count": sum(p["run_count"] for p in projects),
         "diagrams_available": diagrams_available,
+        "recent_verdicts": recent_verdicts,
+        "verdict_count": verdict_count,
         "diagram_projects": diagram_projects,
         "selected_diagram_project": selected_diagram_project,
         "mermaid_available": mermaid_bundle_available(),

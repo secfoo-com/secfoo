@@ -575,12 +575,16 @@ class RunRepository:
             # (diagram, design verdict) -- a failed/timeout run has no
             # report to read, but shouldn't hide an earlier successful one.
             latest_success = self._conn.execute(
-                "SELECT report_path FROM runs WHERE skill_id = ? AND project_id = ? "
+                "SELECT run_uuid, report_path, finished_at FROM runs WHERE skill_id = ? AND project_id = ? "
                 "AND status = 'success' AND report_path IS NOT NULL "
                 "ORDER BY started_at DESC LIMIT 1",
                 (skill_id, data["project_id"]),
             ).fetchone()
             data["latest_success_report_path"] = latest_success["report_path"] if latest_success else None
+            # Which run that content came from, and when -- so a verdict links
+            # to the review it was read from, not a later failed run.
+            data["latest_success_run_uuid"] = latest_success["run_uuid"] if latest_success else None
+            data["latest_success_at"] = latest_success["finished_at"] if latest_success else None
 
             summary.append(data)
         return summary

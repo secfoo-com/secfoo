@@ -190,3 +190,20 @@ tr.run-row:hover { background-color: var(--color-primary-50); }
 .u-border-t-warning-3 { border-top: 3px solid var(--color-warning) !important; }
 .u-wrap-anywhere { overflow-wrap: anywhere !important; }
 .u-cursor-pointer { cursor: pointer !important; }
+
+/* Design verdicts: agents write the verdict as a sentence. The badge shows
+   the short label; the reason wraps beside/under it instead of overflowing
+   a no-wrap badge. In the table it is clamped to two lines (full text in
+   the title tooltip). */
+.verdict-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.verdict-summary > p { overflow-wrap: anywhere; max-width: 44rem; }
+.verdict-table td { vertical-align: top; }
+.verdict-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 16rem;
+}

@@ -57,7 +57,7 @@
   </div>
   {% if verdict_projects %}
   <div class="stat-card">
-    <span class="stat-card__value">{{ verdict_projects | rejectattr("design_verdict", "in", ["Sound"]) | list | length }}/{{ verdict_projects | length }}</span>
+    <span class="stat-card__value">{{ verdict_projects | rejectattr("verdict_label", "equalto", "Sound") | list | length }}/{{ verdict_projects | length }}</span>
     <span class="stat-card__label">Projects not cleanly Sound</span>
   </div>
   <div class="stat-card">
@@ -68,18 +68,30 @@
 </div>
 {% endif %}
 
-{% if verdict_projects %}
+{% if recent_verdicts %}
 <div class="card u-mt-8">
-  <h4 class="card__title">Design verdicts</h4>
-  <p class="card__body u-mb-4">
-    From each project's most recent successful review.
-  </p>
-  <div class="findings-cell u-gap-2">
-    {% for p in verdict_projects %}
-    <a href="/runs/{{ p.latest_run_uuid }}" class="badge {{ p.design_verdict | design_verdict_badge }} u-decoration-none">
-      {{ p.project_display_name }}: {{ p.design_verdict }}
-    </a>
-    {% endfor %}
+  <div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap">
+    <h4 class="card__title u-m-0">Design verdicts</h4>
+    <span class="ds-caption u-color-text-muted">
+      {% if verdict_count > recent_verdicts | length %}Latest {{ recent_verdicts | length }} of {{ verdict_count }} projects{% else %}Latest review per project{% endif %}
+    </span>
+  </div>
+  <div class="table-wrap u-mt-4">
+    <table class="table verdict-table">
+      <thead>
+        <tr><th>Project</th><th>Verdict</th><th>Why</th><th>Reviewed</th></tr>
+      </thead>
+      <tbody>
+        {% for p in recent_verdicts %}
+        <tr class="run-row" data-href="/runs/{{ p.latest_success_run_uuid }}" tabindex="0">
+          <td class="u-ws-nowrap">{{ p.project_display_name }}</td>
+          <td class="u-ws-nowrap"><span class="badge {{ p.design_verdict | design_verdict_badge }}">{{ p.verdict_label }}</span></td>
+          <td><span class="verdict-reason u-color-text-muted" title="{{ p.design_verdict }}">{{ p.verdict_reason or "—" }}</span></td>
+          <td class="u-ws-nowrap u-color-text-muted">{{ (p.latest_success_at or "")[:10] or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endif %}
@@ -120,7 +132,12 @@
 <a href="/runs/{{ selected_diagram_project.latest_run_uuid }}" class="card u-decoration-none u-color-inherit u-d-block u-mt-6 u-max-w-48rem">
   <span class="card__eyebrow">{{ selected_diagram_project.project_display_name }}</span>
   {% if selected_diagram_project.design_verdict %}
-  <span class="badge {{ selected_diagram_project.design_verdict | design_verdict_badge }} u-mb-3">{{ selected_diagram_project.design_verdict }}</span>
+  <div class="verdict-summary u-mb-3">
+    <span class="badge {{ selected_diagram_project.design_verdict | design_verdict_badge }}">{{ selected_diagram_project.verdict_label }}</span>
+    {% if selected_diagram_project.verdict_reason %}
+    <p class="ds-body-sm u-color-text-muted u-m-0">{{ selected_diagram_project.verdict_reason }}</p>
+    {% endif %}
+  </div>
   {% endif %}
   {% if mermaid_available %}
   <div class="mermaid-figure u-m-0">
