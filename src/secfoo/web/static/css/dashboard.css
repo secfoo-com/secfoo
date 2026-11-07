@@ -213,7 +213,11 @@ tr.run-row:hover { background-color: var(--color-primary-50); }
 .has-info > .card__title,
 .has-info > .stat-card__label { padding-right: 2rem; }
 .info-tip { position: absolute; top: var(--space-3); right: var(--space-3); z-index: 5; }
-.info-tip--inline { position: relative; top: auto; right: auto; display: inline-block; vertical-align: middle; margin-left: var(--space-2); }
+.info-tip--inline { position: relative; top: auto; right: auto; }
+/* A heading followed by its info button: the button sits right after the
+   last word. Flex rather than an inline <details>, because WebKit always
+   lays <details> out as a block. */
+.heading-with-info { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .info-tip__trigger {
   list-style: none;
   display: inline-flex; align-items: center; justify-content: center;

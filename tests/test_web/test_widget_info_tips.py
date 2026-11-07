@@ -101,3 +101,12 @@ def test_info_tips_close_on_outside_click_and_escape():
     js = STATIC_JS.read_text()
     assert "details.info-tip[open]" in js
     assert '"Escape"' in js and '"toggle"' in js
+
+
+def test_section_heading_info_tips_follow_the_heading_text(client, tmp_path):
+    _seed(tmp_path, "acme/app", "Full")
+    html = client.get("/activities/threat-modeling").text
+    for title in ("Models needing rework", "Recurring threat patterns"):
+        heading = re.search(rf'<h2 class="([^"]*)">{title}\s*<details class="info-tip info-tip--inline">', html)
+        assert heading, f"{title}: info button must come right after the heading text"
+        assert "heading-with-info" in heading.group(1)
