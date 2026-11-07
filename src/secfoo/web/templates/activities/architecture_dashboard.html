@@ -130,11 +130,11 @@
       <h2 class="u-mt-0 heading-with-info">Unreviewed &amp; stale
         {% call info_tip("Unreviewed & stale", inline=True) %}
         <p>In-scope projects whose architecture review is <strong>missing</strong>, <strong>stale</strong> (latest successful review is over a year old), or whose <strong>trust boundaries changed</strong>.</p>
-        <p>The table shows the most recently active of these. The rest are in <strong>By project</strong> below.</p>
+        <p>The table shows the most recently active of these.</p>
         {% endcall %}
       </h2>
       {% if dash.stale_projects | length > dash.recent_stale_projects | length %}
-      <span class="ds-caption u-color-text-muted">Latest {{ dash.recent_stale_projects | length }} of {{ dash.stale_projects | length }} &middot; all in <a href="#by-project">By project</a></span>
+      <span class="ds-caption u-color-text-muted">Latest {{ dash.recent_stale_projects | length }} of {{ dash.stale_projects | length }}</span>
       {% endif %}
     </div>
     {% if dash.stale_projects %}

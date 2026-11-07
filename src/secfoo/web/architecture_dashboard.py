@@ -62,8 +62,8 @@ class ArchitectureDashboard:
     exception_aging: dict[str, int] = field(default_factory=dict)
     stale_projects: list[dict] = field(default_factory=list)
     # The "Unreviewed & stale" panel shows only the most recently active
-    # few; the full list above still drives each project's review status
-    # in the "By project" table.
+    # few. The full list above still labels review status on the By project
+    # rows that are shown.
     recent_stale_projects: list[dict] = field(default_factory=list)
     root_causes: list[tuple[str, int]] = field(default_factory=list)
     gate_mix: dict[str, int] = field(default_factory=dict)

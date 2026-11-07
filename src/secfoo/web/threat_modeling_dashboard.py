@@ -28,6 +28,10 @@ from secfoo.web.dashboard_common import append_boundary_changed_projects, percen
 
 SKILL_ID = "threat-modeling"
 
+# The post-build and falsified-assumption cards show only the newest
+# handful. The rest live on their own pages.
+LIST_PREVIEW_LIMIT = 8
+
 # A Gap-disposition threat is "past due" once its most recent model is
 # older than this -- the same coarse, run-level proxy used for the
 # Security Architecture dashboard's "past due" tile, for the same reason
@@ -81,7 +85,8 @@ class ThreatModelingDashboard:
     post_build_count_total: int = 0
     post_build_count_recent: int = 0
     post_build_recent: list = field(default_factory=list)
-    falsified_assumptions: list[str] = field(default_factory=list)
+    falsified_assumptions: list[dict] = field(default_factory=list)
+    falsified_preview: list[dict] = field(default_factory=list)
 
 
 def build(repo: RunRepository) -> ThreatModelingDashboard:
@@ -131,7 +136,14 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
         if depth:
             depth_counter[depth] += 1
 
-        falsified.extend(extract_falsified_assumptions(text))
+        for assumption in extract_falsified_assumptions(text):
+            falsified.append(
+                {
+                    "project_id": project["project_id"],
+                    "project": project["project_display_name"],
+                    "assumption": assumption,
+                }
+            )
 
         # Both a per-project matrix (a blank cell is a real gap on that
         # specific system) and a running portfolio total (the same cell,
@@ -245,6 +257,7 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
         "lightweight": depth_counter.get("Lightweight", 0),
     }
     dash.falsified_assumptions = falsified
+    dash.falsified_preview = falsified[:LIST_PREVIEW_LIMIT]
 
     # Recurring archetypes are aggregated across ALL successful runs, not
     # just the latest per project -- a pattern recurring over a project's
@@ -262,7 +275,7 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
 
     dash.post_build_count_total = repo.post_build_findings_count()
     dash.post_build_count_recent = repo.post_build_findings_count(since_days=POST_BUILD_TREND_WINDOW_DAYS)
-    dash.post_build_recent = repo.list_post_build_findings(limit=5)
+    dash.post_build_recent = repo.list_post_build_findings(limit=LIST_PREVIEW_LIMIT)
 
     needs_rework = repo.unreviewed_and_stale_projects(SKILL_ID, stale_days=STALE_DAYS)
     append_boundary_changed_projects(repo, SKILL_ID, projects, needs_rework)

@@ -241,24 +241,30 @@ flowchart LR
 """
 
 
-def test_stride_matrix_shows_both_a_portfolio_total_and_one_table_per_project(client, tmp_path):
-    """Two projects with disjoint STRIDE/asset-class profiles must each
-    still get their own matrix underneath the portfolio total -- the total
-    alone can't say which project actually has a given gap.
+def test_stride_matrix_shows_one_project_at_a_time(client, tmp_path):
+    """The portfolio total stays. Each project's own matrix is chosen from
+    a dropdown, so the page renders one of them, not a stack of every project.
     """
-    _seed(tmp_path, project_name="acme/app-a")
+    project_a, _, _ = _seed(tmp_path, project_name="acme/app-a")
     _seed(tmp_path, project_name="acme/app-b", report_text=OTHER_PROJECT_REPORT)
 
     resp = client.get("/activities/threat-modeling")
     assert resp.status_code == 200
     text = resp.text
-    assert "STRIDE" in text
     assert "Portfolio total" in text
-    assert "By project" in text
-    assert "acme/app-a" in text
-    assert "acme/app-b" in text
-    # Portfolio total table + one table per project (2) = 3.
-    assert text.count('<table class="table">') >= 3
+    assert 'name="stride_project"' in text
+    assert "acme/app-a" in text and "acme/app-b" in text
+    section = text[text.index("By project"):text.index("Threat disposition")]
+    # app-b was seeded second, so it is the newest and the default selection.
+    assert section.count("<table") == 1
+    assert "1 threat" in section
+    assert "4 threats" not in section
+
+    chosen = client.get(f"/activities/threat-modeling?stride_project={project_a}")
+    chosen_section = chosen.text[chosen.text.index("By project"):chosen.text.index("Threat disposition")]
+    assert chosen_section.count("<table") == 1
+    assert "4 threats" in chosen_section
+    assert "1 threat" not in chosen_section
 
 
 def test_stride_portfolio_total_sums_both_projects(client, tmp_path):
@@ -318,6 +324,50 @@ def test_dashboard_shows_a_recorded_acceptance_with_no_matching_report_row(clien
     assert resp.status_code == 200
     assert "Old acceptance, no longer in report" in resp.text
     assert "Jane Doe" in resp.text
+
+
+def test_falsified_assumptions_card_keeps_eight_and_links_to_the_rest(client, tmp_path):
+    rows = "\n".join(
+        f"| X{i} | Assumption number {i} is false | Falsified | note |" for i in range(1, 13)
+    )
+    report = THREAT_MODEL_REPORT.replace(
+        "| X1 | Upstream gateway authenticates all requests | Falsified | found a bypass route |\n"
+        "| X2 | Platform isolates tenants | Holds | verified |",
+        rows,
+    )
+    _seed(tmp_path, report_text=report)
+
+    page = client.get("/activities/threat-modeling").text
+    card = page[page.index(">Falsified assumptions</h4>"):page.index('id="by-project"')]
+    assert "Assumption number 1 is false" in card
+    assert "Assumption number 8 is false" in card
+    assert "Assumption number 9 is false" not in card
+    assert "View all 12" in card
+
+    full = client.get("/activities/threat-modeling/assumptions")
+    assert full.status_code == 200
+    assert "Assumption number 12 is false" in full.text
+    assert "Assumption number 1 is false" in full.text
+
+
+def test_post_build_card_keeps_eight_and_links_to_the_rest(client, tmp_path):
+    project_id, _, _ = _seed(tmp_path)
+    repo = RunRepository()
+    for day in range(1, 11):
+        repo.create_post_build_finding(
+            project_id=project_id, title=f"Miss {day}", discovered_at=f"2026-01-{day:02d}",
+        )
+    repo.close()
+
+    page = client.get("/activities/threat-modeling").text
+    card = page[page.index(">Threats found post-build</h4>"):page.index(">Falsified assumptions</h4>")]
+    assert "Miss 10" in card and "Miss 3" in card
+    assert "Miss 2" not in card
+    assert "View all 10" in card
+
+    full = client.get("/activities/threat-modeling/post-build")
+    assert full.status_code == 200
+    assert "Miss 1" in full.text and "Miss 10" in full.text
 
 
 def test_dashboard_shows_accept_cli_hint(client, tmp_path):

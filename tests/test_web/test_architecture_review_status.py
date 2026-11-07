@@ -1,6 +1,6 @@
-"""Security Architecture page: the "Unreviewed & stale" panel shows only the
-five most recently active projects, and every project's review status is
-the last column of the "By project" table."""
+"""Security Architecture page: "Unreviewed & stale" shows the five most
+recently active projects, "By project" shows the six newest, and review
+status is the last column of that table."""
 
 from __future__ import annotations
 
@@ -57,7 +57,6 @@ def test_stale_panel_shows_the_five_most_recently_active(client):
     panel = _section(html, "Unreviewed &amp; stale", "</table>")
     assert re.findall(r"acme/svc-(\d)", panel) == ["7", "6", "5", "4", "3"]
     assert "Latest 5 of 7" in panel
-    assert 'href="#by-project"' in panel
 
 
 def test_by_project_ends_with_each_projects_review_status(client, tmp_path):
@@ -83,6 +82,19 @@ def test_by_project_ends_with_each_projects_review_status(client, tmp_path):
     assert status_of("acme/current") == "Current"
     assert re.fullmatch(r"Stale \(\d+d\)", status_of("acme/stale"))
     assert status_of("acme/broken") == "No successful review"
+
+
+def test_by_project_shows_the_six_newest(client, tmp_path):
+    repo = RunRepository()
+    for day in range(1, 9):
+        project_id = _project(repo, f"acme/svc-{day}", f"2026-11-0{day}T09:00:00+00:00")
+        _run(repo, tmp_path, project_id, status="success", started_at=f"2026-11-0{day}T09:00:00+00:00")
+    repo.close()
+
+    html = client.get(f"/activities/{SKILL}").text
+    table = _section(html, 'id="by-project"', "</table>")
+    assert re.findall(r"acme/svc-(\d)", table) == ["8", "7", "6", "5", "4", "3"]
+    assert "Latest 6 of 8" in table
 
 
 def test_other_activities_have_no_review_status_column(client, tmp_path):

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Falsified assumptions — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/threat-modeling" class="ds-caption">&larr; Back to Threat Modeling</a>
+<span class="ds-overline u-d-block u-mt-4">Threat Modeling</span>
+<h1>Falsified assumptions</h1>
+<p class="ds-body u-color-text-muted u-max-w-44rem">
+  Assumptions each project's latest threat model checked against the code and found false.
+</p>
+
+{% if assumptions %}
+<div class="table-wrap u-mt-6">
+  <table class="table">
+    <thead>
+      <tr><th>Assumption</th><th>Project</th></tr>
+    </thead>
+    <tbody>
+      {% for item in assumptions %}
+      <tr>
+        <td>{{ item.assumption }}</td>
+        <td class="u-ws-nowrap"><a href="/projects/{{ item.project_id }}">{{ item.project }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info u-mt-6"><div>No falsified assumptions recorded yet.</div></div>
+{% endif %}
+{% endblock %}

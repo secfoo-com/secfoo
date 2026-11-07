@@ -187,8 +187,13 @@
 {% endif %}
 {% endif %}
 
-<h2 class="u-mt-12" id="by-project">By project</h2>
-{% if projects %}
+<div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap u-mt-12">
+  <h2 class="u-m-0" id="by-project">By project</h2>
+  {% if by_project_total > by_project_rows | length %}
+  <span class="ds-caption u-color-text-muted">Latest {{ by_project_rows | length }} of {{ by_project_total }}</span>
+  {% endif %}
+</div>
+{% if by_project_rows %}
 <div class="table-wrap widget-scroll" data-scroll-rows="10">
   <table class="table">
     <thead>
@@ -200,7 +205,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for p in projects %}
+      {% for p in by_project_rows %}
       <tr class="run-row" data-href="/runs/{{ p.latest_run_uuid }}" tabindex="0">
         <td>
           {{ p.project_display_name }}

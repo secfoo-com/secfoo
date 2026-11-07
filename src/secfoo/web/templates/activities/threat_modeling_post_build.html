@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Threats found post-build — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/threat-modeling" class="ds-caption">&larr; Back to Threat Modeling</a>
+<span class="ds-overline u-d-block u-mt-4">Threat Modeling</span>
+<h1>Threats found post-build</h1>
+<p class="ds-body u-color-text-muted u-max-w-44rem">
+  Threats discovered after release that an earlier model should have caught. Recorded with <code>secfoo miss</code>.
+</p>
+
+{% if findings %}
+<div class="table-wrap u-mt-6">
+  <table class="table">
+    <thead>
+      <tr><th>Threat</th><th>Project</th><th>Discovered</th><th>Found by</th></tr>
+    </thead>
+    <tbody>
+      {% for finding in findings %}
+      <tr>
+        <td>{{ finding.title }}</td>
+        <td><a href="/projects/{{ finding.project_id }}">{{ finding.project_display_name }}</a></td>
+        <td class="u-ws-nowrap">{{ finding.discovered_at | fmt_time }}</td>
+        <td>{{ finding.discovered_by or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info u-mt-6"><div>None recorded yet. Add one with <code>secfoo miss</code>.</div></div>
+{% endif %}
+{% endblock %}

@@ -76,7 +76,7 @@
   <div class="card has-info">
     {% call info_tip("STRIDE × asset-class coverage") %}
     <p>Counts the threats in each project's latest model by <strong>STRIDE category</strong> (columns) and by the <strong>kind of element</strong> they target (rows).</p>
-    <p>Red cells (none found) are the ones to read: that combination was never examined, which is not the same as safe. The per-project tables show which system a gap belongs to.</p>
+    <p>Red cells (none found) are the ones to read: that combination was never examined, which is not the same as safe. Choose a project to see which system a gap belongs to.</p>
     {% endcall %}
     <h4 class="card__title">STRIDE &times; asset-class coverage</h4>
     <p class="card__body u-mb-2">
@@ -97,19 +97,24 @@
       {{ stride_table(tm_dash.stride_aggregate) }}
     </div>
 
-    {% if tm_dash.stride_by_project %}
+    {% if selected_stride_project %}
     <p class="card__body u-m-6-0-3 u-color-text-muted">
-      By project — a blank cell here is a real gap on that specific system; the total above can't say which project it came from.
+      By project — a blank cell here is a real gap on that system; the total above can't say which project it came from.
     </p>
-    <div class="widget-scroll" data-scroll-rows="10">
-      {% for entry in tm_dash.stride_by_project %}
-      <div class="{% if not loop.first %}u-mt-6{% endif %}">
-        <span class="card__eyebrow">{{ entry.project_display_name }} <span class="u-color-text-muted">({{ entry.threat_count }} threat{{ "s" if entry.threat_count != 1 else "" }})</span></span>
-        <div class="u-mt-2">
-          {{ stride_table(entry.matrix) }}
-        </div>
+    {% if tm_dash.stride_by_project | length > 1 %}
+    <form method="get" action="/activities/threat-modeling" class="u-max-w-20rem">
+      <select class="select" name="stride_project" data-autosubmit aria-label="Project for STRIDE coverage">
+        {% for entry in tm_dash.stride_by_project %}
+        <option value="{{ entry.project_id }}" {% if entry.project_id == selected_stride_project.project_id %}selected{% endif %}>{{ entry.project_display_name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+    <div class="u-mt-4">
+      <span class="card__eyebrow">{{ selected_stride_project.project_display_name }} <span class="u-color-text-muted">({{ selected_stride_project.threat_count }} threat{{ "s" if selected_stride_project.threat_count != 1 else "" }})</span></span>
+      <div class="u-mt-2">
+        {{ stride_table(selected_stride_project.matrix) }}
       </div>
-      {% endfor %}
     </div>
     {% endif %}
   </div>
@@ -285,7 +290,7 @@
   <div class="card has-info tm-accent tm-accent--error">
     {% call info_tip("Threats found post-build") %}
     <p>Threats discovered after release (an incident, a pen test, a later scan) that an earlier model should have caught.</p>
-    <p>Recorded by hand with <code>secfoo miss</code>, since a model can't know what it missed. A rising count means models are too shallow.</p>
+    <p>Recorded by hand with <code>secfoo miss</code>, since a model can't know what it missed. A rising count means models are too shallow. This card shows the newest ones; the full list is on its own page.</p>
     {% endcall %}
     <h4 class="card__title">Threats found post-build</h4>
     <div class="miss-stats">
@@ -299,7 +304,7 @@
       </div>
     </div>
     {% if tm_dash.post_build_recent %}
-    <ul class="miss-list widget-scroll" data-scroll-rows="10">
+    <ul class="miss-list widget-scroll" data-scroll-rows="6">
       {% for finding in tm_dash.post_build_recent %}
       <li>
         <a class="miss-row" href="/projects/{{ finding.project_id }}">
@@ -312,6 +317,9 @@
       </li>
       {% endfor %}
     </ul>
+    {% if tm_dash.post_build_count_total > tm_dash.post_build_recent | length %}
+    <a class="ds-caption u-d-block u-mt-3" href="/activities/threat-modeling/post-build">View all {{ tm_dash.post_build_count_total }} &rarr;</a>
+    {% endif %}
     {% else %}
     <p class="signal-empty">None recorded yet — see <code>secfoo miss</code>.</p>
     {% endif %}
@@ -320,19 +328,22 @@
   <div class="card has-info tm-accent tm-accent--amber">
     {% call info_tip("Falsified assumptions") %}
     <p>Assumptions a model relied on (for example, "only internal traffic reaches this service") that it then checked against the code and found false.</p>
-    <p>Each one marks a place where the design and the real system disagree.</p>
+    <p>Each one marks a place where the design and the real system disagree. This card shows the newest ones; the full list is on its own page.</p>
     {% endcall %}
     <h4 class="card__title">Falsified assumptions</h4>
     <p class="card__body u-mb-0">{{ tm_dash.falsified_assumptions | length }} checked against the code and found false.</p>
-    {% if tm_dash.falsified_assumptions %}
-    <ul class="assume-list widget-scroll" data-scroll-rows="10">
-      {% for assumption in tm_dash.falsified_assumptions %}
+    {% if tm_dash.falsified_preview %}
+    <ul class="assume-list widget-scroll" data-scroll-rows="6">
+      {% for item in tm_dash.falsified_preview %}
       <li class="assume-row">
         <span class="assume-row__mark" aria-hidden="true">“</span>
-        <span class="assume-row__text">{{ assumption }}</span>
+        <span class="assume-row__text">{{ item.assumption }}<span class="ds-caption u-d-block">{{ item.project }}</span></span>
       </li>
       {% endfor %}
     </ul>
+    {% if tm_dash.falsified_assumptions | length > tm_dash.falsified_preview | length %}
+    <a class="ds-caption u-d-block u-mt-3" href="/activities/threat-modeling/assumptions">View all {{ tm_dash.falsified_assumptions | length }} &rarr;</a>
+    {% endif %}
     {% else %}
     <p class="signal-empty">No falsified assumptions recorded yet.</p>
     {% endif %}
