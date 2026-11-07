@@ -70,6 +70,10 @@ class AgentResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    # Memory Bank: for an incremental scan, the paths it covered (files sent
+    # to the model plus files deleted since the last scan). None means a
+    # full scan. The runner only closes findings located in these paths.
+    scan_scope: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -135,7 +139,7 @@ class AgentAdapter(ABC):
             usage = self.extract_usage_from_stderr(stderr)
         return usage
 
-    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
+    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit passed through; CLI adapters ignore it.
         if not self.is_available():
             return AgentResult(
                 agent=self.name,

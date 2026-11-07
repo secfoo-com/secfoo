@@ -1,0 +1,192 @@
+/*
+  Dashboard styles that aren't part of the design system.
+
+  Lives in a stylesheet (not inline style="..." attributes or <style>
+  blocks in templates) because the portal's Content-Security-Policy
+  (portal/security.py: default-src 'self', no 'unsafe-inline') blocks
+  inline CSS in a real browser. Local `secfoo serve` sends no CSP, so
+  inline CSS only ever looked right there.
+  tests/test_web/test_no_inline_scripts.py fails if inline CSS comes back.
+
+  Data-driven values that CSS can't express (bar widths, donut gradients)
+  are passed as data-bar-width / data-donut-gradient attributes and applied
+  by static/js/interactive.js -- setting element.style from a same-origin
+  script is allowed by the CSP.
+*/
+
+/* ---- Page layout (was the <style> block in base.html / admin_base.html) ---- */
+.section { padding-block: var(--space-4); }
+.meta-row { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-bottom: var(--space-4); }
+.meta-row > div { min-width: 8rem; }
+tr.run-row { cursor: pointer; }
+tr.run-row:hover { background-color: var(--color-primary-50); }
+/* Put .findings-cell on a <div> INSIDE the <td>, never on the <td> itself:
+   a display:flex table cell stops being a table cell, and two adjacent
+   ones get merged into one anonymous cell, shifting every later column. */
+.findings-cell { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+
+/* ---- Utilities ----
+   One class per declaration that templates used to set inline, named
+   u-<property>-<value> (e.g. u-mt-4 = margin-top: var(--space-4)).
+   !important keeps the old inline-style precedence over component CSS.
+   Shorthands come before their longhands so a longhand on the same
+   element (e.g. u-p-0 u-px-2) still wins, as it did inline. */
+.u-m-0 { margin: 0 !important; }
+.u-m-3-0-0 { margin: var(--space-3) 0 0 !important; }
+.u-m-6-0-3 { margin: var(--space-6) 0 var(--space-3) !important; }
+.u-my-4 { margin-block: var(--space-4) !important; }
+.u-mt-0 { margin-top: 0 !important; }
+.u-mt-1 { margin-top: var(--space-1) !important; }
+.u-mt-10 { margin-top: var(--space-10) !important; }
+.u-mt-12 { margin-top: var(--space-12) !important; }
+.u-mt-2 { margin-top: var(--space-2) !important; }
+.u-mt-3 { margin-top: var(--space-3) !important; }
+.u-mt-4 { margin-top: var(--space-4) !important; }
+.u-mt-6 { margin-top: var(--space-6) !important; }
+.u-mt-8 { margin-top: var(--space-8) !important; }
+.u-mb-1 { margin-bottom: var(--space-1) !important; }
+.u-mb-2 { margin-bottom: var(--space-2) !important; }
+.u-mb-3 { margin-bottom: var(--space-3) !important; }
+.u-mb-4 { margin-bottom: var(--space-4) !important; }
+.u-mb-6 { margin-bottom: var(--space-6) !important; }
+.u-mb-8 { margin-bottom: var(--space-8) !important; }
+.u-p-0 { padding: 0 !important; }
+.u-p-4 { padding: var(--space-4) !important; }
+.u-px-2 { padding-inline: var(--space-2) !important; }
+.u-py-4 { padding-block: var(--space-4) !important; }
+.u-pl-1_2rem { padding-left: 1.2rem !important; }
+.u-bg-bg-subtle { background-color: var(--color-bg-subtle) !important; }
+.u-bg-error { background-color: var(--color-error) !important; }
+.u-bg-gray-400 { background-color: var(--color-gray-400) !important; }
+.u-bg-success { background-color: var(--color-success) !important; }
+.u-bg-teal-500 { background-color: var(--color-teal-500) !important; }
+.u-bg-warning { background-color: var(--color-warning) !important; }
+.u-border-b-border { border-bottom: 1px solid var(--color-border) !important; }
+.u-color-inherit { color: inherit !important; }
+.u-color-text-muted { color: var(--color-text-muted) !important; }
+.u-cols-1fr-1fr { grid-template-columns: 1fr 1fr !important; }
+.u-cols-1fr-1fr-1fr { grid-template-columns: 1fr 1fr 1fr !important; }
+.u-cols-2fr-1fr { grid-template-columns: 2fr 1fr !important; }
+.u-cols-3fr-2fr { grid-template-columns: 3fr 2fr !important; }
+.u-d-block { display: block !important; }
+.u-d-flex { display: flex !important; }
+.u-d-grid { display: grid !important; }
+.u-d-inline { display: inline !important; }
+.u-decoration-none { text-decoration: none !important; }
+.u-flex-1 { flex: 1 !important; }
+.u-flex-wrap { flex-wrap: wrap !important; }
+.u-font-body-sm { font: var(--text-body-sm) !important; }
+.u-font-caption { font: var(--text-caption) !important; }
+.u-font-mono { font-family: var(--font-family-mono) !important; }
+.u-gap-2 { gap: var(--space-2) !important; }
+.u-gap-3 { gap: var(--space-3) !important; }
+.u-gap-4 { gap: var(--space-4) !important; }
+.u-gap-6 { gap: var(--space-6) !important; }
+.u-items-center { align-items: center !important; }
+.u-items-flex-end { align-items: flex-end !important; }
+.u-items-flex-start { align-items: flex-start !important; }
+.u-justify-center { justify-content: center !important; }
+.u-justify-flex-end { justify-content: flex-end !important; }
+.u-justify-space-between { justify-content: space-between !important; }
+.u-max-h-20rem { max-height: 20rem !important; }
+.u-max-h-24rem { max-height: 24rem !important; }
+.u-max-w-20rem { max-width: 20rem !important; }
+.u-max-w-24rem { max-width: 24rem !important; }
+.u-max-w-28rem { max-width: 28rem !important; }
+.u-max-w-32rem { max-width: 32rem !important; }
+.u-max-w-36rem { max-width: 36rem !important; }
+.u-max-w-40rem { max-width: 40rem !important; }
+.u-max-w-44rem { max-width: 44rem !important; }
+.u-max-w-48rem { max-width: 48rem !important; }
+.u-min-h-100vh { min-height: 100vh !important; }
+.u-overflow-auto { overflow: auto !important; }
+.u-overflow-y-auto { overflow-y: auto !important; }
+.u-text-center { text-align: center !important; }
+.u-w-10rem { width: 10rem !important; }
+.u-w-12rem { width: 12rem !important; }
+.u-w-8rem { width: 8rem !important; }
+.u-w-full { width: 100% !important; }
+.u-ws-nowrap { white-space: nowrap !important; }
+.u-ws-pre-wrap { white-space: pre-wrap !important; }
+
+/* State utilities, applied conditionally from templates */
+.u-border-t-error { border-top-color: var(--color-error) !important; }
+.u-color-error { color: var(--color-error) !important; }
+.u-bg-error-bg { background-color: var(--color-error-bg) !important; }
+.u-bg-warning-bg { background-color: var(--color-warning-bg) !important; }
+.u-bg-success-bg { background-color: var(--color-success-bg) !important; }
+
+/* ---- Small screens (SECFOO-22 item 2) ----
+   Kept after the utilities above: same specificity, so these win by order. */
+
+/* Lets a table inside a card scroll sideways on narrow screens without
+   adding .table-wrap's border (the card already frames it). */
+.u-scroll-x { overflow-x: auto; }
+
+/* Grid items default to min-width: auto, so a wide child (a long label,
+   a chart) can push its column past the page edge ("grid blowout").
+   min-width: 0 lets columns shrink to the space actually available. */
+.u-d-grid > * { min-width: 0; }
+
+@media (max-width: 48rem) {
+  /* Inline code in reports (long paths, hashes, URLs) wraps instead of
+     widening the page. Code blocks (<pre>) keep their own horizontal
+     scroll. Phones only: on wider screens it would change table column
+     widths. */
+  .card :not(pre) > code { overflow-wrap: anywhere; }
+
+  /* Multi-column dashboard grids stack into one column on phones. */
+  .u-cols-1fr-1fr,
+  .u-cols-1fr-1fr-1fr,
+  .u-cols-2fr-1fr,
+  .u-cols-3fr-2fr { grid-template-columns: 1fr !important; }
+
+  /* Conformance bars: the fixed-width label goes on its own line above
+     the bar instead of squeezing the bar off-screen. */
+  .conformance-bar { flex-wrap: wrap; }
+  .conformance-bar__label { width: 100%; }
+  .conformance-bar__value { width: auto; }
+
+  /* Rows of stat cards / controls wrap onto a second line rather than
+     running off the right edge. */
+  .u-d-flex { flex-wrap: wrap; }
+}
+
+/* ---- Findings-list filter bar (SECFOO-22 item 3) ----
+   As many controls per row as fit (one per row on phones), instead of
+   every dropdown/input taking a full-width row. */
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+.filter-bar > * { min-width: 0; }
+.filter-bar__field { display: flex; flex-direction: column; gap: var(--space-1); }
+.filter-bar__actions { display: flex; align-items: center; gap: var(--space-3); }
+
+/* ---- Assessments list bulk status change (SECFOO-22 item 4) ---- */
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.bulk-bar .select { width: auto; }
+.select-cell { width: 2.5rem; }
+
+/* Utilities added when the SECFOO-69 dashboard redesign was merged in:
+   the redesign used inline style="..." attributes, which the portal's CSP
+   blocks (see tests/test_web/test_no_inline_scripts.py). */
+.u-max-w-52rem { max-width: 52rem !important; }
+.u-fieldset-reset { border: 0 !important; padding: 0 !important; margin-inline: 0 !important; }
+.u-px-3 { padding-inline: var(--space-3) !important; }
+.u-pl-4 { padding-left: var(--space-4) !important; }
+.u-m-1-0-0 { margin: var(--space-1) 0 0 !important; }
+.u-m-2-0-0 { margin: var(--space-2) 0 0 !important; }
+.u-items-baseline { align-items: baseline !important; }
+.u-justify-self-start { justify-self: start !important; }
+.u-color-warning { color: var(--color-warning) !important; }
+.u-border-t-warning-3 { border-top: 3px solid var(--color-warning) !important; }
+.u-wrap-anywhere { overflow-wrap: anywhere !important; }
+.u-cursor-pointer { cursor: pointer !important; }

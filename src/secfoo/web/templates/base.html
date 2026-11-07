@@ -5,19 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% block title %}secfoo{% endblock %}</title>
 <link rel="stylesheet" href="/static/design-system/design-system.css" />
+<link rel="stylesheet" href="/static/css/dashboard.css" />
 <script src="/static/js/theme.js"></script>
-<style>
-  .section { padding-block: var(--space-4); }
-  .meta-row { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-bottom: var(--space-4); }
-  .meta-row > div { min-width: 8rem; }
-  tr.run-row { cursor: pointer; }
-  tr.run-row:hover { background-color: var(--color-primary-50); }
-  .findings-cell { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
-  /* A <td> set to flex stops being a table cell and shoves the rest of the
-     row's cells out of their columns; keep it a cell and space the badges. */
-  td.findings-cell { display: table-cell; }
-  td.findings-cell > .badge { margin: 2px var(--space-1) 2px 0; }
-</style>
 {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -25,7 +14,7 @@
 {% set path = request.url.path %}
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="logo logo--sm" href="/" style="padding:0; padding-inline:var(--space-3); margin-bottom:var(--space-8);">
+    <a class="logo logo--sm u-p-0 u-px-3 u-mb-8" href="/">
       <span class="logo__mark" aria-hidden="true"><i class="logo__bracket logo__bracket--left"></i><i class="logo__dot"></i><i class="logo__bracket logo__bracket--right"></i></span>
       <span class="logo__word">secfoo</span>
     </a>

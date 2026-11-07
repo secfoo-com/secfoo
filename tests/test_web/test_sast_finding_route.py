@@ -159,9 +159,74 @@ def test_sast_finding_detail_404s_for_unknown_fingerprint(client):
     assert resp.status_code == 404
 
 
+def _set_first_seen(fingerprint: str, iso_timestamp: str) -> None:
+    repo = RunRepository()
+    repo._conn.execute("UPDATE sast_findings SET first_seen_at = ? WHERE fingerprint = ?", (iso_timestamp, fingerprint))
+    repo._conn.commit()
+    repo.close()
+
+
+def test_sast_findings_list_filters_by_severity(client):
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection", severity="High")
+    _seed_finding(fingerprint="fp-debug", title="Debug mode enabled", severity="Low")
+
+    resp = client.get("/activities/sast/findings?severity=high")
+    assert "SQL Injection" in resp.text
+    assert "Debug mode enabled" not in resp.text
+    # The Open tab count follows the filter, so it matches what's listed.
+    assert "Open (1)" in resp.text
+    # The dropdown keeps the chosen severity selected.
+    assert '<option value="high" selected>' in resp.text
+
+
+def test_sast_findings_list_ignores_an_unknown_severity(client):
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection", severity="High")
+    resp = client.get("/activities/sast/findings?severity=bogus")
+    assert resp.status_code == 200
+    assert "SQL Injection" in resp.text
+
+
+def test_sast_findings_list_filters_by_first_found_date_inclusive(client):
+    _seed_finding(fingerprint="fp-old", title="Old finding")
+    _seed_finding(fingerprint="fp-new", title="New finding")
+    _set_first_seen("fp-old", "2026-01-15T10:00:00+00:00")
+    _set_first_seen("fp-new", "2026-03-01T23:59:00+00:00")
+
+    resp = client.get("/activities/sast/findings?found_from=2026-02-01")
+    assert "New finding" in resp.text
+    assert "Old finding" not in resp.text
+
+    # The end date includes findings from that whole day.
+    resp = client.get("/activities/sast/findings?found_from=2026-01-15&found_to=2026-01-15")
+    assert "Old finding" in resp.text
+    assert "New finding" not in resp.text
+
+
+def test_sast_findings_list_ignores_a_malformed_date(client):
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection")
+    resp = client.get("/activities/sast/findings?found_from=not-a-date")
+    assert resp.status_code == 200
+    assert "SQL Injection" in resp.text
+
+
+def test_sast_findings_list_tab_links_keep_filters_and_encode_search(client):
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection", severity="High")
+    resp = client.get("/activities/sast/findings?severity=high&q=a%26b")
+    # "&" in the search text must be encoded, or it would split the query.
+    assert "q=a%26b" in resp.text
+    assert "status=closed" in resp.text and "severity=high" in resp.text
+
+
+def test_sast_findings_list_no_match_offers_to_clear_filters(client):
+    _seed_finding(fingerprint="fp-sqli", title="SQL Injection", severity="High")
+    resp = client.get("/activities/sast/findings?severity=critical")
+    assert "match these filters" in resp.text
+    assert "Clear filters" in resp.text
+
+
 def test_sast_findings_list_accepts_the_all_projects_option(client):
     # The "All projects" option submits project_id= (empty); this used to 422.
     _seed_finding(fingerprint="fp-sqli", title="SQL Injection")
-    resp = client.get("/activities/sast/findings?status=open&project_id=&q=")
+    resp = client.get("/activities/sast/findings?status=open&project_id=&severity=&found_from=&found_to=&q=")
     assert resp.status_code == 200
     assert "SQL Injection" in resp.text

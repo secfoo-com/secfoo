@@ -123,7 +123,7 @@ def test_dashboard_renders_with_real_data(client, tmp_path):
         "Most-deviated standards",
         "Uncovered CCM domains",
         'class="donut"',
-        'class="stacked-bar"',
+        'class="stacked-bar u-mt-4"',
         'class="conformance-bar"',
     ]:
         assert marker in text, f"missing: {marker}"
@@ -162,7 +162,7 @@ def test_dashboard_shows_exceptions_past_expiry(client, tmp_path):
     assert resp.status_code == 200
     assert "Exceptions past expiry" in resp.text
     # The stat-card value of 1 must appear with the error-colored styling.
-    assert "color:var(--color-error)" in resp.text
+    assert "u-color-error" in resp.text
 
 
 def test_dashboard_flags_never_reviewed_project(client, tmp_path):

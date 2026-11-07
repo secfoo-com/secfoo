@@ -5,6 +5,7 @@ import tempfile
 import threading
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -130,13 +131,46 @@ def _run_form_context() -> dict:
     }
 
 
+# Must match the CHECK constraint on assessments.status in schema.sql.
+ASSESSMENT_STATUSES = ["ready", "in_progress", "completed", "blocked"]
+
+# (value, label) for the Sort dropdown; "recent" is the original order.
+ASSESSMENT_SORTS = [
+    ("recent", "Recently updated"),
+    ("project", "Project (A–Z)"),
+    ("status", "Status"),
+    ("findings", "Most severe findings"),
+    ("review_oldest", "Oldest review first"),
+]
+_SORT_KEYS = {
+    "project": lambda a: (a.project_display_name or "").lower(),
+    "status": lambda a: ASSESSMENT_STATUSES.index(a.status) if a.status in ASSESSMENT_STATUSES else len(ASSESSMENT_STATUSES),
+    # Most severe first: compare critical, then high, ... (descending).
+    "findings": lambda a: (-a.critical_count, -a.high_count, -a.medium_count, -a.low_count, -a.info_count),
+    # The "Reviewed" column shows review_date, falling back to updated_at.
+    "review_oldest": lambda a: a.review_date or a.updated_at or "",
+}
+
+
+def _list_query(**params: object) -> str:
+    return urlencode({k: v for k, v in params.items() if v not in (None, "")})
+
+
 @router.get("/assessments")
 def assessments_list(
     request: Request,
     type: Optional[str] = None,  # noqa: A002 -- matches the query param name
     status: Optional[str] = None,
     q: Optional[str] = None,
+    sort: Optional[str] = None,
+    updated: Optional[int] = None,
+    updated_to: Optional[str] = None,
 ):
+    """Sorting happens in Python over the rows the page already shows
+    (list_assessments' most-recently-updated cap), which keeps the
+    findings-severity sort -- computed per row, not stored -- consistent
+    with the simple column sorts."""
+    selected_sort = sort if sort in _SORT_KEYS else "recent"
     with RunRepository() as repo:
         assessments = repo.list_assessments(assessment_type=type or None, status=status or None, search=q)
         counts = {
@@ -144,6 +178,8 @@ def assessments_list(
             "internal": repo.count_assessments(assessment_type="internal"),
             "third_party": repo.count_assessments(assessment_type="third_party"),
         }
+    if selected_sort != "recent":
+        assessments = sorted(assessments, key=_SORT_KEYS[selected_sort])
     return templates.TemplateResponse(
         request,
         "assessments/list.html",
@@ -153,8 +189,40 @@ def assessments_list(
             "active_type": type or "all",
             "active_status": status or "",
             "search": q or "",
+            "sort_options": ASSESSMENT_SORTS,
+            "selected_sort": selected_sort,
+            "status_options": ASSESSMENT_STATUSES,
+            # Confirmation after a bulk status change (see below).
+            "bulk_updated": updated,
+            "bulk_updated_to": updated_to if updated_to in ASSESSMENT_STATUSES else None,
         },
     )
+
+
+@router.post("/assessments/bulk-status")
+def assessments_bulk_status(
+    ids: list[int] = Form(default_factory=list),
+    new_status: str = Form(...),
+    type: str = Form(""),  # noqa: A002 -- the list's current filters, to return to the same view
+    status: str = Form(""),
+    q: str = Form(""),
+    sort: str = Form(""),
+):
+    """Set the status of several assessments at once (status only -- bulk
+    delete is deliberately not offered). Unknown ids are skipped. Redirects
+    back to the list with the same filters; the redirect target is built
+    here from those fields, never taken from the request, so it can't be
+    pointed elsewhere."""
+    if new_status not in ASSESSMENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unknown status {new_status!r}")
+    changed = 0
+    with RunRepository() as repo:
+        for assessment_id in dict.fromkeys(ids):  # de-duplicated, order kept
+            if repo.get_assessment(assessment_id) is not None:
+                repo.update_assessment(assessment_id, status=new_status)
+                changed += 1
+    query = _list_query(type=type, status=status, q=q, sort=sort, updated=changed, updated_to=new_status)
+    return RedirectResponse(url=f"/assessments?{query}", status_code=303)
 
 
 @router.get("/assessments/new")

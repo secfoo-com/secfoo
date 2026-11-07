@@ -1,23 +1,26 @@
 {% extends "base.html" %}
+{% from "_macros.html" import severity_select %}
 {% block title %}SCA Reachability — All Vulnerabilities — secfoo{% endblock %}
 {% block content %}
 <a href="/activities/{{ skill_id }}" class="ds-caption">&larr; Back to SCA Reachability</a>
-<span class="ds-overline" style="display:block;margin-top:var(--space-4)">SCA Reachability</span>
+<span class="ds-overline u-d-block u-mt-4">SCA Reachability</span>
 <h1>All vulnerabilities</h1>
 
-<div style="display:flex;justify-content:flex-end;margin-top:var(--space-6)">
-  <form method="get" action="/activities/{{ skill_id }}/vulnerabilities">
-    <select class="select" name="project_id" data-autosubmit>
+<div class="u-mt-6">
+  <form method="get" action="/activities/{{ skill_id }}/vulnerabilities" class="filter-bar">
+    <select class="select" name="project_id" data-autosubmit aria-label="Filter by project">
       <option value="">All projects</option>
       {% for p in projects %}
       <option value="{{ p.project_id }}" {% if selected_project_id == p.project_id %}selected{% endif %}>{{ p.project_display_name }}</option>
       {% endfor %}
     </select>
+    {{ severity_select(severity_options, selected_severity) }}
+    <div class="filter-bar__actions">{% if filters_active %}<a class="ds-caption" href="/activities/{{ skill_id }}/vulnerabilities">Clear filters</a>{% endif %}</div>
   </form>
 </div>
 
 {% if vulnerabilities %}
-<div class="table-wrap" style="margin-top:var(--space-4)">
+<div class="table-wrap u-mt-4">
   <table class="table">
     <thead>
       <tr>
@@ -27,7 +30,7 @@
     </thead>
     <tbody>
       {% for v in vulnerabilities %}
-      <tr class="run-row" data-href="/activities/{{ skill_id }}/vulnerabilities/{{ v.key }}">
+      <tr class="run-row" data-href="/activities/{{ skill_id }}/vulnerabilities/{{ v.key }}" tabindex="0">
         <td><span class="badge {{ v.severity | severity_badge }}">{{ v.severity }}</span></td>
         <td>
           {% if v.cve_id %}{{ v.cve_id }}{% else %}<span class="badge badge--neutral">unverified</span> {{ v.issue }}{% endif %}
@@ -43,6 +46,6 @@
   </table>
 </div>
 {% else %}
-<div class="alert alert--info" style="margin-top:var(--space-4)"><div>No vulnerabilities{% if selected_project_id %} for this project{% endif %}.</div></div>
+<div class="alert alert--info u-mt-4" role="status"><div>No vulnerabilities{% if filters_active %} match these filters. <a href="/activities/{{ skill_id }}/vulnerabilities">Clear filters</a>{% else %}.{% endif %}</div></div>
 {% endif %}
 {% endblock %}

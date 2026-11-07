@@ -25,6 +25,7 @@ from secfoo.report.architecture import count_trust_boundaries, extract_design_ve
 from secfoo.skills.loader import SkillLoadError, load_skill
 from secfoo.storage.repository import RunRepository
 from secfoo.web import architecture_dashboard as arch_dashboard
+from secfoo.web import finding_filters
 from secfoo.web import sast_dashboard
 from secfoo.web import sca_dashboard
 from secfoo.web import secret_scanning_dashboard
@@ -33,17 +34,6 @@ from secfoo.web.templating import severity_rows, templates
 
 router = APIRouter()
 
-
-def _project_id(value: str | None) -> int | None:
-    """The findings lists' "All projects" option submits project_id=
-    (empty). Declared as `int | None`, FastAPI rejected that with a 422, so
-    picking "All projects" -- or pressing Search with it selected, the
-    default -- showed a JSON error. Take the raw string instead; empty or
-    non-numeric means "all projects"."""
-    try:
-        return int((value or "").strip())
-    except ValueError:
-        return None
 
 _GATE_MIX_COLORS = {
     "approve": "var(--color-success)",
@@ -190,20 +180,46 @@ def sast_findings_list(
     status: str = "open",
     q: str | None = None,
     project_id: str | None = None,
+    severity: str | None = None,
+    found_from: str | None = None,
+    found_to: str | None = None,
 ):
     """The full, filterable SAST findings register -- the program
     dashboard itself only ever shows a short "Top findings" preview (see
     sast_dashboard.html); this is where "View all findings" lands, with a
     project filter the dashboard preview deliberately doesn't have (it's
-    already cross-project by design).
+    already cross-project by design). Also filterable by severity and by
+    the day a finding was first found (first_seen_at); the Open/Closed tab
+    counts reflect every filter except the status itself, so a tab's count
+    is what clicking it shows.
     """
-    project_id = _project_id(project_id)
+    project_id = finding_filters.parse_project_id(project_id)
+    selected_severity = finding_filters.normalize_severity(severity)
+    start = finding_filters.parse_day(found_from)
+    end = finding_filters.parse_day(found_to)
+
+    def keep(f) -> bool:
+        return finding_filters.matches_severity(f.severity, selected_severity) and finding_filters.in_day_range(
+            f.first_seen_at, start, end
+        )
+
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(sast_dashboard.SKILL_ID)
-        findings = repo.list_sast_findings(project_id=project_id, status=status, search=q or None)
-        open_count = len(repo.list_sast_findings(project_id=project_id, status="open"))
-        closed_count = len(repo.list_sast_findings(project_id=project_id, status="closed"))
+        by_status = {
+            s: [f for f in repo.list_sast_findings(project_id=project_id, status=s, search=q or None) if keep(f)]
+            for s in ("open", "closed")
+        }
+        findings = by_status.get(status)
+        if findings is None:
+            findings = [f for f in repo.list_sast_findings(project_id=project_id, status=status, search=q or None) if keep(f)]
 
+    filters = {
+        "project_id": project_id,
+        "q": q or "",
+        "severity": selected_severity,
+        "found_from": start.isoformat() if start else "",
+        "found_to": end.isoformat() if end else "",
+    }
     return templates.TemplateResponse(
         request,
         "activities/sast_findings_list.html",
@@ -213,8 +229,15 @@ def sast_findings_list(
             "selected_status": status,
             "selected_project_id": project_id,
             "search": q or "",
-            "open_count": open_count,
-            "closed_count": closed_count,
+            "open_count": len(by_status["open"]),
+            "closed_count": len(by_status["closed"]),
+            "severity_options": finding_filters.SEVERITY_OPTIONS,
+            "selected_severity": selected_severity,
+            "found_from": filters["found_from"],
+            "found_to": filters["found_to"],
+            "open_query": finding_filters.query_string(status="open", **filters),
+            "closed_query": finding_filters.query_string(status="closed", **filters),
+            "filters_active": any(v for v in filters.values()),
         },
     )
 
@@ -259,7 +282,9 @@ def sast_finding_review(
 
 
 @router.get("/activities/{skill_id}/vulnerabilities")
-def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: str | None = None):
+def sca_vulnerabilities_list(
+    request: Request, skill_id: str, project_id: str | None = None, severity: str | None = None
+):
     """The full SCA vulnerability register, filterable by project -- what
     the program dashboard's "Top vulnerabilities" preview links out to.
     Filtering happens post-aggregation, over sca_dashboard.build()'s
@@ -270,7 +295,7 @@ def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: str | 
     """
     if skill_id != sca_dashboard.SKILL_ID:
         raise HTTPException(status_code=404, detail="Not found")
-    project_id = _project_id(project_id)
+    project_id = finding_filters.parse_project_id(project_id)
 
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(sca_dashboard.SKILL_ID)
@@ -281,6 +306,8 @@ def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: str | 
         vulnerabilities = [
             v for v in vulnerabilities if any(p["project_id"] == project_id for p in v.affected_projects)
         ]
+    selected_severity = finding_filters.normalize_severity(severity)
+    vulnerabilities = [v for v in vulnerabilities if finding_filters.matches_severity(v.severity, selected_severity)]
 
     return templates.TemplateResponse(
         request,
@@ -290,6 +317,9 @@ def sca_vulnerabilities_list(request: Request, skill_id: str, project_id: str | 
             "projects": projects,
             "vulnerabilities": vulnerabilities,
             "selected_project_id": project_id,
+            "severity_options": finding_filters.SEVERITY_OPTIONS,
+            "selected_severity": selected_severity,
+            "filters_active": bool(project_id is not None or selected_severity),
         },
     )
 
@@ -314,12 +344,12 @@ def sca_vulnerability_detail(request: Request, skill_id: str, key: str):
 
 
 @router.get("/activities/secret-scanning/findings")
-def secret_scanning_findings_list(request: Request, project_id: str | None = None):
+def secret_scanning_findings_list(request: Request, project_id: str | None = None, severity: str | None = None):
     """The full secret findings register, filterable by project -- what
     the program dashboard's "Top findings" preview links out to, same
     pattern as SAST's and SCA's findings-list pages.
     """
-    project_id = _project_id(project_id)
+    project_id = finding_filters.parse_project_id(project_id)
     with RunRepository() as repo:
         projects = repo.activity_summary_by_project(secret_scanning_dashboard.SKILL_ID)
         dash = secret_scanning_dashboard.build(repo)
@@ -327,11 +357,20 @@ def secret_scanning_findings_list(request: Request, project_id: str | None = Non
     findings = dash.findings
     if project_id is not None:
         findings = [f for f in findings if f.project_id == project_id]
+    selected_severity = finding_filters.normalize_severity(severity)
+    findings = [f for f in findings if finding_filters.matches_severity(f.severity, selected_severity)]
 
     return templates.TemplateResponse(
         request,
         "activities/secret_scanning_findings_list.html",
-        {"projects": projects, "findings": findings, "selected_project_id": project_id},
+        {
+            "projects": projects,
+            "findings": findings,
+            "selected_project_id": project_id,
+            "severity_options": finding_filters.SEVERITY_OPTIONS,
+            "selected_severity": selected_severity,
+            "filters_active": bool(project_id is not None or selected_severity),
+        },
     )
 
 

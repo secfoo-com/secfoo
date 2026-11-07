@@ -66,7 +66,7 @@ def test_assessments_list_row_is_clickable_anywhere_not_just_the_first_cell(clie
     """
     _project_id, assessment_id = _create_assessment(application_id="APP-1")
     resp = client.get("/assessments")
-    assert f'<tr class="run-row" data-href="/assessments/{assessment_id}">' in resp.text
+    assert f'<tr class="run-row" data-href="/assessments/{assessment_id}" tabindex="0">' in resp.text
 
 
 def test_assessments_list_filters_by_type(client):
@@ -560,3 +560,96 @@ def test_responsible_ai_page_shows_derived_risk(client, tmp_path):
     assert resp.status_code == 200
     assert "high-risk" in resp.text
     assert "provisional" in resp.text
+
+
+def _row_order(html: str) -> list[str]:
+    import re
+
+    return re.findall(r'<tr class="run-row" data-href="/assessments/(\d+)"', html)
+
+
+def test_assessments_list_sorts_by_project_name(client):
+    _, a_zeta = _create_assessment(application_id="Z")
+    repo = RunRepository()
+    p2 = repo.upsert_project("https://github.com/org/alpha", "alpha-app", "github")
+    a_alpha = repo.create_assessment(project_id=p2, assessment_type="internal", status="ready")
+    repo.close()
+
+    order = _row_order(client.get("/assessments?sort=project").text)
+    assert order.index(str(a_alpha)) < order.index(str(a_zeta))
+
+
+def test_assessments_list_sorts_by_status_order(client):
+    _, blocked = _create_assessment(status="blocked")
+    _, ready = _create_assessment(status="ready")
+    order = _row_order(client.get("/assessments?sort=status").text)
+    assert order.index(str(ready)) < order.index(str(blocked))
+
+
+def test_assessments_list_unknown_sort_falls_back_to_default(client):
+    _create_assessment()
+    resp = client.get("/assessments?sort=bogus")
+    assert resp.status_code == 200
+    assert '<option value="recent" selected>' in resp.text
+
+
+def test_bulk_status_updates_selected_assessments_only(client):
+    _, a1 = _create_assessment(status="ready")
+    _, a2 = _create_assessment(status="ready")
+    _, a3 = _create_assessment(status="ready")
+
+    resp = client.post(
+        "/assessments/bulk-status",
+        data={"ids": [str(a1), str(a2)], "new_status": "completed"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/assessments?")
+
+    repo = RunRepository()
+    statuses = {a: repo.get_assessment(a).status for a in (a1, a2, a3)}
+    repo.close()
+    assert statuses == {a1: "completed", a2: "completed", a3: "ready"}
+
+    page = client.get(resp.headers["location"]).text
+    assert "Updated 2 assessments to" in page
+
+
+def test_bulk_status_keeps_the_list_filters_in_the_redirect(client):
+    _, a1 = _create_assessment(status="ready")
+    resp = client.post(
+        "/assessments/bulk-status",
+        data={"ids": [str(a1)], "new_status": "blocked", "type": "internal", "q": "a&b", "sort": "project"},
+        follow_redirects=False,
+    )
+    location = resp.headers["location"]
+    assert "type=internal" in location and "sort=project" in location and "q=a%26b" in location
+
+
+def test_bulk_status_rejects_an_unknown_status(client):
+    _, a1 = _create_assessment(status="ready")
+    resp = client.post("/assessments/bulk-status", data={"ids": [str(a1)], "new_status": "deleted"})
+    assert resp.status_code == 400
+    repo = RunRepository()
+    assert repo.get_assessment(a1).status == "ready"
+    repo.close()
+
+
+def test_bulk_status_skips_unknown_ids_and_handles_no_selection(client):
+    _, a1 = _create_assessment(status="ready")
+    resp = client.post(
+        "/assessments/bulk-status", data={"ids": [str(a1), "999999"], "new_status": "in_progress"}
+    )
+    assert resp.status_code == 200  # followed the redirect
+    assert "Updated 1 assessment to" in resp.text
+
+    resp = client.post("/assessments/bulk-status", data={"new_status": "in_progress"})
+    assert resp.status_code == 200
+    assert "No assessments were selected" in resp.text
+
+
+def test_assessments_list_rows_have_selection_checkboxes(client):
+    _, a1 = _create_assessment()
+    html = client.get("/assessments").text
+    assert f'name="ids" value="{a1}" form="bulk-status-form"' in html
+    assert 'data-select-all="ids"' in html

@@ -4,7 +4,7 @@
 {% from "_page.html" import page_head %}
 {{ page_head("agents", "Agents", "Agent health", "Every agent secfoo can run assessments with, and whether it's ready on this machine. \"Ready\" means the CLI (or API key) was found. secfoo can't check a CLI's sign-in without launching it, so an expired login shows up as a failed run.") }}
 
-<div class="agent-grid" style="margin-top:var(--space-8)">
+<div class="agent-grid u-mt-8">
   {% for a in agents %}
   <div class="card agent-card">
     <div class="agent-card__top">
