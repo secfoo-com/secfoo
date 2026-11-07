@@ -5,14 +5,16 @@
    mix, post-build misses, and falsified assumptions.
    See web/threat_modeling_dashboard.py for what's real vs. approximated. #}
 
+{% from "_macros.html" import info_tip %}
+
 {% macro stride_table(matrix) %}
 <div class="table-wrap">
   <table class="table">
     <thead>
       <tr>
         <th>Asset class</th>
-        {% for letter in ["S", "T", "R", "I", "D", "E"] %}
-        <th class="u-text-center">{{ letter }}</th>
+        {% for letter, name in [("S", "Spoofing"), ("T", "Tampering"), ("R", "Repudiation"), ("I", "Information disclosure"), ("D", "Denial of service"), ("E", "Elevation of privilege")] %}
+        <th class="u-text-center"><abbr title="{{ name }}">{{ letter }}</abbr></th>
         {% endfor %}
       </tr>
     </thead>
@@ -36,30 +38,59 @@
 <span class="ds-overline u-d-block u-mt-8">Program dashboard</span>
 
 <div class="stat-card-grid u-mt-4">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Coverage") %}
+    <p>Share of in-scope systems that have at least one successful threat model.</p>
+    <p>In scope means every project that has an assessment. To raise it, model the projects listed under <strong>Models needing rework</strong>.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ tm_dash.coverage_pct }}%</span>
     <span class="stat-card__label">Coverage — {{ tm_dash.coverage_reviewed }} / {{ tm_dash.coverage_in_scope }} in-scope systems</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Open threats past due") %}
+    <p>Threats a model left as a <strong>Gap</strong> (no mitigation) where that model is more than {{ past_due_sla_days }} days old.</p>
+    <p>Threats have no individual due dates, so the model's age stands in for one. Close the gap, or record a risk acceptance with <code>secfoo accept create</code>.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ tm_dash.open_threats_past_due }}</span>
     <span class="stat-card__label">Open threats past due (&gt;{{ past_due_sla_days }}d)</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Mitigated but untested") %}
+    <p>Threats marked <strong>Mitigated</strong> with no test reference in the threat register: the control is claimed, not proven.</p>
+    <p>Add a test, pen-test or scan reference in the next model to move them to <em>Mitigated + tested</em>.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ tm_dash.mitigated_untested }}</span>
     <span class="stat-card__label">Threats mitigated but untested</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Median threats per model") %}
+    <p>The middle value of how many threats each project's latest model found.</p>
+    <p>A very low number usually means a shallow model rather than a safe system. Compare with <strong>Model depth mix</strong>.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ tm_dash.median_threats_per_model if tm_dash.median_threats_per_model is not none else "—" }}</span>
     <span class="stat-card__label">Median threats per model</span>
   </div>
 </div>
 
 <div class="u-d-grid u-cols-3fr-2fr u-gap-6 u-mt-8">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("STRIDE × asset-class coverage") %}
+    <p>Counts the threats in each project's latest model by <strong>STRIDE category</strong> (columns) and by the <strong>kind of element</strong> they target (rows).</p>
+    <p>Red cells (none found) are the ones to read: that combination was never examined, which is not the same as safe. The per-project tables show which system a gap belongs to.</p>
+    {% endcall %}
     <h4 class="card__title">STRIDE &times; asset-class coverage</h4>
-    <p class="card__body u-mb-4">
+    <p class="card__body u-mb-2">
       Empty cells are the signal — a blank column means that category was never exercised, not that it's safe from it.
     </p>
+    <div class="stride-legend ds-caption u-color-text-muted u-mb-4">
+      <span><abbr>S</abbr> Spoofing</span><span><abbr>T</abbr> Tampering</span><span><abbr>R</abbr> Repudiation</span>
+      <span><abbr>I</abbr> Information disclosure</span><span><abbr>D</abbr> Denial of service</span><span><abbr>E</abbr> Elevation of privilege</span>
+    </div>
+    <div class="stride-legend ds-caption u-color-text-muted u-mt-0 u-mb-4">
+      <span class="stride-key"><span class="stride-key__swatch u-bg-error-bg"></span>None found</span>
+      <span class="stride-key"><span class="stride-key__swatch u-bg-warning-bg"></span>1–2 threats</span>
+      <span class="stride-key"><span class="stride-key__swatch u-bg-success-bg"></span>3 or more</span>
+    </div>
 
     <span class="card__eyebrow">Portfolio total <span class="u-color-text-muted">(every modeled project, summed)</span></span>
     <div class="u-mt-2">
@@ -84,7 +115,11 @@
   </div>
 
   <div>
-    <div class="card">
+    <div class="card has-info">
+      {% call info_tip("Threat disposition") %}
+      <p>What happened to every threat in each project's latest model:</p>
+      <p><strong>Mitigated + tested</strong> (control proven), <strong>Mitigated, untested</strong> (claimed only), <strong>Accepted</strong> (risk taken on), <strong>Transferred</strong> (to a vendor or insurer), <strong>Open</strong> (a gap), and <strong>Past due</strong> (a gap in a model older than {{ past_due_sla_days }} days).</p>
+      {% endcall %}
       <h4 class="card__title">Threat disposition</h4>
       {% if tm_dash.disposition_total %}
       <div class="stacked-bar u-mt-4">
@@ -108,7 +143,11 @@
       </div>
     </div>
 
-    <div class="card u-mt-6">
+    <div class="card u-mt-6 has-info">
+      {% call info_tip("Accepted threats") %}
+      <p>Every threat a model marked <strong>Accepted</strong>, matched with the person who signed it off.</p>
+      <p>A threat with no owner shown has not been signed off by anyone yet. Record the owner with <code>secfoo accept create</code>.</p>
+      {% endcall %}
       <h4 class="card__title">Accepted threats</h4>
       <p class="card__body u-mb-3 u-color-text-muted">
         Every threat marked Accepted, reconciled with who actually signed off — <code>secfoo accept create</code> is how "not recorded" turns into a real name.
@@ -140,7 +179,12 @@
 
 <div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-10">
   <div>
-    <h2 class="u-mt-0">Models needing rework</h2>
+    <h2 class="u-mt-0">Models needing rework
+      {% call info_tip("Models needing rework", inline=True) %}
+      <p>In-scope projects whose threat model is <strong>missing</strong>, <strong>stale</strong> (latest successful model is over a year old), or whose <strong>trust boundaries changed</strong> between the last two models.</p>
+      <p>Sorted by open findings, as a stand-in for how critical the system is.</p>
+      {% endcall %}
+    </h2>
     {% if tm_dash.needs_rework %}
     <div class="table-wrap">
       <table class="table">
@@ -166,7 +210,12 @@
   </div>
 
   <div>
-    <h2 class="u-mt-0">Recurring threat patterns</h2>
+    <h2 class="u-mt-0">Recurring threat patterns
+      {% call info_tip("Recurring threat patterns", inline=True) %}
+      <p>The most common kinds of threat across every successful threat model, including older ones.</p>
+      <p>A pattern that keeps coming back is best fixed once, at platform level (a shared control or library), rather than project by project.</p>
+      {% endcall %}
+    </h2>
     {% if tm_dash.recurring_patterns %}
     <div class="card">
       {% for archetype, count in tm_dash.recurring_patterns %}
@@ -185,16 +234,30 @@
 </div>
 
 <div class="u-d-grid u-cols-1fr-1fr-1fr u-gap-6 u-mt-10 u-mb-4">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Model depth mix") %}
+    <p>How thorough each project's <strong>latest</strong> threat model was, as the model declares about itself.</p>
+    <p><strong>Full</strong> covers the whole system. <strong>Feature-level</strong> covers one feature or new data flow. <strong>Lightweight</strong> is a fast checklist pass.</p>
+    <p>Lightweight models miss more. Critical systems should have a Full model; a mostly-lightweight portfolio means coverage looks better than it is.</p>
+    {% endcall %}
     <h4 class="card__title">Model depth mix</h4>
-    <div class="u-d-flex u-gap-3 u-mt-3">
-      <div class="stat-card u-flex-1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.full }}</span><span class="stat-card__label">Full</span></div>
-      <div class="stat-card u-flex-1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.feature_level }}</span><span class="stat-card__label">Feature-level</span></div>
-      <div class="stat-card u-flex-1"><span class="stat-card__value">{{ tm_dash.model_depth_mix.lightweight }}</span><span class="stat-card__label">Lightweight</span></div>
-    </div>
+    {% set depth_total = tm_dash.model_depth_mix.full + tm_dash.model_depth_mix.feature_level + tm_dash.model_depth_mix.lightweight %}
+    <p class="card__body u-color-text-muted u-mb-0">How deep each project's latest model went{% if depth_total %} ({{ depth_total }} model{{ "s" if depth_total != 1 else "" }}){% endif %}.</p>
+    <ul class="depth-mix">
+      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.full }}</span><span><span class="depth-mix__name">Full</span><span class="ds-caption u-color-text-muted">Whole system: every component and trust boundary</span></span></li>
+      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.feature_level }}</span><span><span class="depth-mix__name">Feature-level</span><span class="ds-caption u-color-text-muted">One feature or new data flow</span></span></li>
+      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.lightweight }}</span><span><span class="depth-mix__name">Lightweight</span><span class="ds-caption u-color-text-muted">Fast checklist pass</span></span></li>
+    </ul>
+    {% if tm_dash.model_depth_mix.lightweight > tm_dash.model_depth_mix.full %}
+    <p class="ds-caption u-color-warning u-mt-3 u-mb-0">More lightweight than full models: re-run critical systems at <code>--depth standard</code>.</p>
+    {% endif %}
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Threats found post-build") %}
+    <p>Threats discovered after release (an incident, a pen test, a later scan) that an earlier model should have caught.</p>
+    <p>Recorded by hand with <code>secfoo miss</code>, since a model can't know what it missed. A rising count means models are too shallow.</p>
+    {% endcall %}
     <h4 class="card__title">Threats found post-build</h4>
     <span class="stat-card__value u-d-block u-mb-1">{{ tm_dash.post_build_count_recent }}</span>
     <span class="ds-body u-color-text-muted">in the last 90 days ({{ tm_dash.post_build_count_total }} all-time)</span>
@@ -209,7 +272,11 @@
     {% endif %}
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Falsified assumptions") %}
+    <p>Assumptions a model relied on (for example, "only internal traffic reaches this service") that it then checked against the code and found false.</p>
+    <p>Each one marks a place where the design and the real system disagree.</p>
+    {% endcall %}
     <h4 class="card__title">Falsified assumptions</h4>
     <span class="stat-card__value u-d-block u-mb-3">{{ tm_dash.falsified_assumptions | length }}</span>
     {% if tm_dash.falsified_assumptions %}

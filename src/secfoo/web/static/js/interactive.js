@@ -115,3 +115,27 @@ document.addEventListener("change", function (event) {
     box.checked = all.checked;
   });
 });
+
+// Widget info buttons (<details class="info-tip">): one open at a time,
+// closed by a click elsewhere or Escape (focus returns to the button).
+document.addEventListener("toggle", function (event) {
+  const tip = event.target;
+  if (!(tip instanceof HTMLDetailsElement) || !tip.classList.contains("info-tip") || !tip.open) return;
+  document.querySelectorAll("details.info-tip[open]").forEach(function (other) {
+    if (other !== tip) other.open = false;
+  });
+}, true);
+document.addEventListener("click", function (event) {
+  document.querySelectorAll("details.info-tip[open]").forEach(function (tip) {
+    if (!tip.contains(event.target)) tip.open = false;
+  });
+});
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Escape") return;
+  document.querySelectorAll("details.info-tip[open]").forEach(function (tip) {
+    tip.open = false;
+    const trigger = tip.querySelector("summary");
+    if (trigger) trigger.focus();
+  });
+});
+

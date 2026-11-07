@@ -207,3 +207,48 @@ tr.run-row:hover { background-color: var(--color-primary-50); }
   overflow-wrap: anywhere;
   min-width: 16rem;
 }
+
+/* Widget info button (macro info_tip in _macros.html). */
+.has-info { position: relative; }
+.has-info > .card__title,
+.has-info > .stat-card__label { padding-right: 2rem; }
+.info-tip { position: absolute; top: var(--space-3); right: var(--space-3); z-index: 5; }
+.info-tip--inline { position: relative; top: auto; right: auto; display: inline-block; vertical-align: middle; margin-left: var(--space-2); }
+.info-tip__trigger {
+  list-style: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.25rem; height: 1.25rem; border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-muted); font: italic 600 0.75rem/1 Georgia, "Times New Roman", serif;
+  cursor: pointer; user-select: none;
+  transition: color var(--duration-base, .15s), border-color var(--duration-base, .15s);
+}
+.info-tip__trigger::-webkit-details-marker { display: none; }
+.info-tip__trigger::marker { content: ""; }
+.info-tip__trigger:hover, .info-tip[open] > .info-tip__trigger { color: var(--color-primary-700, #1d4ed8); border-color: currentColor; }
+.info-tip__trigger:focus-visible { outline: 2px solid var(--color-primary-600, #2563eb); outline-offset: 2px; }
+.info-tip__panel {
+  position: absolute; top: calc(100% + var(--space-2)); right: 0; z-index: 20;
+  width: min(22rem, 80vw);
+  background: var(--color-surface); color: var(--color-text, inherit);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.12));
+  padding: var(--space-4); text-align: left;
+  font: var(--text-body-sm); font-style: normal; font-weight: 400; letter-spacing: normal; text-transform: none;
+}
+.info-tip--inline .info-tip__panel { left: 0; right: auto; }
+.info-tip__title { font-weight: 600; margin: 0 0 var(--space-2); }
+.info-tip__panel p { margin: 0 0 var(--space-2); }
+.info-tip__panel p:last-child { margin-bottom: 0; }
+
+/* Threat modeling: model depth breakdown and STRIDE legend. */
+.depth-mix { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-3); }
+.depth-mix__item { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.depth-mix__count { font-size: 1.75rem; font-weight: 700; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.depth-mix__item .ds-caption { display: block; line-height: 1.4; }
+.depth-mix__name { font-weight: 600; display: block; }
+.stride-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-3); }
+.stride-legend abbr { text-decoration: none; font-weight: 600; }
+.stride-key { display: inline-flex; align-items: center; gap: var(--space-1); }
+.stride-key__swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; }
+
