@@ -63,6 +63,7 @@ def append_boundary_changed_projects(
                     "project_kind": project["project_kind"],
                     "state": "boundary_changed",
                     "last_reviewed_at": project.get("latest_started_at"),
+                    "last_activity_at": project.get("latest_started_at"),
                     "days_since_review": None,
                 }
             )

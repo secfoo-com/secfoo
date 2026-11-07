@@ -90,13 +90,18 @@
 
 <div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-10">
   <div>
-    <h2 class="u-mt-0">Unreviewed &amp; stale</h2>
+    <div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap">
+      <h2 class="u-mt-0">Unreviewed &amp; stale</h2>
+      {% if dash.stale_projects | length > dash.recent_stale_projects | length %}
+      <span class="ds-caption u-color-text-muted">Latest {{ dash.recent_stale_projects | length }} of {{ dash.stale_projects | length }} &middot; all in <a href="#by-project">By project</a></span>
+      {% endif %}
+    </div>
     {% if dash.stale_projects %}
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Project</th><th>State</th><th>Last reviewed</th></tr></thead>
         <tbody>
-          {% for p in dash.stale_projects %}
+          {% for p in dash.recent_stale_projects %}
           <tr class="run-row" data-href="/projects/{{ p.project_id }}" tabindex="0">
             <td>{{ p.project_display_name }}</td>
             <td>

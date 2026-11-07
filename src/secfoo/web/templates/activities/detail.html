@@ -155,7 +155,7 @@
 {% endif %}
 {% endif %}
 
-<h2 class="u-mt-12">By project</h2>
+<h2 class="u-mt-12" id="by-project">By project</h2>
 {% if projects %}
 <div class="table-wrap">
   <table class="table">
@@ -164,6 +164,7 @@
         <th>Project</th><th>Runs</th><th>Latest</th><th>Status</th>
         {% if verdict_projects %}<th>Boundaries</th>{% endif %}
         <th>Findings</th><th></th>
+        {% if review_states is not none %}<th>Review status</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -183,6 +184,15 @@
           <a class="btn btn--ghost btn--sm" href="/assessments/{{ p.latest_assessment_id }}">Assessment</a>
           {% endif %}
         </td>
+        {% if review_states is not none %}
+        {% set rs = review_states.get(p.project_id) %}
+        <td class="u-ws-nowrap">
+          {% if not p.latest_success_run_uuid %}<span class="badge badge--error">No successful review</span>
+          {% elif rs and rs.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
+          {% elif rs and rs.state == "stale" %}<span class="badge badge--warning">Stale ({{ rs.days_since_review }}d)</span>
+          {% else %}<span class="badge badge--success">Current</span>{% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>

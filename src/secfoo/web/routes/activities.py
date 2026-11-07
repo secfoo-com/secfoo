@@ -170,6 +170,9 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         "run_count": sum(p["run_count"] for p in projects),
         "diagrams_available": diagrams_available,
         "recent_verdicts": recent_verdicts,
+        # Architecture only: every project's review state (stale / boundary
+        # changed), shown as the last column of the "By project" table.
+        "review_states": {p["project_id"]: p for p in dash.stale_projects} if dash else None,
         "verdict_count": verdict_count,
         "diagram_projects": diagram_projects,
         "selected_diagram_project": selected_diagram_project,

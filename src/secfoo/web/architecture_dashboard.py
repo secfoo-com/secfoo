@@ -61,9 +61,16 @@ class ArchitectureDashboard:
     disposition_total: int = 0
     exception_aging: dict[str, int] = field(default_factory=dict)
     stale_projects: list[dict] = field(default_factory=list)
+    # The "Unreviewed & stale" panel shows only the most recently active
+    # few; the full list above still drives each project's review status
+    # in the "By project" table.
+    recent_stale_projects: list[dict] = field(default_factory=list)
     root_causes: list[tuple[str, int]] = field(default_factory=list)
     gate_mix: dict[str, int] = field(default_factory=dict)
     top_standards: list[tuple[str, int]] = field(default_factory=list)
+
+
+RECENT_STALE_LIMIT = 5
 
 
 def build(repo: RunRepository) -> ArchitectureDashboard:
@@ -176,5 +183,8 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
 
     dash.stale_projects = repo.unreviewed_and_stale_projects(SKILL_ID, stale_days=STALE_DAYS)
     append_boundary_changed_projects(repo, SKILL_ID, projects, dash.stale_projects)
+    dash.recent_stale_projects = sorted(
+        dash.stale_projects, key=lambda p: p.get("last_activity_at") or "", reverse=True
+    )[:RECENT_STALE_LIMIT]
 
     return dash

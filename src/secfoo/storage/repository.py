@@ -1030,7 +1030,7 @@ class RunRepository:
         (never reviewed, then oldest) first.
         """
         projects = self._conn.execute(
-            "SELECT DISTINCT projects.id, projects.display_name, projects.kind "
+            "SELECT DISTINCT projects.id, projects.display_name, projects.kind, projects.last_run_at "
             "FROM projects JOIN assessments ON assessments.project_id = projects.id"
         ).fetchall()
 
@@ -1049,6 +1049,7 @@ class RunRepository:
                         "project_display_name": project["display_name"],
                         "project_kind": project["kind"],
                         "state": "never_reviewed",
+                        "last_activity_at": project["last_run_at"],
                         "last_reviewed_at": None,
                         "days_since_review": None,
                     }
@@ -1068,6 +1069,7 @@ class RunRepository:
                         "project_display_name": project["display_name"],
                         "project_kind": project["kind"],
                         "state": "stale",
+                        "last_activity_at": project["last_run_at"],
                         "last_reviewed_at": latest["started_at"],
                         "days_since_review": round(days_since),
                     }
