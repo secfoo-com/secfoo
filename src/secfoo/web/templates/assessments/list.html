@@ -7,33 +7,59 @@
   <a class="btn btn--primary btn--md" href="/assessments/new">New assessment</a>
 {% endcall %}
 
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6)">
+<div class="u-d-flex u-justify-space-between u-items-center u-flex-wrap u-gap-4 u-mt-6">
   <div class="segmented">
     <a class="segmented__option" {% if active_type == 'all' %}aria-selected="true"{% endif %} href="/assessments">All ({{ counts.all }})</a>
     <a class="segmented__option" {% if active_type == 'internal' %}aria-selected="true"{% endif %} href="/assessments?type=internal">Internal ({{ counts.internal }})</a>
     <a class="segmented__option" {% if active_type == 'third_party' %}aria-selected="true"{% endif %} href="/assessments?type=third_party">Third-Party ({{ counts.third_party }})</a>
   </div>
-  <form method="get" action="/assessments" style="display:flex;gap:var(--space-3);align-items:center">
+  <form method="get" action="/assessments" class="u-d-flex u-gap-3 u-items-center">
     <input type="hidden" name="type" value="{{ '' if active_type == 'all' else active_type }}">
-    <select class="select" name="status" data-autosubmit>
+    <select class="select" name="status" data-autosubmit aria-label="Filter by status">
       <option value="">All statuses</option>
       <option value="ready" {% if active_status == 'ready' %}selected{% endif %}>Ready</option>
       <option value="in_progress" {% if active_status == 'in_progress' %}selected{% endif %}>In Progress</option>
       <option value="completed" {% if active_status == 'completed' %}selected{% endif %}>Completed</option>
       <option value="blocked" {% if active_status == 'blocked' %}selected{% endif %}>Blocked</option>
     </select>
-    <input class="input" type="search" name="q" placeholder="Search project, application ID..." value="{{ search }}">
+    <select class="select" name="sort" data-autosubmit aria-label="Sort by">
+      {%- for value, label in sort_options %}
+      <option value="{{ value }}" {% if selected_sort == value %}selected{% endif %}>Sort: {{ label }}</option>
+      {%- endfor %}
+    </select>
+    <input class="input" type="search" name="q" placeholder="Search project, application ID..." value="{{ search }}" aria-label="Search assessments">
     <button class="btn btn--outline btn--sm" type="submit">Search</button>
   </form>
 </div>
 
+{% if bulk_updated is not none %}
+<div class="alert alert--success u-mt-6" role="status"><div>
+  {% if bulk_updated == 0 %}No assessments were selected, so nothing was changed.
+  {% else %}Updated {{ bulk_updated }} assessment{{ '' if bulk_updated == 1 else 's' }} to <strong>{{ bulk_updated_to | assessment_status_label }}</strong>.{% endif %}
+</div></div>
+{% endif %}
+
 {% if assessments %}
-<div class="table-wrap" style="margin-top:var(--space-6)">
+<form id="bulk-status-form" method="post" action="/assessments/bulk-status" class="bulk-bar u-mt-6">
+  <input type="hidden" name="type" value="{{ '' if active_type == 'all' else active_type }}">
+  <input type="hidden" name="status" value="{{ active_status }}">
+  <input type="hidden" name="q" value="{{ search }}">
+  <input type="hidden" name="sort" value="{{ '' if selected_sort == 'recent' else selected_sort }}">
+  <label class="ds-caption" for="bulk-new-status">Set status of selected assessments to</label>
+  <select class="select" id="bulk-new-status" name="new_status">
+    {%- for value in status_options %}
+    <option value="{{ value }}">{{ value | assessment_status_label }}</option>
+    {%- endfor %}
+  </select>
+  <button class="btn btn--outline btn--sm" type="submit">Update</button>
+</form>
+<div class="table-wrap u-mt-3">
   <table class="table">
-    <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Findings</th><th>Responsible AI</th><th>Reviewed</th><th></th></tr></thead>
+    <thead><tr><th class="select-cell"><input type="checkbox" data-select-all="ids" aria-label="Select all assessments"></th><th>Project</th><th>Type</th><th>Status</th><th>Findings</th><th>Responsible AI</th><th>Reviewed</th><th></th></tr></thead>
     <tbody>
       {% for a in assessments %}
-      <tr class="run-row" data-href="/assessments/{{ a.id }}">
+      <tr class="run-row" data-href="/assessments/{{ a.id }}" tabindex="0">
+        <td class="select-cell"><input type="checkbox" name="ids" value="{{ a.id }}" form="bulk-status-form" aria-label="Select {{ a.project_display_name }}"></td>
         <td>
           {{ a.project_display_name }}
           {% if a.application_id or a.sar_number %}
@@ -42,8 +68,8 @@
         </td>
         <td>{{ a.assessment_type | assessment_type_label }}</td>
         <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
-        <td class="findings-cell">{{ findings_badges(a) }}</td>
-        <td class="findings-cell">{{ responsible_ai_badges(a) }}</td>
+        <td><div class="findings-cell">{{ findings_badges(a) }}</div></td>
+        <td><div class="findings-cell">{{ responsible_ai_badges(a) }}</div></td>
         <td>{{ a.review_date or (a.updated_at | fmt_time) }}</td>
         <td>
           <button
@@ -60,11 +86,11 @@
   </table>
 </div>
 {% elif counts.all == 0 %}
-{% call empty_state("No assessments yet", "/assessments/new", "New Assessment") %}
+{% call empty_state("No assessments yet", "/assessments/new", "New Assessment", "u-mt-6") %}
   An assessment groups the security checks for one application. Create one,
   then choose which checks to run on it.
 {% endcall %}
 {% else %}
-<div class="alert alert--info empty-state" role="status"><div>No assessments match these filters. <a href="/assessments">Clear filters</a></div></div>
+<div class="alert alert--info empty-state u-mt-6" role="status"><div>No assessments match these filters. <a href="/assessments">Clear filters</a></div></div>
 {% endif %}
 {% endblock %}

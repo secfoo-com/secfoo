@@ -47,3 +47,14 @@ tr.run-row:focus-visible {
 .table tbody tr:hover {
   background-color: var(--color-teal-100);
 }
+
+/* Clickable rows (<tr class="run-row" data-href tabindex="0">, opened by
+   static/js/interactive.js). A visible outline when reached with the
+   keyboard; the global :focus-visible box-shadow doesn't render reliably
+   on table rows, so use an inset outline instead. */
+tr.run-row:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: -2px;
+  box-shadow: none;
+  border-radius: 0;
+}

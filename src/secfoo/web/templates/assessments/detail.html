@@ -2,7 +2,7 @@
 {% block title %}{{ assessment.project_display_name }} — secfoo{% endblock %}
 {% block content %}
 <a href="/assessments" class="ds-caption">&larr; All assessments</a>
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);flex-wrap:wrap;margin-top:var(--space-4)">
+<div class="u-d-flex u-justify-space-between u-items-flex-start u-gap-6 u-flex-wrap u-mt-4">
   <div>
     <span class="ds-overline">{{ assessment.assessment_type | assessment_type_label }}</span>
     <h1>{{ assessment.project_display_name }}</h1>
@@ -11,12 +11,12 @@
 </div>
 
 {% if has_running_run %}
-<div class="alert alert--info" style="margin-block:var(--space-4)" data-live-runs="{% for r in runs if r.status in ('pending', 'running') %}{{ r.run_uuid }}{{ ',' if not loop.last }}{% endfor %}">
+<div class="alert alert--info u-my-4" data-live-runs="{% for r in runs if r.status in ('pending', 'running') %}{{ r.run_uuid }}{{ ',' if not loop.last }}{% endfor %}">
   <div>A run is in progress. Open it to follow each step; this page updates when it finishes.</div>
 </div>
 {% endif %}
 
-<div class="card" style="margin-top:var(--space-6);margin-bottom:var(--space-6)">
+<div class="card u-mt-6 u-mb-6">
   <div class="meta-row">
     <div><span class="ds-caption">Status</span><br><span class="badge {{ assessment.status | assessment_status_badge }}">{{ assessment.status | assessment_status_label }}</span></div>
     <div><span class="ds-caption">Application ID</span><br>{{ assessment.application_id or '-' }}</div>
@@ -25,10 +25,10 @@
     <div><span class="ds-caption">Review date</span><br>{{ assessment.review_date or '-' }}</div>
   </div>
   {% if assessment.notes %}
-  <div style="margin-top:var(--space-4)"><span class="ds-caption">Notes</span><br>{{ assessment.notes }}</div>
+  <div class="u-mt-4"><span class="ds-caption">Notes</span><br>{{ assessment.notes }}</div>
   {% endif %}
   {% if assessment.responsible_ai_risk %}
-  <div style="margin-top:var(--space-4)">
+  <div class="u-mt-4">
     <span class="ds-caption">Responsible AI</span><br>
     <span class="badge {{ assessment.responsible_ai_risk | responsible_ai_risk_badge }}">{{ assessment.responsible_ai_risk }}</span>
     <span class="badge {{ assessment.responsible_ai_status | responsible_ai_status_badge }}">{{ assessment.responsible_ai_status }}</span>
@@ -41,7 +41,7 @@
 {% set blocked = pipeline | selectattr("state", "equalto", "blocked") | list | length %}
 <section class="pipeline" aria-label="Review pipeline">
   <div class="pipeline__head">
-    <h2 style="margin:0">Review pipeline</h2>
+    <h2 class="u-m-0">Review pipeline</h2>
     <span class="pipeline__summary">{{ done }} of {{ pipeline | length }} done{% if blocked %} &middot; <span class="pipeline__summary--blocked">{{ blocked }} blocked</span>{% endif %}</span>
   </div>
   <ol class="pipeline__track">
@@ -66,12 +66,12 @@
 </section>
 
 <h2>Findings by severity</h2>
-<div class="card" style="margin-bottom:var(--space-6)">
+<div class="card u-mb-6">
   {% for row in severity_rows %}
   <div class="severity-bar">
     <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
     <span class="severity-bar__label">{{ row.label }}</span>
-    <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" style="width:{{ row.percent }}%"></div></div>
+    <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" data-bar-width="{{ row.percent }}"></div></div>
     <span class="severity-bar__count">{{ row.count }}</span>
   </div>
   {% endfor %}
@@ -79,12 +79,12 @@
 
 <h2>Attached runs</h2>
 {% if runs %}
-<div class="table-wrap" style="margin-bottom:var(--space-6)">
+<div class="table-wrap u-mb-6">
   <table class="table">
     <thead><tr><th>Started</th><th>Skill</th><th>Agent</th><th>Status</th><th>Cost</th></tr></thead>
     <tbody>
       {% for run in runs %}
-      <tr class="run-row" data-href="/runs/{{ run.run_uuid }}">
+      <tr class="run-row" data-href="/runs/{{ run.run_uuid }}" tabindex="0">
         <td>{{ run.started_at | fmt_time }}</td>
         <td>{{ run.skill_name }}</td>
         <td>{{ run.agent_id }}</td>
@@ -96,15 +96,15 @@
   </table>
 </div>
 {% else %}
-<p class="ds-body" style="color:var(--color-text-muted)">
+<p class="ds-body u-color-text-muted">
   No runs attached yet. Run <code>secfoo run --assessment {{ assessment.id }} --skill security-architecture-review</code> to attach one.
 </p>
 {% endif %}
 
-<h2 style="margin-top:var(--space-8)">Attachments</h2>
-<p class="ds-body" style="color:var(--color-text-muted)">AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.</p>
+<h2 class="u-mt-8">Attachments</h2>
+<p class="ds-body u-color-text-muted">AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.</p>
 {% if attachments %}
-<div class="table-wrap" style="margin-top:var(--space-4);margin-bottom:var(--space-6)">
+<div class="table-wrap u-mt-4 u-mb-6">
   <table class="table">
     <thead><tr><th>File</th><th>Kind</th><th>Uploaded</th></tr></thead>
     <tbody>
@@ -116,7 +116,7 @@
 </div>
 {% endif %}
 
-<form method="post" action="/assessments/{{ assessment.id }}/attachments" enctype="multipart/form-data" style="display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4)">
+<form method="post" action="/assessments/{{ assessment.id }}/attachments" enctype="multipart/form-data" class="u-d-flex u-gap-3 u-items-center u-mt-4">
   <input class="input" type="file" name="file" required>
   <button class="btn btn--outline btn--sm" type="submit">Upload attachment</button>
 </form>

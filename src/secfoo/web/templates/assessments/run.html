@@ -2,13 +2,13 @@
 {% block title %}Run Assessment — secfoo{% endblock %}
 {% block content %}
 <a href="/assessments/{{ assessment.id }}" class="ds-caption">&larr; {{ assessment.project_display_name }}</a>
-<span class="ds-overline" style="display:block;margin-top:var(--space-4)">Step 2 of 2</span>
+<span class="ds-overline u-d-block u-mt-4">Step 2 of 2</span>
 <h1>Run Assessment</h1>
-<p class="ds-body" style="color:var(--color-text-muted);max-width:36rem;margin-bottom:var(--space-6)">
+<p class="ds-body u-color-text-muted u-max-w-36rem u-mb-6">
   Runs against <strong>{{ assessment.project_display_name }}</strong> and attaches the result(s) to this assessment.
 </p>
 
-<div class="card" style="max-width:52rem">
+<div class="card u-max-w-52rem">
   <form method="post" action="/assessments/{{ assessment.id }}/runs">
     {% if starters %}
     <div class="field">
@@ -24,7 +24,7 @@
       <span class="field__helper">Picks the skills and depth below. You can still change them.</span>
     </div>
     {% endif %}
-    <fieldset class="field" style="border:0;padding:0;margin-inline:0">
+    <fieldset class="field u-fieldset-reset">
       <legend class="field__label">Skills</legend>
       <div class="skill-grid">
         {% for s in skills %}

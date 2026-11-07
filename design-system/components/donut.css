@@ -3,9 +3,10 @@
   -----------
   Pure-CSS conic-gradient donut for a small category mix (e.g. gate
   decisions). The gradient itself is set per-instance via the
-  --donut-gradient custom property in an inline style, since CSS alone
-  can't express data-driven percentages -- same pattern already used for
-  severity-bar's proportional widths.
+  --donut-gradient custom property, since CSS alone can't express
+  data-driven percentages. Templates pass it as data-donut-gradient and
+  static/js/interactive.js applies it (inline style="" is CSP-blocked on
+  the portal) -- same pattern as severity-bar widths (data-bar-width).
 */
 
 .donut {

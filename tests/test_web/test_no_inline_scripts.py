@@ -58,3 +58,33 @@ def test_no_template_has_an_inline_script_block():
         "Move the code into a file under src/secfoo/web/static/js/ and reference it "
         "with <script src=\"/static/js/...\"> instead."
     )
+
+
+# The same CSP (no 'unsafe-inline') also blocks inline CSS: style="..."
+# attributes and <style> blocks are silently dropped on the portal, so a
+# page can look right under `secfoo serve` and wrong on app.secfoo.com.
+_INLINE_STYLE_ATTR_RE = re.compile(r"<[^>]*\sstyle\s*=", re.IGNORECASE)
+_STYLE_BLOCK_RE = re.compile(r"<style\b", re.IGNORECASE)
+
+
+def test_no_template_uses_an_inline_style_attribute():
+    offenders = {
+        str(f): m.group(0)[-80:]
+        for f in _all_templates()
+        for m in [_INLINE_STYLE_ATTR_RE.search(f.read_text())]
+        if m
+    }
+    assert not offenders, (
+        f"Found inline style=... attributes, CSP-blocked on the portal: {offenders}. "
+        "Use a class from static/css/dashboard.css (u-* utilities) instead; for "
+        "data-driven values use data-bar-width / data-donut-gradient, which "
+        "static/js/interactive.js applies."
+    )
+
+
+def test_no_template_has_an_inline_style_block():
+    offenders = [str(f) for f in _all_templates() if _STYLE_BLOCK_RE.search(f.read_text())]
+    assert not offenders, (
+        f"Found <style> blocks, CSP-blocked on the portal: {offenders}. "
+        "Move the rules into static/css/dashboard.css instead."
+    )

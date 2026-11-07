@@ -99,7 +99,7 @@ def test_dashboard_renders_with_real_data(client, tmp_path):
         "Model depth mix",
         "Threats found post-build",
         "Falsified assumptions",
-        'class="stacked-bar"',
+        'class="stacked-bar u-mt-4"',
     ]:
         assert marker in text, f"missing: {marker}"
 

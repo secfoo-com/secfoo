@@ -4,7 +4,7 @@
 {% from "_page.html" import page_head %}
 {{ page_head("responsible-ai", "Responsible AI", "Responsible AI risk mix", "Risk ratings are derived automatically from each assessment's attached Responsible AI Compliance run. An assessment stays \"provisional\" until its status is marked Completed.") }}
 
-<div class="stat-card-grid" style="margin-top:var(--space-6)">
+<div class="stat-card-grid u-mt-6">
   <div class="stat-card">
     <span class="stat-card__value">{{ total }}</span>
     <span class="stat-card__label">Assessments with a risk rating</span>
@@ -20,12 +20,12 @@
 </div>
 
 {% if assessments %}
-<div class="table-wrap" style="margin-top:var(--space-8)">
+<div class="table-wrap u-mt-8">
   <table class="table">
     <thead><tr><th>Project</th><th>Risk</th><th>Rating status</th><th>Assessment status</th></tr></thead>
     <tbody>
       {% for a in assessments %}
-      <tr class="run-row" data-href="/assessments/{{ a.id }}">
+      <tr class="run-row" data-href="/assessments/{{ a.id }}" tabindex="0">
         <td>{{ a.project_display_name }}</td>
         <td><span class="badge {{ a.responsible_ai_risk | responsible_ai_risk_badge }}">{{ a.responsible_ai_risk }}</span></td>
         <td><span class="badge {{ a.responsible_ai_status | responsible_ai_status_badge }}">{{ a.responsible_ai_status }}</span></td>
@@ -36,7 +36,7 @@
   </table>
 </div>
 {% else %}
-<div class="alert alert--info" style="margin-top:var(--space-8)">
+<div class="alert alert--info u-mt-8">
   <div>No assessments have a Responsible AI risk rating yet — attach a Responsible AI Compliance run to one to populate this view.</div>
 </div>
 {% endif %}

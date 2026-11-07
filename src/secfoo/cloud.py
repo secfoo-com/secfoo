@@ -150,6 +150,9 @@ def push_run(
             "output_tokens": run.output_tokens,
             "cost_usd": run.cost_usd,
             "confluence_urls": run.confluence_urls,
+            # Memory Bank: an incremental run's file scope, so the portal's
+            # findings lifecycle closes only what this run actually scanned.
+            "scan_scope": run.scan_scope,
         },
         "report_markdown": report_markdown,
         "cli_version": _cli_version(),

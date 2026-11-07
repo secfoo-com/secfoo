@@ -24,9 +24,9 @@
   <div class="posture__meter" aria-label="Findings by severity">
     <div class="posture__bar">
       {% for key, count in [("critical", severity.critical), ("high", severity.high), ("medium", severity.medium), ("low", severity.low)] %}
-      {% if count %}<span class="posture__seg posture__seg--{{ key }}" style="flex-grow:{{ count }}"></span>{% endif %}
+      {% if count %}<span class="posture__seg posture__seg--{{ key }}" data-flex-grow="{{ count }}"></span>{% endif %}
       {% endfor %}
-      {% if not sev_total %}<span class="posture__seg posture__seg--none" style="flex-grow:1"></span>{% endif %}
+      {% if not sev_total %}<span class="posture__seg posture__seg--none u-flex-1"></span>{% endif %}
     </div>
     <dl class="posture__legend">
       <div><dt><i class="posture__dot posture__seg--critical"></i>Critical</dt><dd>{{ severity.critical }}</dd></div>
@@ -43,11 +43,11 @@
   <div class="setup__head">
     <div>
       <span class="ds-overline">Getting started</span>
-      <h2 style="margin:var(--space-1) 0 0">Four steps to your first signed-off review</h2>
+      <h2 class="u-m-1-0-0">Four steps to your first signed-off review</h2>
     </div>
     <div class="setup__progress" role="img" aria-label="{{ completed }} of {{ setup | length }} steps done">
       <span class="setup__count">{{ completed }}/{{ setup | length }}</span>
-      <span class="setup__bar"><span style="width:{{ (completed / setup | length * 100) | round }}%"></span></span>
+      <span class="setup__bar"><span data-bar-width="{{ (completed / setup | length * 100) | round }}"></span></span>
     </div>
   </div>
   <ol class="setup__steps">
@@ -63,7 +63,7 @@
 </section>
 {% endif %}
 
-<div class="stat-card-grid" style="margin-top:var(--space-6)">
+<div class="stat-card-grid u-mt-6">
   <div class="stat-card">
     <span class="stat-card__icon">{{ icon("projects") }}</span>
     <span class="stat-card__value">{{ projects | length }}</span>
@@ -74,12 +74,12 @@
     <span class="stat-card__value">{{ severity.total }}</span>
     <span class="stat-card__label">Total findings</span>
   </div>
-  <a class="stat-card" href="/third-party" style="text-decoration:none;color:inherit">
+  <a class="stat-card u-decoration-none u-color-inherit" href="/third-party">
     <span class="stat-card__icon">{{ icon("third-party") }}</span>
     <span class="stat-card__value">{{ third_party_count }}</span>
     <span class="stat-card__label">Third-party assessments</span>
   </a>
-  <a class="stat-card stat-card--teal" href="/responsible-ai" style="text-decoration:none;color:inherit">
+  <a class="stat-card stat-card--teal u-decoration-none u-color-inherit" href="/responsible-ai">
     <span class="stat-card__icon">{{ icon("responsible-ai") }}</span>
     <span class="stat-card__value">{{ responsible_ai_count }}</span>
     <span class="stat-card__label">Responsible AI coverage</span>
@@ -91,15 +91,15 @@
   </div>
 </div>
 
-<h2 id="top-findings" style="margin-top:var(--space-10)">Top findings across the program</h2>
-<p class="ds-body" style="color:var(--color-text-muted);max-width:44rem">
+<h2 class="u-mt-10" id="top-findings">Top findings across the program</h2>
+<p class="ds-body u-color-text-muted u-max-w-44rem">
   The highest-severity items across every activity — SAST, SCA, third-party vendor assessments,
   secret scanning, past-due architecture exceptions, and unmitigated threat-model gaps — not just this activity's own coverage.
   Open, de-duplicated Critical and High items only; SAST findings are banded by CVSS score, so a finding written as High
   in a report can appear here as Critical.
 </p>
 {% if top_findings %}
-<div class="table-wrap" style="margin-top:var(--space-4)">
+<div class="table-wrap u-mt-4">
   <table class="table">
     <thead><tr><th>Severity</th><th>Source</th><th>Finding</th><th>Project</th><th>Detail</th></tr></thead>
     <tbody>
@@ -116,15 +116,15 @@
   </table>
 </div>
 {% else %}
-<div class="alert alert--info" style="margin-top:var(--space-4)">
+<div class="alert alert--info u-mt-4">
   <div>No Critical/High findings across any activity right now.</div>
 </div>
 {% endif %}
 
-<div class="card-grid" style="margin-top:var(--space-10)">
+<div class="card-grid u-mt-10">
   <div class="card">
     <h4 class="card__title">Findings by severity</h4>
-    <p class="ds-caption" id="severity-panel-note" style="margin-bottom:var(--space-3)">
+    <p class="ds-caption u-mb-3" id="severity-panel-note">
       Counts the severity written in each run's report, summed across all runs (repeat scans count again).
       It can differ from "Top findings", which lists open, de-duplicated items scored by CVSS.
     </p>
@@ -132,7 +132,7 @@
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--{{ row.key }}"></span>
       <span class="severity-bar__label">{{ row.label }}</span>
-      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" style="width:{{ row.percent }}%"></div></div>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--{{ row.key }}" data-bar-width="{{ row.percent }}"></div></div>
       <span class="severity-bar__count">{{ row.count }}</span>
     </div>
     {% endfor %}
@@ -140,16 +140,16 @@
 
   <div class="card card--wide">
     <h4 class="card__title">Activity coverage</h4>
-    <p class="card__body" style="margin-bottom:var(--space-4)">Projects with at least one successful run of each activity.</p>
+    <p class="card__body u-mb-4">Projects with at least one successful run of each activity.</p>
     <div class="coverage-grid">
     {% for skill in skill_coverage %}
     <a class="coverage-item" href="/activities/{{ skill.id }}">
-      <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-1)">
+      <div class="u-d-flex u-justify-space-between u-mb-1">
         <span class="ds-caption">{{ skill.label }}</span>
         <span class="ds-caption">{{ skill.covered }}/{{ skill.total }}</span>
       </div>
       <div class="severity-bar__track">
-        <div class="severity-bar__fill severity-bar__fill--low" style="width:{{ (skill.covered / skill.total * 100) if skill.total else 0 }}%"></div>
+        <div class="severity-bar__fill severity-bar__fill--low" data-bar-width="{{ (skill.covered / skill.total * 100) if skill.total else 0 }}"></div>
       </div>
     </a>
     {% endfor %}
@@ -162,7 +162,7 @@
       {{ responsible_ai_count }} assessment(s) with a risk rating &middot;
       AI-BOM: {{ models_count }} model(s), {{ tools_count }} tool(s) tracked.
     </p>
-    <a class="btn btn--outline btn--sm" href="/responsible-ai" style="margin-top:var(--space-3)">Open Responsible AI view</a>
+    <a class="btn btn--outline btn--sm u-mt-3" href="/responsible-ai">Open Responsible AI view</a>
   </div>
 
   <div class="card card--wide">
@@ -186,7 +186,7 @@
         {% endfor %}
       </tbody>
     </table>
-    <p class="ds-caption" style="margin-top:var(--space-3)">Subscription agents run on your own plan and don't report their cost to secfoo.</p>
+    <p class="ds-caption u-mt-3">Subscription agents run on your own plan and don't report their cost to secfoo.</p>
     {% else %}
     <p class="card__body">No runs yet.</p>
     {% endif %}
@@ -217,7 +217,7 @@
   </div>
 
   <div class="card card--full">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-3)">
+    <div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3">
       <h4 class="card__title">Agents</h4>
       <a class="ds-caption" href="/agents">All agents &rarr;</a>
     </div>
@@ -234,7 +234,7 @@
   </div>
 </div>
 
-<h2 style="margin-top:var(--space-12)">Recent assessments</h2>
+<h2 class="u-mt-12">Recent assessments</h2>
 {% if assessments %}
 <div class="table-wrap">
   <table class="table">
@@ -245,7 +245,7 @@
         <td>{{ a.project_display_name }}</td>
         <td>{{ a.assessment_type | assessment_type_label }}</td>
         <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
-        <td class="findings-cell">{{ findings_badges(a) }}</td>
+        <td><div class="findings-cell">{{ findings_badges(a) }}</div></td>
         <td>{{ a.review_date or (a.updated_at | fmt_time) }}</td>
       </tr>
       {% endfor %}

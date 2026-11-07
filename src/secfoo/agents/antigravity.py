@@ -42,6 +42,6 @@ class AntigravityAdapter(AgentAdapter):
         effective_timeout = getattr(self, "_effective_timeout", self.default_timeout_seconds)
         return [self.binary, "--print", prompt, "--print-timeout", f"{effective_timeout}s"]
 
-    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None) -> AgentResult:
+    def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit is only used by the api agent.
         self._effective_timeout = timeout or self.default_timeout_seconds
         return super().run(prompt, workdir=workdir, timeout=timeout)
