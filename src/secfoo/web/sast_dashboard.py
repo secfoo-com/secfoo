@@ -73,7 +73,7 @@ def build(repo: RunRepository) -> SastDashboard:
             exploitable_count += 1
 
     dash.cvss_band_counts = {band: band_counter.get(band, 0) for band in _CVSS_BANDS}
-    dash.top_cwe_counts = cwe_counter.most_common(10)
+    dash.top_cwe_counts = cwe_counter.most_common()
     dash.funnel = {
         "findings": len(dash.open_findings),
         "exploitable": exploitable_count,

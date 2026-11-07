@@ -8,7 +8,7 @@
 {% from "_macros.html" import info_tip %}
 
 {% macro stride_table(matrix) %}
-<div class="table-wrap">
+<div class="table-wrap widget-scroll" data-scroll-rows="10">
   <table class="table">
     <thead>
       <tr>
@@ -101,7 +101,7 @@
     <p class="card__body u-m-6-0-3 u-color-text-muted">
       By project — a blank cell here is a real gap on that specific system; the total above can't say which project it came from.
     </p>
-    <div class="u-max-h-24rem u-overflow-y-auto">
+    <div class="widget-scroll" data-scroll-rows="10">
       {% for entry in tm_dash.stride_by_project %}
       <div class="{% if not loop.first %}u-mt-6{% endif %}">
         <span class="card__eyebrow">{{ entry.project_display_name }} <span class="u-color-text-muted">({{ entry.threat_count }} threat{{ "s" if entry.threat_count != 1 else "" }})</span></span>
@@ -153,7 +153,7 @@
         Every threat marked Accepted, reconciled with who actually signed off — <code>secfoo accept create</code> is how "not recorded" turns into a real name.
       </p>
       {% if tm_dash.accepted_threats %}
-      <div class="table-wrap">
+      <div class="table-wrap widget-scroll" data-scroll-rows="10">
         <table class="table">
           <thead><tr><th>Threat</th><th>Project</th><th>Accepted by</th></tr></thead>
           <tbody>
@@ -177,56 +177,63 @@
   </div>
 </div>
 
-<div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-10">
-  <div>
-    <h2 class="u-mt-0 heading-with-info">Models needing rework
+<div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-10 u-items-flex-start">
+  <div class="card tm-panel tm-accent tm-accent--amber">
+    <h2 class="tm-panel__title u-mt-0 heading-with-info">Models needing rework
       {% call info_tip("Models needing rework", inline=True) %}
       <p>In-scope projects whose threat model is <strong>missing</strong>, <strong>stale</strong> (latest successful model is over a year old), or whose <strong>trust boundaries changed</strong> between the last two models.</p>
       <p>Sorted by open findings, as a stand-in for how critical the system is.</p>
       {% endcall %}
+      {% if tm_dash.needs_rework %}<span class="tm-panel__count">{{ tm_dash.needs_rework | length }}</span>{% endif %}
     </h2>
     {% if tm_dash.needs_rework %}
-    <div class="table-wrap">
-      <table class="table">
-        <thead><tr><th>Project</th><th>State</th><th>Last modeled</th></tr></thead>
-        <tbody>
-          {% for p in tm_dash.needs_rework %}
-          <tr class="run-row" data-href="/projects/{{ p.project_id }}" tabindex="0">
-            <td>{{ p.project_display_name }}</td>
-            <td>
-              {% if p.state == "never_reviewed" %}<span class="badge badge--error">Never modeled</span>
-              {% elif p.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
-              {% else %}<span class="badge badge--warning">Stale ({{ p.days_since_review }}d)</span>{% endif %}
-            </td>
-            <td>{{ (p.last_reviewed_at | fmt_time) if p.last_reviewed_at else "Never" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <ul class="rework-list widget-scroll" data-scroll-rows="10">
+      {% for p in tm_dash.needs_rework %}
+      <li>
+        <a class="rework-row rework-row--{{ 'never' if p.state == 'never_reviewed' else 'stale' }}" href="/projects/{{ p.project_id }}">
+          <span class="rework-row__mark" aria-hidden="true">{{ p.project_display_name[:1] | upper }}</span>
+          <span class="rework-row__body">
+            <span class="rework-row__name">{{ p.project_display_name }}</span>
+            {% if p.state == "never_reviewed" %}<span class="badge badge--error">Never modeled</span>
+            {% elif p.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
+            {% else %}<span class="badge badge--warning">Stale ({{ p.days_since_review }}d)</span>{% endif %}
+          </span>
+          <span class="rework-row__when">{% if p.last_reviewed_at %}{{ p.last_reviewed_at | fmt_ago }}{% else %}Never{% endif %}</span>
+          <span class="rework-row__chevron" aria-hidden="true"></span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <div class="alert alert--info"><div>Nothing needs rework — every in-scope project has a current model.</div></div>
     {% endif %}
   </div>
 
-  <div>
-    <h2 class="u-mt-0 heading-with-info">Recurring threat patterns
+  <div class="card tm-panel tm-accent tm-accent--teal">
+    <h2 class="tm-panel__title u-mt-0 heading-with-info">Recurring threat patterns
       {% call info_tip("Recurring threat patterns", inline=True) %}
       <p>The most common kinds of threat across every successful threat model, including older ones.</p>
       <p>A pattern that keeps coming back is best fixed once, at platform level (a shared control or library), rather than project by project.</p>
       {% endcall %}
+      {% if tm_dash.recurring_patterns %}<span class="tm-panel__count">{{ tm_dash.recurring_patterns | length }}</span>{% endif %}
     </h2>
     {% if tm_dash.recurring_patterns %}
-    <div class="card">
+    <ul class="pattern-list widget-scroll" data-scroll-rows="10">
       {% for archetype, count in tm_dash.recurring_patterns %}
-      <div class="severity-bar">
-        <span class="severity-bar__dot severity-bar__dot--low"></span>
-        <span class="severity-bar__label u-w-12rem">{{ archetype }}</span>
-        <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--low" data-bar-width="{{ (count / tm_dash.recurring_patterns[0][1] * 100) }}"></div></div>
-        <span class="severity-bar__count">{{ count }}</span>
-      </div>
+      <li class="pattern-row{% if loop.first %} pattern-row--top{% endif %}">
+        <span class="pattern-row__rank" aria-hidden="true">{{ loop.index }}</span>
+        <div class="pattern-row__body">
+          <div class="pattern-row__head">
+            <span class="pattern-row__label">{{ archetype }}</span>
+            <span class="pattern-row__count">{{ count }}</span>
+          </div>
+          <div class="pattern-row__track">
+            <div class="pattern-row__fill" data-bar-width="{{ (count / tm_dash.recurring_patterns[0][1] * 100) }}"></div>
+          </div>
+        </div>
+      </li>
       {% endfor %}
-    </div>
+    </ul>
     {% else %}
     <div class="alert alert--info"><div>No threats yet to aggregate.</div></div>
     {% endif %}
@@ -234,59 +241,100 @@
 </div>
 
 <div class="u-d-grid u-cols-1fr-1fr-1fr u-gap-6 u-mt-10 u-mb-4">
-  <div class="card has-info">
+  <div class="card has-info tm-accent">
     {% call info_tip("Model depth mix") %}
     <p>How thorough each project's <strong>latest</strong> threat model was, as the model declares about itself.</p>
     <p><strong>Full</strong> covers the whole system. <strong>Feature-level</strong> covers one feature or new data flow. <strong>Lightweight</strong> is a fast checklist pass.</p>
     <p>Lightweight models miss more. Critical systems should have a Full model; a mostly-lightweight portfolio means coverage looks better than it is.</p>
     {% endcall %}
     <h4 class="card__title">Model depth mix</h4>
-    {% set depth_total = tm_dash.model_depth_mix.full + tm_dash.model_depth_mix.feature_level + tm_dash.model_depth_mix.lightweight %}
+    {% set full_n = tm_dash.model_depth_mix.full %}
+    {% set feature_n = tm_dash.model_depth_mix.feature_level %}
+    {% set light_n = tm_dash.model_depth_mix.lightweight %}
+    {% set depth_total = full_n + feature_n + light_n %}
     <p class="card__body u-color-text-muted u-mb-0">How deep each project's latest model went{% if depth_total %} ({{ depth_total }} model{{ "s" if depth_total != 1 else "" }}){% endif %}.</p>
+    {% if depth_total %}
+    <div class="stacked-bar depth-mix-bar" aria-hidden="true">
+      {% if full_n %}<div class="stacked-bar__segment depth-mix__fill--full" data-bar-width="{{ full_n / depth_total * 100 }}"></div>{% endif %}
+      {% if feature_n %}<div class="stacked-bar__segment depth-mix__fill--feature" data-bar-width="{{ feature_n / depth_total * 100 }}"></div>{% endif %}
+      {% if light_n %}<div class="stacked-bar__segment depth-mix__fill--light" data-bar-width="{{ light_n / depth_total * 100 }}"></div>{% endif %}
+    </div>
+    {% endif %}
     <ul class="depth-mix">
-      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.full }}</span><span><span class="depth-mix__name">Full</span><span class="ds-caption u-color-text-muted">Whole system: every component and trust boundary</span></span></li>
-      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.feature_level }}</span><span><span class="depth-mix__name">Feature-level</span><span class="ds-caption u-color-text-muted">One feature or new data flow</span></span></li>
-      <li class="depth-mix__item"><span class="depth-mix__count">{{ tm_dash.model_depth_mix.lightweight }}</span><span><span class="depth-mix__name">Lightweight</span><span class="ds-caption u-color-text-muted">Fast checklist pass</span></span></li>
+      <li class="depth-mix__item depth-mix__item--full">
+        <span class="depth-mix__swatch depth-mix__fill--full" aria-hidden="true"></span>
+        <span class="depth-mix__text"><span class="depth-mix__name">Full</span><span class="ds-caption">Whole system: every component and trust boundary</span></span>
+        <span class="depth-mix__figure"><span class="depth-mix__count">{{ full_n }}</span>{% if depth_total %}<span class="depth-mix__pct">{{ (full_n / depth_total * 100) | round | int }}%</span>{% endif %}</span>
+      </li>
+      <li class="depth-mix__item depth-mix__item--feature">
+        <span class="depth-mix__swatch depth-mix__fill--feature" aria-hidden="true"></span>
+        <span class="depth-mix__text"><span class="depth-mix__name">Feature-level</span><span class="ds-caption">One feature or new data flow</span></span>
+        <span class="depth-mix__figure"><span class="depth-mix__count">{{ feature_n }}</span>{% if depth_total %}<span class="depth-mix__pct">{{ (feature_n / depth_total * 100) | round | int }}%</span>{% endif %}</span>
+      </li>
+      <li class="depth-mix__item depth-mix__item--light">
+        <span class="depth-mix__swatch depth-mix__fill--light" aria-hidden="true"></span>
+        <span class="depth-mix__text"><span class="depth-mix__name">Lightweight</span><span class="ds-caption">Fast checklist pass</span></span>
+        <span class="depth-mix__figure"><span class="depth-mix__count">{{ light_n }}</span>{% if depth_total %}<span class="depth-mix__pct">{{ (light_n / depth_total * 100) | round | int }}%</span>{% endif %}</span>
+      </li>
     </ul>
-    {% if tm_dash.model_depth_mix.lightweight > tm_dash.model_depth_mix.full %}
-    <p class="ds-caption u-color-warning u-mt-3 u-mb-0">More lightweight than full models: re-run critical systems at <code>--depth standard</code>.</p>
+    {% if light_n > full_n %}
+    <p class="depth-mix__hint">More lightweight than full models: re-run critical systems at <code>--depth standard</code>.</p>
     {% endif %}
   </div>
 
-  <div class="card has-info">
+  <div class="card has-info tm-accent tm-accent--error">
     {% call info_tip("Threats found post-build") %}
     <p>Threats discovered after release (an incident, a pen test, a later scan) that an earlier model should have caught.</p>
     <p>Recorded by hand with <code>secfoo miss</code>, since a model can't know what it missed. A rising count means models are too shallow.</p>
     {% endcall %}
     <h4 class="card__title">Threats found post-build</h4>
-    <span class="stat-card__value u-d-block u-mb-1">{{ tm_dash.post_build_count_recent }}</span>
-    <span class="ds-body u-color-text-muted">in the last 90 days ({{ tm_dash.post_build_count_total }} all-time)</span>
+    <div class="miss-stats">
+      <div class="miss-stat">
+        <span class="miss-stat__value">{{ tm_dash.post_build_count_recent }}</span>
+        <span class="miss-stat__label">Last 90 days</span>
+      </div>
+      <div class="miss-stat miss-stat--quiet">
+        <span class="miss-stat__value">{{ tm_dash.post_build_count_total }}</span>
+        <span class="miss-stat__label">All-time</span>
+      </div>
+    </div>
     {% if tm_dash.post_build_recent %}
-    <ul class="u-m-3-0-0 u-pl-1_2rem">
+    <ul class="miss-list widget-scroll" data-scroll-rows="10">
       {% for finding in tm_dash.post_build_recent %}
-      <li class="ds-body">{{ finding.title }} <span class="u-color-text-muted">— {{ finding.project_display_name }}</span></li>
+      <li>
+        <a class="miss-row" href="/projects/{{ finding.project_id }}">
+          <span class="miss-row__mark" aria-hidden="true"></span>
+          <span class="miss-row__body">
+            <span class="miss-row__title">{{ finding.title }}</span>
+            <span class="miss-row__meta">{{ finding.project_display_name }}{% if finding.discovered_at %} · {{ finding.discovered_at | fmt_ago }}{% endif %}{% if finding.discovered_by %} · {{ finding.discovered_by }}{% endif %}</span>
+          </span>
+        </a>
+      </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p class="ds-body u-color-text-muted u-mt-3">None recorded yet — see <code>secfoo miss</code>.</p>
+    <p class="signal-empty">None recorded yet — see <code>secfoo miss</code>.</p>
     {% endif %}
   </div>
 
-  <div class="card has-info">
+  <div class="card has-info tm-accent tm-accent--amber">
     {% call info_tip("Falsified assumptions") %}
     <p>Assumptions a model relied on (for example, "only internal traffic reaches this service") that it then checked against the code and found false.</p>
     <p>Each one marks a place where the design and the real system disagree.</p>
     {% endcall %}
     <h4 class="card__title">Falsified assumptions</h4>
-    <span class="stat-card__value u-d-block u-mb-3">{{ tm_dash.falsified_assumptions | length }}</span>
+    <p class="card__body u-mb-0">{{ tm_dash.falsified_assumptions | length }} checked against the code and found false.</p>
     {% if tm_dash.falsified_assumptions %}
-    <ul class="u-m-0 u-pl-1_2rem">
+    <ul class="assume-list widget-scroll" data-scroll-rows="10">
       {% for assumption in tm_dash.falsified_assumptions %}
-      <li class="ds-body u-color-text-muted">{{ assumption }}</li>
+      <li class="assume-row">
+        <span class="assume-row__mark" aria-hidden="true">“</span>
+        <span class="assume-row__text">{{ assumption }}</span>
+      </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p class="ds-body u-color-text-muted">No falsified assumptions recorded yet.</p>
+    <p class="signal-empty">No falsified assumptions recorded yet.</p>
     {% endif %}
   </div>
 </div>

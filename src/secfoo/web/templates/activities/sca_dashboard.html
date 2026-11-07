@@ -7,6 +7,8 @@
    doesn't (never a fabricated CVE ID -- see web/sca_dashboard.py for
    what's real vs. approximated). #}
 
+{% from "_macros.html" import info_tip %}
+
 <span class="ds-overline u-d-block u-mt-8">Program dashboard</span>
 
 {% if sca_dash.osv_unreachable %}
@@ -16,26 +18,46 @@
 {% endif %}
 
 <div class="stat-card-grid u-mt-4">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Coverage") %}
+    <p>Share of in-scope systems that have at least one successful SCA reachability review.</p>
+    <p>In scope means every project that has an assessment.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sca_dash.coverage_pct }}%</span>
     <span class="stat-card__label">Coverage — {{ sca_dash.coverage_reviewed }} / {{ sca_dash.coverage_in_scope }} in-scope systems</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Distinct vulnerabilities") %}
+    <p>Unique package vulnerabilities across projects. The same package and CVE in two projects counts once.</p>
+    <p>A finding with no real CVE stays separate unless the issue text actually matches another one. secfoo never invents a CVE id.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sca_dash.vulnerabilities | length }}</span>
     <span class="stat-card__label">Distinct vulnerabilities across all projects</span>
   </div>
-  <div class="stat-card{% if sca_dash.reachability_counts.reachable %} stat-card--error u-border-t-error{% endif %}">
+  <div class="stat-card has-info{% if sca_dash.reachability_counts.reachable %} stat-card--error u-border-t-error{% endif %}">
+    {% call info_tip("Reachable") %}
+    <p>Vulnerabilities a review marked <strong>reachable</strong>: the vulnerable code is on a path the application can actually hit.</p>
+    <p>Not reachable and conditionally reachable are counted separately, on each vulnerability's row.</p>
+    {% endcall %}
     <span class="stat-card__value{% if sca_dash.reachability_counts.reachable %} u-color-error{% endif %}">{{ sca_dash.reachability_counts.reachable }}</span>
     <span class="stat-card__label">Reachable</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Unrecognized ecosystem") %}
+    <p>Findings whose package ecosystem OSV.dev does not recognize, so they could not be checked against a known advisory.</p>
+    <p>They stay in the register as the report wrote them. They are not dropped.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sca_dash.unmapped_ecosystem_count }}</span>
     <span class="stat-card__label">Findings with an ecosystem OSV.dev doesn't recognize</span>
   </div>
 </div>
 
 <div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-8">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Severity") %}
+    <p>Counts from each finding's own Risk Register severity.</p>
+    <p>This is the rating the review wrote. It is not translated from a CVSS score.</p>
+    {% endcall %}
     <h4 class="card__title">Severity</h4>
     <p class="card__body u-mb-4">
       From each finding's own Risk Register severity -- never translated from a CVSS score.
@@ -53,12 +75,17 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Vulnerabilities by ecosystem") %}
+    <p>How the vulnerabilities above split by package ecosystem, such as npm or PyPI.</p>
+    <p>This is not a count of every dependency in every manifest. Only findings are included.</p>
+    {% endcall %}
     <h4 class="card__title">Vulnerabilities by ecosystem</h4>
     <p class="card__body u-mb-4">
       A breakdown of the findings above, not of every dependency in every manifest.
     </p>
     {% if sca_dash.ecosystem_counts %}
+    <div class="widget-scroll" data-scroll-rows="10">
     {% for ecosystem, count in sca_dash.ecosystem_counts %}
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--low"></span>
@@ -67,6 +94,7 @@
       <span class="severity-bar__count">{{ count }}</span>
     </div>
     {% endfor %}
+    </div>
     {% else %}
     <p class="ds-body u-color-text-muted">No vulnerabilities yet.</p>
     {% endif %}
@@ -76,7 +104,12 @@
 {% set top_vulnerabilities = sca_dash.vulnerabilities[:5] %}
 <div class="u-d-flex u-justify-space-between u-items-flex-end u-flex-wrap u-gap-4 u-mt-10">
   <div>
-    <h2 class="u-m-0">Top vulnerabilities</h2>
+    <h2 class="u-m-0 heading-with-info">Top vulnerabilities
+      {% call info_tip("Top vulnerabilities", inline=True) %}
+      <p>The five highest-severity vulnerabilities across projects.</p>
+      <p>Reachability and a fixed version, when the report or OSV.dev has one, are on each row.</p>
+      {% endcall %}
+    </h2>
     <p class="ds-body u-color-text-muted u-mt-1">The highest-severity vulnerabilities across all projects.</p>
   </div>
   <a class="btn btn--outline btn--sm" href="/activities/{{ skill.id }}/vulnerabilities">View all vulnerabilities ({{ sca_dash.vulnerabilities | length }}) &rarr;</a>

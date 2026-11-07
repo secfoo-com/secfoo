@@ -3,6 +3,7 @@ and the clearer Model depth mix / STRIDE matrix."""
 
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -61,7 +62,9 @@ def test_every_threat_modeling_widget_has_an_info_tip(client, tmp_path):
     html = client.get("/activities/threat-modeling").text
     tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', html, re.S)
     titles = [re.search(r'<p class="info-tip__title">([^<]*)</p>', t).group(1) for t in tips]
-    assert titles == WIDGETS
+    # The activity page also shows the generic severity card under the
+    # program dashboard. Architecture, SAST, SCA, and secret scanning hide it.
+    assert titles == WIDGETS + ["Findings by severity"]
     for tip in tips:
         # An accessible button and a real explanation, not an empty panel.
         assert 'aria-label="What is' in tip
@@ -101,6 +104,109 @@ def test_info_tips_close_on_outside_click_and_escape():
     js = STATIC_JS.read_text()
     assert "details.info-tip[open]" in js
     assert '"Escape"' in js and '"toggle"' in js
+
+
+def test_long_lists_scroll_after_ten_rows():
+    js = STATIC_JS.read_text()
+    assert "[data-scroll-rows]" in js
+    assert "maxHeight" in js
+    tm = (STATIC_JS.parents[2] / "templates" / "activities" / "threat_modeling_dashboard.html").read_text()
+    for marker in ("rework-list widget-scroll", "pattern-list widget-scroll", "miss-list widget-scroll", "assume-list widget-scroll"):
+        assert marker in tm
+    assert tm.count('data-scroll-rows="10"') >= 6
+
+
+def _assert_titled_tips(page: str, expected: list[str]) -> None:
+    tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', page, re.S)
+    titles = [
+        html.unescape(re.search(r'<p class="info-tip__title">([^<]*)</p>', tip).group(1))
+        for tip in tips
+    ]
+    assert titles == expected
+    for tip in tips:
+        assert 'aria-label="What is' in tip
+        body = re.sub(r"<[^>]+>", " ", tip.split('class="info-tip__title"', 1)[1])
+        assert len(body.split()) >= 15, body
+
+
+@pytest.mark.parametrize(
+    ("path", "titles"),
+    [
+        (
+            "/activities/security-architecture-review",
+            [
+                "Coverage", "Exceptions past expiry", "Open findings past due",
+                "Unverified mitigations", "Cycle time p90", "CCM domain conformance",
+                "Risk disposition", "Exception aging", "Unreviewed & stale",
+                "Top recurring root causes", "Gate decision mix", "Most-deviated standards",
+                "Uncovered CCM domains",
+            ],
+        ),
+        (
+            "/activities/sast",
+            [
+                "Open findings", "Exploitable", "Verified", "Severe", "Awaiting sign-off",
+                "CVSS severity", "Top vulnerability types", "Top findings",
+            ],
+        ),
+        (
+            "/activities/sca-reachability",
+            [
+                "Coverage", "Distinct vulnerabilities", "Reachable", "Unrecognized ecosystem",
+                "Severity", "Vulnerabilities by ecosystem", "Top vulnerabilities",
+            ],
+        ),
+        (
+            "/activities/secret-scanning",
+            [
+                "Secrets found", "Looks live", "Found in documentation",
+                "Version-control history only", "Severity", "By source", "Top findings",
+            ],
+        ),
+        (
+            "/",
+            [
+                "Applications reviewed", "Total findings", "Third-party assessments",
+                "Responsible AI coverage", "AI spend", "Findings by severity",
+                "Activity coverage", "Responsible AI risk mix", "AI spend by agent",
+            ],
+        ),
+        ("/third-party", ["Vendor CCM v4 conformance"]),
+        ("/responsible-ai", ["Assessments with a risk rating", "High-risk", "Provisional"]),
+        (
+            "/activities/prompt-review",
+            ["Projects covered", "Runs", "Total findings", "Critical + High", "Findings by severity"],
+        ),
+    ],
+)
+def test_program_pages_explain_each_widget(client, path, titles):
+    resp = client.get(path)
+    assert resp.status_code == 200
+    _assert_titled_tips(resp.text, titles)
+
+
+def test_linked_stat_cards_keep_the_info_button_clickable(client):
+    """The info control must not sit inside the link, or the click both
+    opens the note and navigates away."""
+    sast = client.get("/activities/sast").text
+    overview = client.get("/").text
+    assert '<a class="stat-card"' not in sast
+    assert '<a class="stat-card"' not in overview
+    assert 'href="/activities/sast/findings?status=open"' in sast
+    assert 'href="/third-party"' in overview
+    assert 'href="/responsible-ai"' in overview
+    assert sast.count('class="stat-card__cover"') == 1
+    assert overview.count('class="stat-card__cover"') == 2
+
+
+def test_assessment_findings_card_explains_repeat_runs(client, tmp_path):
+    repo = RunRepository()
+    project_id = repo.upsert_project("https://github.com/acme/app", "acme/app", "github")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="in_progress")
+    repo.close()
+    html = client.get(f"/assessments/{assessment_id}").text
+    _assert_titled_tips(html, ["Findings by severity"])
+    assert "heading-with-info" in html
 
 
 def test_section_heading_info_tips_follow_the_heading_text(client, tmp_path):

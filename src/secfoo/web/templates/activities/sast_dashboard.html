@@ -6,33 +6,60 @@
    of report text re-parsed on every request. See web/sast_dashboard.py's
    module docstring for why. #}
 
+{% from "_macros.html" import info_tip %}
+
 <span class="ds-overline u-d-block u-mt-8">Program dashboard</span>
 
 <div class="stat-card-grid u-mt-4">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Open findings") %}
+    <p>SAST findings still open in the register.</p>
+    <p>A finding stays open until a later scan no longer reports it, or a reviewer closes it.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sast_dash.funnel.findings }}</span>
     <span class="stat-card__label">Open findings</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Exploitable") %}
+    <p>Open findings the scan did not mark <strong>Latent</strong>.</p>
+    <p>Latent means the vulnerable code is present but not reachable in the current build.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sast_dash.funnel.exploitable }}</span>
     <span class="stat-card__label">Exploitable (not Latent)</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Verified") %}
+    <p>Open findings with a <strong>Confirmed</strong> verdict.</p>
+    <p>The scan checked the code and believes the issue is real, not just a pattern match.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ sast_dash.funnel.verified }}</span>
     <span class="stat-card__label">Verified (Confirmed verdict)</span>
   </div>
-  <div class="stat-card{% if sast_dash.funnel.severe %} stat-card--error u-border-t-error{% endif %}">
+  <div class="stat-card has-info{% if sast_dash.funnel.severe %} stat-card--error u-border-t-error{% endif %}">
+    {% call info_tip("Severe") %}
+    <p>Open findings whose CVSS v3.1 score is High or Critical (7.0 or above).</p>
+    <p>secfoo computes the score from the finding's own vector. The model does not pick the band.</p>
+    {% endcall %}
     <span class="stat-card__value{% if sast_dash.funnel.severe %} u-color-error{% endif %}">{{ sast_dash.funnel.severe }}</span>
     <span class="stat-card__label">Severe (CVSS High/Critical)</span>
   </div>
-  <a class="stat-card{% if sast_dash.funnel.awaiting_signoff %} stat-card--amber{% endif %} u-decoration-none u-color-inherit" href="/activities/sast/findings?status=open">
+  <div class="stat-card has-info{% if sast_dash.funnel.awaiting_signoff %} stat-card--amber{% endif %}">
+    {% call info_tip("Awaiting sign-off") %}
+    <p>Severe open findings no reviewer has signed off yet.</p>
+    <p>Open the findings list to record a decision. The card itself links there.</p>
+    {% endcall %}
+    <a class="stat-card__cover" href="/activities/sast/findings?status=open" aria-label="Severe, awaiting reviewer sign-off"></a>
     <span class="stat-card__value{% if sast_dash.funnel.awaiting_signoff %} u-color-warning{% endif %}">{{ sast_dash.funnel.awaiting_signoff }}</span>
     <span class="stat-card__label">Severe, awaiting reviewer sign-off</span>
-  </a>
+  </div>
 </div>
 
 <div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-8">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("CVSS severity") %}
+    <p>Open findings banded by the CVSS v3.1 score secfoo computes from each finding's vector.</p>
+    <p><strong>None</strong> means the finding had no vector, so no score could be computed.</p>
+    {% endcall %}
     <h4 class="card__title">CVSS severity</h4>
     <p class="card__body u-mb-4">
       Computed by secfoo from each finding's own CVSS v3.1 vector -- never asserted directly by the model.
@@ -51,12 +78,17 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Top vulnerability types") %}
+    <p>Open findings grouped by CWE, the weakness type.</p>
+    <p>Findings without a specific CWE ("unverified") are left out of this breakdown.</p>
+    {% endcall %}
     <h4 class="card__title">Top vulnerability types</h4>
     <p class="card__body u-mb-4">
       Open findings by CWE. Findings without a specific CWE ("unverified") are excluded from this breakdown.
     </p>
     {% if sast_dash.top_cwe_counts %}
+    <div class="widget-scroll" data-scroll-rows="10">
     {% for cwe, count in sast_dash.top_cwe_counts %}
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--high"></span>
@@ -65,6 +97,7 @@
       <span class="severity-bar__count">{{ count }}</span>
     </div>
     {% endfor %}
+    </div>
     {% else %}
     <p class="ds-body u-color-text-muted">No findings with a specific CWE yet.</p>
     {% endif %}
@@ -74,7 +107,12 @@
 {% set top_findings = sast_dash.open_findings[:5] %}
 <div class="u-d-flex u-justify-space-between u-items-flex-end u-flex-wrap u-gap-4 u-mt-10">
   <div>
-    <h2 class="u-m-0">Top findings</h2>
+    <h2 class="u-m-0 heading-with-info">Top findings
+      {% call info_tip("Top findings", inline=True) %}
+      <p>The five highest-CVSS open findings across every project.</p>
+      <p>The full register, including closed findings and filters, is on the findings page.</p>
+      {% endcall %}
+    </h2>
     <p class="ds-body u-color-text-muted u-mt-1">The highest-CVSS open findings across all projects.</p>
   </div>
   <a class="btn btn--outline btn--sm" href="/activities/sast/findings">View all findings ({{ sast_dash.open_findings | length }} open, {{ sast_dash.closed_findings | length }} closed) &rarr;</a>

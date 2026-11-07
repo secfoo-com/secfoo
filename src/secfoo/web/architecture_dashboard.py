@@ -173,8 +173,8 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
         )
     dash.uncovered_ccm_domains = [name for code, name in CCM_DOMAINS if not ccm_assessed[code]]
 
-    dash.root_causes = root_cause_counter.most_common(8)
-    dash.top_standards = standards_counter.most_common(5)
+    dash.root_causes = root_cause_counter.most_common()
+    dash.top_standards = standards_counter.most_common()
     dash.gate_mix = {
         "approve": gate_counter.get("approve", 0),
         "conditions": gate_counter.get("conditions", 0),

@@ -139,3 +139,50 @@ document.addEventListener("keydown", function (event) {
   });
 });
 
+// data-scroll-rows="10" on a list or a .table-wrap: show that many rows,
+// then scroll. Measured from the rows themselves so wrapped text still
+// counts as one row. ResizeObserver remeasures when the card gets narrower.
+(function () {
+  const widgets = document.querySelectorAll("[data-scroll-rows]");
+  if (!widgets.length) return;
+
+  function rowsOf(el) {
+    const body = el.querySelector(":scope > table > tbody");
+    return body ? [...body.children] : [...el.children];
+  }
+
+  function cap(el) {
+    const limit = parseInt(el.getAttribute("data-scroll-rows"), 10);
+    const rows = rowsOf(el);
+    if (!isFinite(limit) || limit < 1 || rows.length <= limit) {
+      if (el.style.maxHeight) el.style.maxHeight = "";
+      return;
+    }
+    const style = getComputedStyle(el);
+    const extra = (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+    const height = Math.ceil(
+      rows[limit - 1].getBoundingClientRect().bottom - el.getBoundingClientRect().top + el.scrollTop + extra
+    );
+    const next = height + "px";
+    if (el.style.maxHeight !== next) el.style.maxHeight = next;
+  }
+
+  function capAll() {
+    widgets.forEach(cap);
+  }
+
+  capAll();
+  if (typeof ResizeObserver === "undefined") {
+    window.addEventListener("resize", capAll);
+    return;
+  }
+  let framing = false;
+  const observer = new ResizeObserver(function () {
+    if (framing) return;
+    framing = true;
+    capAll();
+    framing = false;
+  });
+  widgets.forEach(function (el) { observer.observe(el); });
+})();
+

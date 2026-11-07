@@ -258,7 +258,7 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
         for row in extract_threat_register_rows(text):
             if row["archetype"]:
                 archetype_counter[row["archetype"]] += 1
-    dash.recurring_patterns = archetype_counter.most_common(8)
+    dash.recurring_patterns = archetype_counter.most_common()
 
     dash.post_build_count_total = repo.post_build_findings_count()
     dash.post_build_count_recent = repo.post_build_findings_count(since_days=POST_BUILD_TREND_WINDOW_DAYS)
