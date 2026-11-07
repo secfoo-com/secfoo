@@ -3,37 +3,64 @@
    recurring root causes, gate decisions, and standards deviation.
    See web/architecture_dashboard.py for what's real vs. approximated. #}
 
+{% from "_macros.html" import info_tip %}
+
 <span class="ds-overline u-d-block u-mt-8">Program dashboard</span>
 
 <div class="stat-card-grid u-mt-4">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Coverage") %}
+    <p>Share of in-scope systems that have at least one successful architecture review.</p>
+    <p>In scope means every project that has an assessment.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ dash.coverage_pct }}%</span>
     <span class="stat-card__label">Coverage — {{ dash.coverage_reviewed }} / {{ dash.coverage_in_scope }} in-scope systems</span>
   </div>
-  <div class="stat-card{% if dash.exceptions_past_expiry %} stat-card--error u-border-t-error{% endif %}">
+  <div class="stat-card has-info{% if dash.exceptions_past_expiry %} stat-card--error u-border-t-error{% endif %}">
+    {% call info_tip("Exceptions past expiry") %}
+    <p>Active exceptions whose expiry date has already passed.</p>
+    <p>Close the exception, or record a new one with a later date, to take it off this count.</p>
+    {% endcall %}
     <span class="stat-card__value{% if dash.exceptions_past_expiry %} u-color-error{% endif %}">{{ dash.exceptions_past_expiry }}</span>
     <span class="stat-card__label">Exceptions past expiry</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Open findings past due") %}
+    <p>Findings a review left as <strong>Confirmed</strong> where that review is more than {{ past_due_sla_days }} days old.</p>
+    <p>Findings have no individual due dates, so the review's age stands in for one.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ dash.open_findings_past_due }}</span>
     <span class="stat-card__label">Open findings past due (&gt;{{ past_due_sla_days }}d)</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Unverified mitigations") %}
+    <p>Findings the review marked <strong>Conditional</strong>: a fix was proposed, but not confirmed in the code.</p>
+    <p>Confirm the mitigation in the next review to move them off this count.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ dash.unverified_mitigations }}</span>
     <span class="stat-card__label">Unverified mitigations</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Cycle time p90") %}
+    <p>How many days nine out of ten assessments take, from start to completion.</p>
+    <p>One in ten takes longer than this number. A dash means no completed assessment has a duration yet.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ dash.cycle_time_p90_days if dash.cycle_time_p90_days is not none else "—" }}</span>
     <span class="stat-card__label">Cycle time p90 (days)</span>
   </div>
 </div>
 
 <div class="u-d-grid u-cols-3fr-2fr u-gap-6 u-mt-8">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("CCM domain conformance") %}
+    <p>Average score per Cloud Controls Matrix domain, taken from each project's latest review.</p>
+    <p>Hatched bars were not assessed (process-assured or not applicable). That is not a failing score.</p>
+    {% endcall %}
     <h4 class="card__title">CCM domain conformance</h4>
     <p class="card__body u-mb-4">
       Hatched = not assessed by review (process-assured or not applicable), not a failing score.
     </p>
+    <div class="widget-scroll" data-scroll-rows="10">
     {% for row in dash.ccm_rows %}
     <div class="conformance-bar">
       <span class="conformance-bar__label" title="{{ row.name }}">{{ row.name }}</span>
@@ -47,10 +74,15 @@
       <span class="conformance-bar__value">{{ row.code }} — {% if row.hatched %}not assessed{% else %}{{ row.score }}%{% endif %}</span>
     </div>
     {% endfor %}
+    </div>
   </div>
 
   <div>
-    <div class="card">
+    <div class="card has-info">
+      {% call info_tip("Risk disposition") %}
+      <p>What happened to findings across the latest reviews.</p>
+      <p><strong>Remediated</strong> is the drop in finding count between a project's last two reviews. <strong>Mitigated</strong> is a Conditional verdict. <strong>Accepted</strong> is an active recorded exception. <strong>Open</strong> is Confirmed and not yet past due. <strong>Past due</strong> is Confirmed on a review older than {{ past_due_sla_days }} days.</p>
+      {% endcall %}
       <h4 class="card__title">Risk disposition</h4>
       {% if dash.disposition_total %}
       <div class="stacked-bar u-mt-4">
@@ -73,7 +105,11 @@
       </div>
     </div>
 
-    <div class="card u-mt-6">
+    <div class="card u-mt-6 has-info">
+      {% call info_tip("Exception aging") %}
+      <p>Active exceptions grouped by how soon they expire.</p>
+      <p><strong>Past expiry</strong> is already overdue. The other three buckets are still inside 30, 60, and 90 days.</p>
+      {% endcall %}
       <h4 class="card__title">Exception aging</h4>
       <div class="u-d-flex u-gap-3 u-mt-3">
         <div class="stat-card u-flex-1{% if dash.exception_aging.past_expiry %} stat-card--error u-border-t-error{% endif %}">
@@ -90,13 +126,23 @@
 
 <div class="u-d-grid u-cols-1fr-1fr u-gap-6 u-mt-10">
   <div>
-    <h2 class="u-mt-0">Unreviewed &amp; stale</h2>
+    <div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap">
+      <h2 class="u-mt-0 heading-with-info">Unreviewed &amp; stale
+        {% call info_tip("Unreviewed & stale", inline=True) %}
+        <p>In-scope projects whose architecture review is <strong>missing</strong>, <strong>stale</strong> (latest successful review is over a year old), or whose <strong>trust boundaries changed</strong>.</p>
+        <p>The table shows the most recently active of these.</p>
+        {% endcall %}
+      </h2>
+      {% if dash.stale_projects | length > dash.recent_stale_projects | length %}
+      <span class="ds-caption u-color-text-muted">Latest {{ dash.recent_stale_projects | length }} of {{ dash.stale_projects | length }}</span>
+      {% endif %}
+    </div>
     {% if dash.stale_projects %}
-    <div class="table-wrap">
+    <div class="table-wrap widget-scroll" data-scroll-rows="10">
       <table class="table">
         <thead><tr><th>Project</th><th>State</th><th>Last reviewed</th></tr></thead>
         <tbody>
-          {% for p in dash.stale_projects %}
+          {% for p in dash.recent_stale_projects %}
           <tr class="run-row" data-href="/projects/{{ p.project_id }}" tabindex="0">
             <td>{{ p.project_display_name }}</td>
             <td>
@@ -116,9 +162,15 @@
   </div>
 
   <div>
-    <h2 class="u-mt-0">Top recurring root causes</h2>
+    <h2 class="u-mt-0 heading-with-info">Top recurring root causes
+      {% call info_tip("Top recurring root causes", inline=True) %}
+      <p>The most common root causes cited across architecture reviews, including older ones.</p>
+      <p>A cause that keeps coming back is best fixed once, at platform level, rather than project by project.</p>
+      {% endcall %}
+    </h2>
     {% if dash.root_causes %}
     <div class="card">
+      <div class="widget-scroll" data-scroll-rows="10">
       {% for cause, count in dash.root_causes %}
       <div class="severity-bar">
         <span class="severity-bar__dot severity-bar__dot--low"></span>
@@ -127,6 +179,7 @@
         <span class="severity-bar__count">{{ count }}</span>
       </div>
       {% endfor %}
+      </div>
     </div>
     {% else %}
     <div class="alert alert--info"><div>No findings yet to aggregate.</div></div>
@@ -135,7 +188,11 @@
 </div>
 
 <div class="u-d-grid u-cols-1fr-1fr-1fr u-gap-6 u-mt-10 u-mb-4">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Gate decision mix") %}
+    <p>How each project's latest review was gated, from the design verdict in the report.</p>
+    <p><strong>Approve</strong> is a sound design. <strong>With conditions</strong> can proceed once named fixes land. <strong>Reject</strong> should not proceed as designed.</p>
+    {% endcall %}
     <h4 class="card__title">Gate decision mix</h4>
     <div class="donut-row u-mt-4">
       <div class="donut" data-donut-gradient="{{ gate_mix_gradient }}">
@@ -149,9 +206,14 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Most-deviated standards") %}
+    <p>Standards the reviews cite most often as not being met.</p>
+    <p>A standard high on this list is a candidate for a shared control, rather than a one-off fix in each project.</p>
+    {% endcall %}
     <h4 class="card__title">Most-deviated standards</h4>
     {% if dash.top_standards %}
+    <div class="widget-scroll" data-scroll-rows="10">
     {% for standard, count in dash.top_standards %}
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--medium"></span>
@@ -160,16 +222,21 @@
       <span class="severity-bar__count">{{ count }}</span>
     </div>
     {% endfor %}
+    </div>
     {% else %}
     <p class="ds-body u-color-text-muted">No standard-specific findings cited yet.</p>
     {% endif %}
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Uncovered CCM domains") %}
+    <p>Cloud Controls Matrix domains that no architecture review has assessed yet.</p>
+    <p>A domain listed here has no score. That is not the same as failing it.</p>
+    {% endcall %}
     <h4 class="card__title">Uncovered CCM domains</h4>
     <span class="stat-card__value u-d-block u-mb-3">{{ dash.uncovered_ccm_domains | length }} / 17</span>
     {% if dash.uncovered_ccm_domains %}
-    <ul class="u-m-0 u-pl-1_2rem">
+    <ul class="u-m-0 u-pl-1_2rem widget-scroll" data-scroll-rows="10">
       {% for name in dash.uncovered_ccm_domains %}
       <li class="ds-body u-color-text-muted">{{ name }}</li>
       {% endfor %}

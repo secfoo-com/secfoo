@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges %}
+{% from "_macros.html" import findings_badges, info_tip %}
 {% block title %}secfoo — Dashboard{% endblock %}
 {% block content %}
 {% from "_icons.html" import icon %}
@@ -64,27 +64,49 @@
 {% endif %}
 
 <div class="stat-card-grid u-mt-6">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Applications reviewed") %}
+    <p>Every application recorded in this local store.</p>
+    <p>A project appears here once it has been added, including ones that have not finished a review.</p>
+    {% endcall %}
     <span class="stat-card__icon">{{ icon("projects") }}</span>
     <span class="stat-card__value">{{ projects | length }}</span>
     <span class="stat-card__label">Applications reviewed</span>
   </div>
-  <div class="stat-card {{ 'stat-card--error' if urgent else 'stat-card--teal' }}">
+  <div class="stat-card has-info {{ 'stat-card--error' if urgent else 'stat-card--teal' }}">
+    {% call info_tip("Total findings") %}
+    <p>Finding counts written on runs, added up across every activity.</p>
+    <p>Repeat scans count again. This is not the same as Top findings, which lists open Critical and High items only.</p>
+    {% endcall %}
     <span class="stat-card__icon">{{ icon("findings") }}</span>
     <span class="stat-card__value">{{ severity.total }}</span>
     <span class="stat-card__label">Total findings</span>
   </div>
-  <a class="stat-card u-decoration-none u-color-inherit" href="/third-party">
+  <div class="stat-card has-info">
+    {% call info_tip("Third-party assessments") %}
+    <p>Assessments whose type is Third-Party.</p>
+    <p>Open the third-party view for vendor CCM conformance, scored from the vendor's own documents.</p>
+    {% endcall %}
+    <a class="stat-card__cover" href="/third-party" aria-label="Third-party assessments"></a>
     <span class="stat-card__icon">{{ icon("third-party") }}</span>
     <span class="stat-card__value">{{ third_party_count }}</span>
     <span class="stat-card__label">Third-party assessments</span>
-  </a>
-  <a class="stat-card stat-card--teal u-decoration-none u-color-inherit" href="/responsible-ai">
+  </div>
+  <div class="stat-card has-info stat-card--teal">
+    {% call info_tip("Responsible AI coverage") %}
+    <p>Assessments that have a Responsible AI risk rating.</p>
+    <p>The rating comes from an attached Responsible AI Compliance run. An assessment without that run is not counted.</p>
+    {% endcall %}
+    <a class="stat-card__cover" href="/responsible-ai" aria-label="Responsible AI coverage"></a>
     <span class="stat-card__icon">{{ icon("responsible-ai") }}</span>
     <span class="stat-card__value">{{ responsible_ai_count }}</span>
     <span class="stat-card__label">Responsible AI coverage</span>
-  </a>
-  <div class="stat-card stat-card--amber">
+  </div>
+  <div class="stat-card has-info stat-card--amber">
+    {% call info_tip("AI spend") %}
+    <p>Cost that metered agents have reported back to secfoo.</p>
+    <p>Subscription agents run on your own plan and do not report a price, so they are not in this total.</p>
+    {% endcall %}
     <span class="stat-card__icon">{{ icon("spend") }}</span>
     <span class="stat-card__value">{{ total_cost | fmt_cost }}</span>
     <span class="stat-card__label">AI spend</span>
@@ -99,7 +121,7 @@
   in a report can appear here as Critical.
 </p>
 {% if top_findings %}
-<div class="table-wrap u-mt-4">
+<div class="table-wrap widget-scroll u-mt-4" data-scroll-rows="10">
   <table class="table">
     <thead><tr><th>Severity</th><th>Source</th><th>Finding</th><th>Project</th><th>Detail</th></tr></thead>
     <tbody>
@@ -122,7 +144,11 @@
 {% endif %}
 
 <div class="card-grid u-mt-10">
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Findings by severity") %}
+    <p>Counts the severity written in each run's report, summed across all runs.</p>
+    <p>Repeat scans count again. It can differ from Top findings, which lists open, de-duplicated items scored by CVSS.</p>
+    {% endcall %}
     <h4 class="card__title">Findings by severity</h4>
     <p class="ds-caption u-mb-3" id="severity-panel-note">
       Counts the severity written in each run's report, summed across all runs (repeat scans count again).
@@ -138,10 +164,14 @@
     {% endfor %}
   </div>
 
-  <div class="card card--wide">
+  <div class="card card--wide has-info">
+    {% call info_tip("Activity coverage") %}
+    <p>How many applications have at least one successful run of each activity.</p>
+    <p>The total is every application in this store, including ones that have never been scanned with that activity.</p>
+    {% endcall %}
     <h4 class="card__title">Activity coverage</h4>
     <p class="card__body u-mb-4">Projects with at least one successful run of each activity.</p>
-    <div class="coverage-grid">
+    <div class="coverage-grid widget-scroll" data-scroll-rows="10">
     {% for skill in skill_coverage %}
     <a class="coverage-item" href="/activities/{{ skill.id }}">
       <div class="u-d-flex u-justify-space-between u-mb-1">
@@ -156,7 +186,11 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card has-info">
+    {% call info_tip("Responsible AI risk mix") %}
+    <p>How many assessments carry a Responsible AI risk rating, plus the models and tools recorded in the AI bill of materials.</p>
+    <p>Open the Responsible AI view to see which assessments are high-risk or still provisional.</p>
+    {% endcall %}
     <h4 class="card__title">Responsible AI risk mix</h4>
     <p class="card__body">
       {{ responsible_ai_count }} assessment(s) with a risk rating &middot;
@@ -165,9 +199,14 @@
     <a class="btn btn--outline btn--sm u-mt-3" href="/responsible-ai">Open Responsible AI view</a>
   </div>
 
-  <div class="card card--wide">
+  <div class="card card--wide has-info">
+    {% call info_tip("AI spend by agent") %}
+    <p>Cost and token use reported per agent.</p>
+    <p><strong>Metered</strong> agents send a price. <strong>Subscription</strong> agents run on your own plan and show no cost here.</p>
+    {% endcall %}
     <h4 class="card__title">AI spend by agent</h4>
     {% if cost_by_agent %}
+    <div class="widget-scroll" data-scroll-rows="10">
     <table class="table">
       <thead><tr><th>Agent</th><th>Runs</th><th>Tokens</th><th>Cost</th></tr></thead>
       <tbody>
@@ -186,6 +225,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     <p class="ds-caption u-mt-3">Subscription agents run on your own plan and don't report their cost to secfoo.</p>
     {% else %}
     <p class="card__body">No runs yet.</p>
@@ -195,7 +235,7 @@
   <div class="card card--wide">
     <h4 class="card__title">Recent runs</h4>
     {% if recent_runs %}
-    <ul class="feed">
+    <ul class="feed widget-scroll" data-scroll-rows="10">
       {% for r in recent_runs %}
       {% set blocked = r.status in ('binary_not_found', 'failed', 'timeout') %}
       <li>
@@ -221,7 +261,7 @@
       <h4 class="card__title">Agents</h4>
       <a class="ds-caption" href="/agents">All agents &rarr;</a>
     </div>
-    <ul class="agent-list">
+    <ul class="agent-list widget-scroll" data-scroll-rows="10">
       {% for a in agents %}
       <li class="agent-list__item">
         <span>{{ a.label }} <span class="agent-card__id">{{ a.id }}</span></span>
@@ -236,7 +276,7 @@
 
 <h2 class="u-mt-12">Recent assessments</h2>
 {% if assessments %}
-<div class="table-wrap">
+<div class="table-wrap widget-scroll" data-scroll-rows="10">
   <table class="table">
     <thead><tr><th>Project</th><th>Type</th><th>Status</th><th>Findings</th><th>Reviewed</th></tr></thead>
     <tbody>

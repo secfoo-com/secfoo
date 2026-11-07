@@ -21,7 +21,12 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from secfoo.report.architecture import count_trust_boundaries, extract_design_verdict, extract_mermaid_diagram
+from secfoo.report.architecture import (
+    count_trust_boundaries,
+    extract_design_verdict,
+    extract_mermaid_diagram,
+    split_design_verdict,
+)
 from secfoo.skills.loader import SkillLoadError, load_skill
 from secfoo.storage.repository import RunRepository
 from secfoo.web import architecture_dashboard as arch_dashboard
@@ -34,6 +39,11 @@ from secfoo.web.templating import severity_rows, templates
 
 router = APIRouter()
 
+
+# Design verdicts and the architecture "By project" table show only the
+# newest reviews. Stat cards above them still count every project.
+RECENT_VERDICTS_LIMIT = 5
+BY_PROJECT_RECENT_LIMIT = 6
 
 _GATE_MIX_COLORS = {
     "approve": "var(--color-success)",
@@ -81,6 +91,10 @@ def _attach_architecture_signals(projects: list[dict]) -> bool:
         text = Path(report_path).read_text(encoding="utf-8", errors="replace")
         project["diagram_source"] = extract_mermaid_diagram(text)
         project["design_verdict"] = extract_design_verdict(text)
+        if project["design_verdict"]:
+            # Agents write the verdict as a full sentence; badges show only
+            # the short label and the rest is displayed as wrapping text.
+            project["verdict_label"], project["verdict_reason"] = split_design_verdict(project["design_verdict"])
         project["boundary_count"] = count_trust_boundaries(text)
         if project["diagram_source"]:
             any_diagram = True
@@ -108,7 +122,12 @@ def _donut_gradient(counts: dict[str, int], color_map: dict[str, str]) -> str:
 
 
 @router.get("/activities/{skill_id}")
-def activity_detail(request: Request, skill_id: str, diagram_project: int | None = None):
+def activity_detail(
+    request: Request,
+    skill_id: str,
+    diagram_project: int | None = None,
+    stride_project: int | None = None,
+):
     try:
         skill = load_skill(skill_id)
     except SkillLoadError as exc:
@@ -126,6 +145,12 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         )
 
     diagrams_available = _attach_architecture_signals(projects)
+    verdict_count = sum(1 for p in projects if p.get("design_verdict"))
+    recent_verdicts = sorted(
+        (p for p in projects if p.get("design_verdict")),
+        key=lambda p: p.get("latest_success_at") or "",
+        reverse=True,
+    )[:RECENT_VERDICTS_LIMIT]
 
     # A gallery rendering every project's diagram at once doesn't scale
     # past a couple of projects -- instead show one at a time, picked via
@@ -150,6 +175,15 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         ),
         "run_count": sum(p["run_count"] for p in projects),
         "diagrams_available": diagrams_available,
+        "recent_verdicts": recent_verdicts,
+        # Architecture only: the table shows the newest projects. Other
+        # activities keep the full list. Review state (stale / boundary
+        # changed) is still resolved for every project, so the rows that
+        # are shown can be labelled.
+        "by_project_rows": projects[:BY_PROJECT_RECENT_LIMIT] if dash is not None else projects,
+        "by_project_total": len(projects),
+        "review_states": {p["project_id"]: p for p in dash.stale_projects} if dash else None,
+        "verdict_count": verdict_count,
         "diagram_projects": diagram_projects,
         "selected_diagram_project": selected_diagram_project,
         "mermaid_available": mermaid_bundle_available(),
@@ -164,6 +198,12 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         context["past_due_sla_days"] = arch_dashboard.PAST_DUE_SLA_DAYS
     if tm_dash is not None:
         context["past_due_sla_days"] = tm_dashboard.PAST_DUE_SLA_DAYS
+        # One project's STRIDE matrix at a time. The portfolio total above
+        # it still sums every project.
+        context["selected_stride_project"] = next(
+            (p for p in tm_dash.stride_by_project if p["project_id"] == stride_project),
+            None,
+        ) or (tm_dash.stride_by_project[0] if tm_dash.stride_by_project else None)
     if sca_dash is not None:
         context["sca_severity_gradient"] = _donut_gradient(sca_dash.severity_counts, _SCA_SEVERITY_COLORS)
     if sast_dash is not None:
@@ -172,6 +212,28 @@ def activity_detail(request: Request, skill_id: str, diagram_project: int | None
         context["secret_severity_gradient"] = _donut_gradient(secret_dash.severity_counts, _SCA_SEVERITY_COLORS)
 
     return templates.TemplateResponse(request, "activities/detail.html", context)
+
+
+@router.get("/activities/threat-modeling/post-build")
+def threat_modeling_post_build(request: Request):
+    """Every threat recorded with `secfoo miss`. The dashboard card shows
+    only the newest handful."""
+    with RunRepository() as repo:
+        findings = repo.list_post_build_findings()
+    return templates.TemplateResponse(
+        request, "activities/threat_modeling_post_build.html", {"findings": findings}
+    )
+
+
+@router.get("/activities/threat-modeling/assumptions")
+def threat_modeling_assumptions(request: Request):
+    """Every falsified assumption from the latest model of each project.
+    The dashboard card shows only the newest handful."""
+    with RunRepository() as repo:
+        assumptions = tm_dashboard.build(repo).falsified_assumptions
+    return templates.TemplateResponse(
+        request, "activities/threat_modeling_assumptions.html", {"assumptions": assumptions}
+    )
 
 
 @router.get("/activities/sast/findings")

@@ -61,9 +61,16 @@ class ArchitectureDashboard:
     disposition_total: int = 0
     exception_aging: dict[str, int] = field(default_factory=dict)
     stale_projects: list[dict] = field(default_factory=list)
+    # The "Unreviewed & stale" panel shows only the most recently active
+    # few. The full list above still labels review status on the By project
+    # rows that are shown.
+    recent_stale_projects: list[dict] = field(default_factory=list)
     root_causes: list[tuple[str, int]] = field(default_factory=list)
     gate_mix: dict[str, int] = field(default_factory=dict)
     top_standards: list[tuple[str, int]] = field(default_factory=list)
+
+
+RECENT_STALE_LIMIT = 5
 
 
 def build(repo: RunRepository) -> ArchitectureDashboard:
@@ -166,8 +173,8 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
         )
     dash.uncovered_ccm_domains = [name for code, name in CCM_DOMAINS if not ccm_assessed[code]]
 
-    dash.root_causes = root_cause_counter.most_common(8)
-    dash.top_standards = standards_counter.most_common(5)
+    dash.root_causes = root_cause_counter.most_common()
+    dash.top_standards = standards_counter.most_common()
     dash.gate_mix = {
         "approve": gate_counter.get("approve", 0),
         "conditions": gate_counter.get("conditions", 0),
@@ -176,5 +183,8 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
 
     dash.stale_projects = repo.unreviewed_and_stale_projects(SKILL_ID, stale_days=STALE_DAYS)
     append_boundary_changed_projects(repo, SKILL_ID, projects, dash.stale_projects)
+    dash.recent_stale_projects = sorted(
+        dash.stale_projects, key=lambda p: p.get("last_activity_at") or "", reverse=True
+    )[:RECENT_STALE_LIMIT]
 
     return dash

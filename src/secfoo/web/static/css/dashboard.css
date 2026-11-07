@@ -190,3 +190,225 @@ tr.run-row:hover { background-color: var(--color-primary-50); }
 .u-border-t-warning-3 { border-top: 3px solid var(--color-warning) !important; }
 .u-wrap-anywhere { overflow-wrap: anywhere !important; }
 .u-cursor-pointer { cursor: pointer !important; }
+
+/* Design verdicts: agents write the verdict as a sentence. The badge shows
+   the short label; the reason wraps beside/under it instead of overflowing
+   a no-wrap badge. In the table it is clamped to two lines (full text in
+   the title tooltip). */
+.verdict-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.verdict-summary > p { overflow-wrap: anywhere; max-width: 44rem; }
+.verdict-table td { vertical-align: top; }
+.verdict-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-width: 16rem;
+}
+
+/* Widget info button (macro info_tip in _macros.html). */
+.has-info { position: relative; }
+/* Stat cards clip their accent stripe with overflow:hidden. An open info
+   panel has to escape that clip, and sit above the next card. */
+.stat-card.has-info { overflow: visible; }
+.stat-card.has-info:has(.info-tip[open]),
+.card.has-info:has(.info-tip[open]) { z-index: 6; }
+/* A stat card that is also a link: the hit target sits under the text so
+   the info button (higher z-index) still receives the click. */
+.stat-card__cover { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.stat-card:has(.stat-card__cover) .stat-card__value,
+.stat-card:has(.stat-card__cover) .stat-card__label,
+.stat-card:has(.stat-card__cover) .stat-card__icon { position: relative; z-index: 2; pointer-events: none; }
+.has-info > .card__title,
+.has-info > .stat-card__label,
+.has-info > .u-d-flex { padding-right: 2rem; }
+.info-tip { position: absolute; top: var(--space-3); right: var(--space-3); z-index: 5; }
+.info-tip--inline { position: relative; top: auto; right: auto; }
+/* A heading followed by its info button: the button sits right after the
+   last word. Flex rather than an inline <details>, because WebKit always
+   lays <details> out as a block. */
+.heading-with-info { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.info-tip__trigger {
+  list-style: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.25rem; height: 1.25rem; border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-muted); font: italic 600 0.75rem/1 Georgia, "Times New Roman", serif;
+  cursor: pointer; user-select: none;
+  transition: color var(--duration-base, .15s), border-color var(--duration-base, .15s);
+}
+.info-tip__trigger::-webkit-details-marker { display: none; }
+.info-tip__trigger::marker { content: ""; }
+.info-tip__trigger:hover, .info-tip[open] > .info-tip__trigger { color: var(--color-primary-700, #1d4ed8); border-color: currentColor; }
+.info-tip__trigger:focus-visible { outline: 2px solid var(--color-primary-600, #2563eb); outline-offset: 2px; }
+.info-tip__panel {
+  position: absolute; top: calc(100% + var(--space-2)); right: 0; z-index: 20;
+  width: min(22rem, 80vw);
+  background: var(--color-surface); color: var(--color-text, inherit);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.12));
+  padding: var(--space-4); text-align: left;
+  font: var(--text-body-sm); font-style: normal; font-weight: 400; letter-spacing: normal; text-transform: none;
+}
+.info-tip--inline .info-tip__panel { left: 0; right: auto; }
+.info-tip__title { font-weight: 600; margin: 0 0 var(--space-2); }
+.info-tip__panel p { margin: 0 0 var(--space-2); }
+.info-tip__panel p:last-child { margin-bottom: 0; }
+
+/* Lists and tables marked data-scroll-rows: interactive.js sizes the box
+   to that many rows. Overflow only appears once there are more. */
+.widget-scroll { overflow-y: auto; overscroll-behavior: contain; }
+.widget-scroll thead th { position: sticky; top: 0; z-index: 1; }
+
+/* Threat modeling: rework list, pattern bars, model-depth mix, STRIDE legend.
+   These sit in half- and third-width cards, so labels stack above their
+   bars instead of sharing a row with a fixed-width column. */
+.tm-accent { border-top: 3px solid var(--color-primary-600); }
+.tm-accent--amber { border-top-color: var(--color-warning); }
+.tm-accent--teal { border-top-color: var(--color-teal-500); }
+.tm-accent--error { border-top-color: var(--color-error); }
+.tm-panel__title { font: var(--text-h4); letter-spacing: -0.01em; margin-bottom: var(--space-4); width: 100%; }
+.tm-panel__count {
+  margin-left: auto;
+  min-width: 1.5rem; height: 1.5rem; padding-inline: 0.45rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-50); color: var(--color-primary-700);
+  font: var(--text-caption); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.tm-accent--amber .tm-panel__count { background: var(--color-warning-bg); color: var(--color-warning); }
+.tm-accent--teal .tm-panel__count { background: var(--color-teal-100); color: var(--color-teal-700); }
+
+.rework-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.rework-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface);
+  text-decoration: none; color: inherit;
+  transition: border-color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+.rework-row:hover { border-color: var(--color-primary-300); background: var(--color-primary-50); box-shadow: var(--shadow-sm); }
+.rework-row:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+.rework-row__mark {
+  width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md);
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 0.875rem;
+}
+.rework-row--never .rework-row__mark { background: var(--color-error-bg); color: var(--color-error); }
+.rework-row--stale .rework-row__mark { background: var(--color-warning-bg); color: var(--color-warning); }
+.rework-row__body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
+.rework-row__name { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.rework-row__when { font: var(--text-caption); color: var(--color-text-muted); white-space: nowrap; }
+.rework-row__chevron {
+  width: 0.4rem; height: 0.4rem; margin-right: 0.15rem;
+  border-right: 2px solid var(--color-gray-400); border-top: 2px solid var(--color-gray-400);
+  transform: rotate(45deg);
+}
+[data-theme="dark"] .rework-row:hover { background: #0f3a4c; border-color: var(--color-primary-400); }
+[data-theme="dark"] .tm-panel__count { background: #0f3a4c; color: var(--color-primary-200); }
+[data-theme="dark"] .tm-accent--amber .tm-panel__count { background: var(--color-warning-bg); color: var(--color-warning); }
+[data-theme="dark"] .tm-accent--teal .tm-panel__count { background: #0d3d3a; color: var(--color-teal-300); }
+
+.pattern-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.pattern-row { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.pattern-row__rank {
+  width: 1.75rem; height: 1.75rem; border-radius: var(--radius-circle);
+  display: grid; place-items: center;
+  background: var(--color-bg-subtle); color: var(--color-text-muted);
+  font-size: 0.6875rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.pattern-row--top .pattern-row__rank { background: var(--color-teal-100); color: var(--color-teal-700); }
+.pattern-row__body { min-width: 0; }
+.pattern-row__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.pattern-row__label { min-width: 0; font: var(--text-body-sm); font-weight: 600; color: var(--color-text); overflow-wrap: anywhere; }
+.pattern-row__count {
+  flex-shrink: 0; min-width: 1.5rem; padding: 0 0.4rem;
+  border-radius: var(--radius-pill); background: var(--color-bg-subtle);
+  text-align: center; font: var(--text-caption); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.pattern-row--top .pattern-row__count { background: var(--color-teal-100); color: var(--color-teal-700); }
+.pattern-row__track {
+  margin-top: var(--space-2); height: 0.5rem; border-radius: var(--radius-pill);
+  background: var(--color-gray-100); overflow: hidden;
+}
+.pattern-row__fill {
+  height: 100%; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-teal-300), var(--color-teal-500));
+}
+.pattern-row--top .pattern-row__fill { background: linear-gradient(90deg, var(--color-teal-500), var(--color-teal-700)); }
+[data-theme="dark"] .pattern-row__track { background: var(--color-gray-900); }
+[data-theme="dark"] .pattern-row__rank,
+[data-theme="dark"] .pattern-row__count { background: var(--color-gray-900); color: var(--color-gray-300); }
+[data-theme="dark"] .pattern-row--top .pattern-row__rank,
+[data-theme="dark"] .pattern-row--top .pattern-row__count { background: #0d3d3a; color: var(--color-teal-300); }
+
+.depth-mix-bar { margin-top: var(--space-4); height: 0.55rem; gap: 3px; background: transparent; }
+.depth-mix-bar .stacked-bar__segment { border-radius: var(--radius-pill); }
+.depth-mix { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.depth-mix__item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
+  padding: var(--space-3); border-radius: var(--radius-md); border: 1px solid transparent;
+}
+.depth-mix__item--full { background: var(--color-success-bg); }
+.depth-mix__item--feature { background: var(--color-info-bg); }
+.depth-mix__item--light { background: var(--color-warning-bg); }
+.depth-mix__swatch { width: 0.625rem; height: 0.625rem; border-radius: var(--radius-circle); }
+.depth-mix__name { display: block; font-weight: 600; font-size: 0.875rem; line-height: 1.3; }
+.depth-mix__item .ds-caption { display: block; line-height: 1.35; }
+.depth-mix__figure { display: flex; flex-direction: column; align-items: flex-end; gap: 0.125rem; }
+.depth-mix__count { font-size: 1.125rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.depth-mix__pct { font: var(--text-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.depth-mix__fill--full { background-color: var(--color-success); }
+.depth-mix__fill--feature { background-color: var(--color-primary-400); }
+.depth-mix__fill--light { background-color: var(--color-warning); }
+.depth-mix__hint {
+  margin: var(--space-4) 0 0; padding: var(--space-3);
+  border-radius: var(--radius-md); background: var(--color-warning-bg);
+  font: var(--text-caption); line-height: 1.45; color: var(--color-warning);
+}
+
+.miss-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-bottom: var(--space-4); }
+.miss-stat { padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-error-bg); }
+.miss-stat--quiet { background: var(--color-bg-subtle); }
+.miss-stat__value { display: block; font-size: 1.375rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.miss-stat__label { display: block; margin-top: var(--space-1); font: var(--text-caption); color: var(--color-text-muted); }
+.miss-list, .assume-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.assume-list { margin-top: var(--space-4); }
+.miss-row, .assume-row {
+  display: grid; gap: var(--space-3); align-items: flex-start;
+  padding: var(--space-3); border-radius: var(--radius-md);
+}
+.miss-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  background: var(--color-bg-subtle); text-decoration: none; color: inherit;
+  transition: background-color var(--duration-base) var(--ease-standard);
+}
+.miss-row:hover { background: var(--color-error-bg); }
+.miss-row:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+.miss-row__mark {
+  width: 2rem; height: 2rem; border-radius: var(--radius-md); background: var(--color-error-bg);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.miss-row__mark::before { content: ""; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--color-error); }
+.miss-row:hover .miss-row__mark { background: var(--color-surface); }
+.miss-row__title, .assume-row__text { display: block; font: var(--text-body-sm); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.miss-row__meta { display: block; margin-top: 0.15rem; font: var(--text-caption); color: var(--color-text-muted); }
+.assume-row { grid-template-columns: auto minmax(0, 1fr); background: var(--color-warning-bg); }
+.assume-row__mark { font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; line-height: 1; font-weight: 700; color: var(--color-warning); }
+.assume-row__text { font-weight: 500; padding-top: 0.15rem; }
+.signal-empty {
+  margin: var(--space-3) 0 0; padding: var(--space-3); border-radius: var(--radius-md);
+  background: var(--color-bg-subtle); font: var(--text-body-sm); color: var(--color-text-muted);
+}
+[data-theme="dark"] .miss-row:hover { background: #3d1a18; }
+[data-theme="dark"] .miss-row:hover .miss-row__mark { background: var(--color-gray-800); }
+.stride-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-3); }
+.stride-legend abbr { text-decoration: none; font-weight: 600; }
+.stride-key { display: inline-flex; align-items: center; gap: var(--space-1); }
+.stride-key__swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; }
+

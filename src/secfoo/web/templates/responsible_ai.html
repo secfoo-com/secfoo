@@ -1,26 +1,39 @@
 {% extends "base.html" %}
 {% block title %}secfoo — Responsible AI{% endblock %}
+{% from "_macros.html" import info_tip %}
 {% block content %}
 {% from "_page.html" import page_head %}
 {{ page_head("responsible-ai", "Responsible AI", "Responsible AI risk mix", "Risk ratings are derived automatically from each assessment's attached Responsible AI Compliance run. An assessment stays \"provisional\" until its status is marked Completed.") }}
 
 <div class="stat-card-grid u-mt-6">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Assessments with a risk rating") %}
+    <p>Assessments that have a Responsible AI risk rating.</p>
+    <p>The rating is taken from an attached Responsible AI Compliance run. An assessment without that run is not listed.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ total }}</span>
     <span class="stat-card__label">Assessments with a risk rating</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("High-risk") %}
+    <p>Of the rated assessments, how many the run marked high risk.</p>
+    <p>These are the ones to review first. The rating is the run's own, not a separate score secfoo computes.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ high_risk }}</span>
     <span class="stat-card__label">High-risk</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Provisional") %}
+    <p>Ratings that are not final yet.</p>
+    <p>An assessment stays provisional until its status is marked Completed. Completing it does not change the risk level, only that the rating is signed off.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ provisional }}</span>
     <span class="stat-card__label">Provisional</span>
   </div>
 </div>
 
 {% if assessments %}
-<div class="table-wrap u-mt-8">
+<div class="table-wrap widget-scroll u-mt-8" data-scroll-rows="10">
   <table class="table">
     <thead><tr><th>Project</th><th>Risk</th><th>Rating status</th><th>Assessment status</th></tr></thead>
     <tbody>

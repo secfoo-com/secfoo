@@ -40,3 +40,20 @@
   {%- endfor %}
 </select>
 {% endmacro %}
+
+{#- Small (i) button for a widget's top-right corner; clicking it explains
+    what the widget shows. A native <details>, so it works with no inline
+    script under the portal's CSP; static/js/interactive.js closes it on an
+    outside click or Escape and keeps one open at a time. The widget needs
+    the `has-info` class (position: relative). Pass inline=True to sit
+    after a section heading instead of in a corner.
+    Usage: {% call info_tip("Coverage") %}<p>...</p>{% endcall %} -#}
+{% macro info_tip(title, inline=False) %}
+<details class="info-tip{% if inline %} info-tip--inline{% endif %}">
+  <summary class="info-tip__trigger" aria-label="What is &quot;{{ title }}&quot;?" title="What is this?"><span aria-hidden="true">i</span></summary>
+  <div class="info-tip__panel" role="note">
+    <p class="info-tip__title">{{ title }}</p>
+    {{ caller() }}
+  </div>
+</details>
+{% endmacro %}

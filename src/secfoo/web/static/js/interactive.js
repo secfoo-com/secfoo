@@ -115,3 +115,74 @@ document.addEventListener("change", function (event) {
     box.checked = all.checked;
   });
 });
+
+// Widget info buttons (<details class="info-tip">): one open at a time,
+// closed by a click elsewhere or Escape (focus returns to the button).
+document.addEventListener("toggle", function (event) {
+  const tip = event.target;
+  if (!(tip instanceof HTMLDetailsElement) || !tip.classList.contains("info-tip") || !tip.open) return;
+  document.querySelectorAll("details.info-tip[open]").forEach(function (other) {
+    if (other !== tip) other.open = false;
+  });
+}, true);
+document.addEventListener("click", function (event) {
+  document.querySelectorAll("details.info-tip[open]").forEach(function (tip) {
+    if (!tip.contains(event.target)) tip.open = false;
+  });
+});
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Escape") return;
+  document.querySelectorAll("details.info-tip[open]").forEach(function (tip) {
+    tip.open = false;
+    const trigger = tip.querySelector("summary");
+    if (trigger) trigger.focus();
+  });
+});
+
+// data-scroll-rows="10" on a list or a .table-wrap: show that many rows,
+// then scroll. Measured from the rows themselves so wrapped text still
+// counts as one row. ResizeObserver remeasures when the card gets narrower.
+(function () {
+  const widgets = document.querySelectorAll("[data-scroll-rows]");
+  if (!widgets.length) return;
+
+  function rowsOf(el) {
+    const body = el.querySelector(":scope > table > tbody");
+    return body ? [...body.children] : [...el.children];
+  }
+
+  function cap(el) {
+    const limit = parseInt(el.getAttribute("data-scroll-rows"), 10);
+    const rows = rowsOf(el);
+    if (!isFinite(limit) || limit < 1 || rows.length <= limit) {
+      if (el.style.maxHeight) el.style.maxHeight = "";
+      return;
+    }
+    const style = getComputedStyle(el);
+    const extra = (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+    const height = Math.ceil(
+      rows[limit - 1].getBoundingClientRect().bottom - el.getBoundingClientRect().top + el.scrollTop + extra
+    );
+    const next = height + "px";
+    if (el.style.maxHeight !== next) el.style.maxHeight = next;
+  }
+
+  function capAll() {
+    widgets.forEach(cap);
+  }
+
+  capAll();
+  if (typeof ResizeObserver === "undefined") {
+    window.addEventListener("resize", capAll);
+    return;
+  }
+  let framing = false;
+  const observer = new ResizeObserver(function () {
+    if (framing) return;
+    framing = true;
+    capAll();
+    framing = false;
+  });
+  widgets.forEach(function (el) { observer.observe(el); });
+})();
+

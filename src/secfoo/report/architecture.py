@@ -264,3 +264,35 @@ def classify_design_verdict(value: str | None) -> str | None:
     if v.startswith("sound"):
         return "approve"
     return None
+
+
+_VERDICT_LABELS = {"approve": "Sound", "conditions": "Sound with conditions", "reject": "Not sound"}
+# Longest first: "sound" is a prefix of "sound with conditions".
+_VERDICT_PREFIXES = ("sound with conditions", "not applicable", "not sound", "sound")
+
+
+def split_design_verdict(value: str | None) -> tuple[str, str]:
+    """A Design verdict line -> (short label, the rest of the sentence).
+
+    Agents write the verdict as a full sentence ("Not sound for any
+    deployment handling real users. It fits its declared purpose..."). The
+    label comes from classify_design_verdict, so it always agrees with the
+    badge colour and the gate-decision mix; the reason is whatever follows
+    the leading verdict phrase, for display beside the label.
+    """
+    text = (value or "").strip()
+    lower = text.lower()
+    bucket = classify_design_verdict(text)
+    if bucket:
+        label = _VERDICT_LABELS[bucket]
+    elif lower.startswith(("not applicable", "n/a")):
+        label = "Not applicable"
+    else:
+        label = "Unclear"
+    rest = text
+    for prefix in _VERDICT_PREFIXES:
+        if lower.startswith(prefix):
+            rest = text[len(prefix):]
+            break
+    rest = rest.lstrip(" \t\u2014\u2013-:;,.").strip()
+    return label, (rest[:1].upper() + rest[1:]) if rest else ""

@@ -575,12 +575,16 @@ class RunRepository:
             # (diagram, design verdict) -- a failed/timeout run has no
             # report to read, but shouldn't hide an earlier successful one.
             latest_success = self._conn.execute(
-                "SELECT report_path FROM runs WHERE skill_id = ? AND project_id = ? "
+                "SELECT run_uuid, report_path, finished_at FROM runs WHERE skill_id = ? AND project_id = ? "
                 "AND status = 'success' AND report_path IS NOT NULL "
                 "ORDER BY started_at DESC LIMIT 1",
                 (skill_id, data["project_id"]),
             ).fetchone()
             data["latest_success_report_path"] = latest_success["report_path"] if latest_success else None
+            # Which run that content came from, and when -- so a verdict links
+            # to the review it was read from, not a later failed run.
+            data["latest_success_run_uuid"] = latest_success["run_uuid"] if latest_success else None
+            data["latest_success_at"] = latest_success["finished_at"] if latest_success else None
 
             summary.append(data)
         return summary
@@ -1026,7 +1030,7 @@ class RunRepository:
         (never reviewed, then oldest) first.
         """
         projects = self._conn.execute(
-            "SELECT DISTINCT projects.id, projects.display_name, projects.kind "
+            "SELECT DISTINCT projects.id, projects.display_name, projects.kind, projects.last_run_at "
             "FROM projects JOIN assessments ON assessments.project_id = projects.id"
         ).fetchall()
 
@@ -1045,6 +1049,7 @@ class RunRepository:
                         "project_display_name": project["display_name"],
                         "project_kind": project["kind"],
                         "state": "never_reviewed",
+                        "last_activity_at": project["last_run_at"],
                         "last_reviewed_at": None,
                         "days_since_review": None,
                     }
@@ -1064,6 +1069,7 @@ class RunRepository:
                         "project_display_name": project["display_name"],
                         "project_kind": project["kind"],
                         "state": "stale",
+                        "last_activity_at": project["last_run_at"],
                         "last_reviewed_at": latest["started_at"],
                         "days_since_review": round(days_since),
                     }

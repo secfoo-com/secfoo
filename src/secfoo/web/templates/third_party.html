@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges, empty_state %}
+{% from "_macros.html" import findings_badges, empty_state, info_tip %}
 {% block title %}secfoo — Third-Party{% endblock %}
 {% block content %}
 {% from "_page.html" import page_head %}
@@ -12,13 +12,18 @@
   questionnaire). The conformance view below fills in from that evidence.
 {% endcall %}
 {% endif %}
-<div class="card u-mt-6">
+<div class="card u-mt-6 has-info">
+  {% call info_tip("Vendor CCM v4 conformance") %}
+  <p>Average Cloud Controls Matrix score from each vendor's most recent Third-Party Risk Assessment.</p>
+  <p>Scores come from evidence in the vendor's documents (SOC 2, ISO, pen tests, questionnaires), never a guess. Hatched means no vendor has provided evidence for that domain yet, which is not a failing score.</p>
+  {% endcall %}
   <h4 class="card__title">Vendor CCM v4 conformance</h4>
   <p class="card__body u-mb-4">
     Aggregated from {{ dash.assessed_vendor_count }} vendor(s)' most recent Third-Party Risk Assessment run --
     evidence found in vendor-provided documents (SOC 2 reports, ISO certificates, pen test reports, questionnaires),
     never a guess. Hatched = no vendor has provided evidence for this domain yet, not a failing score.
   </p>
+  <div class="widget-scroll" data-scroll-rows="10">
   {% for row in dash.ccm_rows %}
   <div class="conformance-bar">
     <span class="conformance-bar__label" title="{{ row.name }}">{{ row.name }}</span>
@@ -32,10 +37,11 @@
     <span class="conformance-bar__value">{{ row.code }} — {% if row.hatched %}not assessed{% else %}{{ row.score }}%{% endif %}</span>
   </div>
   {% endfor %}
+  </div>
 </div>
 
 {% if assessments %}
-<div class="table-wrap u-mt-6">
+<div class="table-wrap widget-scroll u-mt-6" data-scroll-rows="10">
   <table class="table">
     <thead><tr><th>Project</th><th>Status</th><th>Findings</th><th>Reviewed</th></tr></thead>
     <tbody>

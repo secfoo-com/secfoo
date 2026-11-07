@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import findings_badges, empty_state %}
+{% from "_macros.html" import findings_badges, empty_state, info_tip %}
 {% set verdict_projects = projects | selectattr("design_verdict") | list %}
 {% block title %}{{ skill.nav_label }} — secfoo{% endblock %}
 {% block content %}
@@ -39,28 +39,52 @@
    and trust-boundary counts with more specific tiles -- this generic block
    would just duplicate them. #}
 <div class="stat-card-grid u-mt-8">
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Projects covered") %}
+    <p>Projects with at least one run of this activity.</p>
+    <p>A project with only a failed run is still listed. Coverage on the program dashboards counts successful reviews only.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ projects | length }}</span>
     <span class="stat-card__label">Projects covered</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Runs") %}
+    <p>How many times this activity has been run, across those projects.</p>
+    <p>Repeats count. This is not the number of projects.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ run_count }}</span>
     <span class="stat-card__label">Runs</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Total findings") %}
+    <p>Finding counts written on this activity's runs, added together.</p>
+    <p>Repeat runs count again, so this can be higher than the open findings you would fix today.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ severity.total }}</span>
     <span class="stat-card__label">Total findings</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Critical + High") %}
+    <p>The critical and high counts from those same runs, added together.</p>
+    <p>Medium, low, and info findings are in Total findings and not in this number.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ severity.critical + severity.high }}</span>
     <span class="stat-card__label">Critical + High</span>
   </div>
   {% if verdict_projects %}
-  <div class="stat-card">
-    <span class="stat-card__value">{{ verdict_projects | rejectattr("design_verdict", "in", ["Sound"]) | list | length }}/{{ verdict_projects | length }}</span>
+  <div class="stat-card has-info">
+    {% call info_tip("Projects not cleanly Sound") %}
+    <p>Projects whose latest design verdict is anything other than <strong>Sound</strong>.</p>
+    <p>The first number is those projects. The second is every project that has a verdict.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ verdict_projects | rejectattr("verdict_label", "equalto", "Sound") | list | length }}/{{ verdict_projects | length }}</span>
     <span class="stat-card__label">Projects not cleanly Sound</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card has-info">
+    {% call info_tip("Trust boundaries identified") %}
+    <p>Trust boundaries called out in the latest review of each project, added together.</p>
+    <p>A boundary is a place data crosses from one trust level to another, such as from the internet into an API.</p>
+    {% endcall %}
     <span class="stat-card__value">{{ projects | sum(attribute="boundary_count") }}</span>
     <span class="stat-card__label">Trust boundaries identified</span>
   </div>
@@ -68,18 +92,34 @@
 </div>
 {% endif %}
 
-{% if verdict_projects %}
-<div class="card u-mt-8">
-  <h4 class="card__title">Design verdicts</h4>
-  <p class="card__body u-mb-4">
-    From each project's most recent successful review.
-  </p>
-  <div class="findings-cell u-gap-2">
-    {% for p in verdict_projects %}
-    <a href="/runs/{{ p.latest_run_uuid }}" class="badge {{ p.design_verdict | design_verdict_badge }} u-decoration-none">
-      {{ p.project_display_name }}: {{ p.design_verdict }}
-    </a>
-    {% endfor %}
+{% if recent_verdicts %}
+<div class="card u-mt-8 has-info">
+  {% call info_tip("Design verdicts") %}
+  <p>The design verdict from each project's latest successful review, and the reason the report gave.</p>
+  <p>Open a row to read the full review. Only the latest verdict per project is shown.</p>
+  {% endcall %}
+  <div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap">
+    <h4 class="card__title u-m-0">Design verdicts</h4>
+    <span class="ds-caption u-color-text-muted">
+      {% if verdict_count > recent_verdicts | length %}Latest {{ recent_verdicts | length }} of {{ verdict_count }} projects{% else %}Latest review per project{% endif %}
+    </span>
+  </div>
+  <div class="table-wrap widget-scroll u-mt-4" data-scroll-rows="10">
+    <table class="table verdict-table">
+      <thead>
+        <tr><th>Project</th><th>Verdict</th><th>Why</th><th>Reviewed</th></tr>
+      </thead>
+      <tbody>
+        {% for p in recent_verdicts %}
+        <tr class="run-row" data-href="/runs/{{ p.latest_success_run_uuid }}" tabindex="0">
+          <td class="u-ws-nowrap">{{ p.project_display_name }}</td>
+          <td class="u-ws-nowrap"><span class="badge {{ p.design_verdict | design_verdict_badge }}">{{ p.verdict_label }}</span></td>
+          <td><span class="verdict-reason u-color-text-muted" title="{{ p.design_verdict }}">{{ p.verdict_reason or "—" }}</span></td>
+          <td class="u-ws-nowrap u-color-text-muted">{{ (p.latest_success_at or "")[:10] or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endif %}
@@ -89,7 +129,11 @@
    already have their own severity/disposition breakdowns -- a raw
    severity-count bar here would just be a second, less specific cut of
    the same findings. #}
-<div class="card u-mt-8">
+<div class="card u-mt-8 has-info">
+  {% call info_tip("Findings by severity") %}
+  <p>Severity counts written on this activity's runs.</p>
+  <p>Repeat runs count again. A project scanned twice contributes both scans.</p>
+  {% endcall %}
   <h4 class="card__title">Findings by severity</h4>
   {% for row in severity_rows %}
   <div class="severity-bar">
@@ -120,7 +164,12 @@
 <a href="/runs/{{ selected_diagram_project.latest_run_uuid }}" class="card u-decoration-none u-color-inherit u-d-block u-mt-6 u-max-w-48rem">
   <span class="card__eyebrow">{{ selected_diagram_project.project_display_name }}</span>
   {% if selected_diagram_project.design_verdict %}
-  <span class="badge {{ selected_diagram_project.design_verdict | design_verdict_badge }} u-mb-3">{{ selected_diagram_project.design_verdict }}</span>
+  <div class="verdict-summary u-mb-3">
+    <span class="badge {{ selected_diagram_project.design_verdict | design_verdict_badge }}">{{ selected_diagram_project.verdict_label }}</span>
+    {% if selected_diagram_project.verdict_reason %}
+    <p class="ds-body-sm u-color-text-muted u-m-0">{{ selected_diagram_project.verdict_reason }}</p>
+    {% endif %}
+  </div>
   {% endif %}
   {% if mermaid_available %}
   <div class="mermaid-figure u-m-0">
@@ -138,19 +187,25 @@
 {% endif %}
 {% endif %}
 
-<h2 class="u-mt-12">By project</h2>
-{% if projects %}
-<div class="table-wrap">
+<div class="u-d-flex u-justify-space-between u-items-baseline u-gap-3 u-flex-wrap u-mt-12">
+  <h2 class="u-m-0" id="by-project">By project</h2>
+  {% if by_project_total > by_project_rows | length %}
+  <span class="ds-caption u-color-text-muted">Latest {{ by_project_rows | length }} of {{ by_project_total }}</span>
+  {% endif %}
+</div>
+{% if by_project_rows %}
+<div class="table-wrap widget-scroll" data-scroll-rows="10">
   <table class="table">
     <thead>
       <tr>
         <th>Project</th><th>Runs</th><th>Latest</th><th>Status</th>
         {% if verdict_projects %}<th>Boundaries</th>{% endif %}
         <th>Findings</th><th></th>
+        {% if review_states is not none %}<th>Review status</th>{% endif %}
       </tr>
     </thead>
     <tbody>
-      {% for p in projects %}
+      {% for p in by_project_rows %}
       <tr class="run-row" data-href="/runs/{{ p.latest_run_uuid }}" tabindex="0">
         <td>
           {{ p.project_display_name }}
@@ -166,6 +221,15 @@
           <a class="btn btn--ghost btn--sm" href="/assessments/{{ p.latest_assessment_id }}">Assessment</a>
           {% endif %}
         </td>
+        {% if review_states is not none %}
+        {% set rs = review_states.get(p.project_id) %}
+        <td class="u-ws-nowrap">
+          {% if not p.latest_success_run_uuid %}<span class="badge badge--error">No successful review</span>
+          {% elif rs and rs.state == "boundary_changed" %}<span class="badge badge--warning">Trust boundary changed</span>
+          {% elif rs and rs.state == "stale" %}<span class="badge badge--warning">Stale ({{ rs.days_since_review }}d)</span>
+          {% else %}<span class="badge badge--success">Current</span>{% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
