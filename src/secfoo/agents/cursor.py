@@ -21,6 +21,7 @@ class CursorAdapter(AgentAdapter):
     name = "agent"
     binary = "agent"
     default_timeout_seconds = 900
+    model_flag = "--model"
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
-        return [self.binary, "-p", prompt]
+        return [self.binary, *self.model_arguments(), "-p", prompt]

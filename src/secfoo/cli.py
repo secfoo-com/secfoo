@@ -202,6 +202,7 @@ def run(
         help="Which agent CLI runs the assessment. Falls back to [defaults].agent in "
         "~/.secfoo/config.toml, then to claude.",
     ),
+    model: str | None = typer.Option(None, "--model", help="Model for this run; overrides [agents.<agent>].model."),
     depth: Optional[DepthId] = typer.Option(
         None,
         "--depth",
@@ -307,7 +308,8 @@ def run(
             app_id = Prompt.ask("Application ID (optional)", default="", console=console) or None
 
     try:
-        file_defaults = load_config().defaults
+        file_config = load_config()
+        file_defaults = file_config.defaults
     except ConfigError as exc:
         err_console.print(f"[red]Error in {CONFIG_PATH}:[/] {exc}")
         raise typer.Exit(code=1) from None
@@ -317,6 +319,11 @@ def run(
 
     if agent is None:
         agent = AgentId(file_defaults.agent) if file_defaults.agent else AgentId.CLAUDE
+    if model is not None and not model.strip():
+        err_console.print("[red]Error:[/] --model must be a non-empty string")
+        raise typer.Exit(code=1)
+    if model is None:
+        model = file_config.agent_models.get(agent.value)
     if depth is None:
         depth = DepthId(file_defaults.depth) if file_defaults.depth else DepthId.QUICK
     if timeout is None:
@@ -379,6 +386,7 @@ def run(
                 target=target,
                 confluence_urls=confluence,
                 agent_id=agent.value,
+                model=model,
                 depth=depth.value,
                 timeout=timeout,
                 on_skill_start=handle_start,

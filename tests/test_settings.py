@@ -125,3 +125,17 @@ def test_load_config_invalid_toml_raises_config_error(tmp_path):
     path.write_text("this is not [ valid toml")
     with pytest.raises(ConfigError):
         load_config(path)
+
+
+def test_per_agent_models(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[agents.claude]\nmodel = "claude-model"\n[agents.agent]\nmodel = "cursor-model"\n')
+    assert load_config(path).agent_models == {"claude": "claude-model", "agent": "cursor-model"}
+
+
+@pytest.mark.parametrize("value", ['""', '"   "', '42', 'false', '[]'])
+def test_invalid_agent_model_is_rejected(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(f"[agents.claude]\nmodel = {value}\n")
+    with pytest.raises(ConfigError, match="non-empty string"):
+        load_config(path)

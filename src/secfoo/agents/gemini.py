@@ -22,6 +22,7 @@ class GeminiAdapter(AgentAdapter):
     name = "gemini"
     binary = "gemini"
     default_timeout_seconds = 1800
+    model_flag = "--model"
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         # Deliberately no --yolo: a read-only review never needs
@@ -31,7 +32,7 @@ class GeminiAdapter(AgentAdapter):
         # --skip-trust: secfoo always runs headless against arbitrary
         # targets (cloned repos, user paths) — without this, Gemini CLI
         # exits immediately in non-interactive mode on an untrusted cwd.
-        return [self.binary, "-p", prompt, "--output-format", "json", "--skip-trust"]
+        return [self.binary, *self.model_arguments(), "-p", prompt, "--output-format", "json", "--skip-trust"]
 
     def extract_report(self, stdout: str) -> str:
         try:

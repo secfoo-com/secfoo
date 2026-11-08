@@ -204,3 +204,24 @@ def test_existing_db_without_assessment_uuid_column_migrates_cleanly(tmp_path):
     assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal")
     assert repo.get_assessment(assessment_id).assessment_uuid is not None
     repo.close()
+
+
+def test_run_model_roundtrip_and_existing_store_upgrade(tmp_path):
+    import sqlite3
+
+    db_path = tmp_path / "models.sqlite"
+    repo = RunRepository(db_path=db_path)
+    project_id = repo.upsert_project(identifier="/models", display_name="models", kind="local")
+    old_uuid = repo.create_run(project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="claude", confluence_urls=[])
+    repo.close()
+    # Simulate the preceding schema, where runs had no model column.
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("ALTER TABLE runs DROP COLUMN model")
+    repo = RunRepository(db_path=db_path)
+    assert repo.get_run(old_uuid).model is None
+    new_uuid = repo.create_run(project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="claude", confluence_urls=[], model="selected-model")
+    repo.close()
+    repo = RunRepository(db_path=db_path)
+    assert repo.get_run(new_uuid).model == "selected-model"
+    assert next(r for r in repo.list_runs() if r.run_uuid == new_uuid).model == "selected-model"
+    repo.close()

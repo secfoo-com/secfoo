@@ -43,6 +43,7 @@ class CodexAdapter(AgentAdapter):
     name = "codex"
     binary = "codex"
     default_timeout_seconds = 1800
+    model_flag = "--model"
     # `codex exec -` reads the prompt from stdin; passing it as argv breaks
     # on Windows, where `codex` is a `.cmd` shim and cmd.exe truncates the
     # argument at its first newline.
@@ -68,6 +69,7 @@ class CodexAdapter(AgentAdapter):
         return [
             self.binary,
             "exec",
+            *self.model_arguments(),
             # Read-only filesystem: the assessment only reads the target.
             "--sandbox",
             "read-only",

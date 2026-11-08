@@ -82,6 +82,7 @@ class CopilotAdapter(AgentAdapter):
     name = "copilot"
     binary = "copilot"
     default_timeout_seconds = 1800
+    model_flag = "--model"
     # Piped stdin instead of `-p <prompt>`: on Windows `copilot` is a `.bat`
     # shim, and cmd.exe cut a `-p` prompt off at its first newline
     # (reproduced Sep 2026, CLI 1.0.89). With stdin piped and no `-p`, the
@@ -89,7 +90,7 @@ class CopilotAdapter(AgentAdapter):
     prompt_via_stdin = True
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
-        return [self.binary, "--output-format", "json", "--allow-all-tools"]
+        return [self.binary, *self.model_arguments(), "--output-format", "json", "--allow-all-tools"]
 
     def extract_report(self, stdout: str) -> str:
         report = None

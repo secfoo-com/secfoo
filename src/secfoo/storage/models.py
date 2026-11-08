@@ -41,6 +41,7 @@ class RunRecord:
     output_tokens: int | None = None
     cost_usd: float | None = None
     project_display_name: str | None = None
+    model: str | None = None
     target_commit: str | None = None  # Memory Bank: git HEAD SHA at scan time.
     memory_enabled: int | None = None  # 1/0: secfoo-memory tools wired in; NULL = unknown (older run).
     # Memory Bank: paths an incremental scan covered; None = full scan.

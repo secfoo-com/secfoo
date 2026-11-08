@@ -180,3 +180,17 @@ def test_reformat_is_attempted_only_once(tmp_path, monkeypatch):
     assert result.status == "success"
     assert result.raw_report == "no rating here"
     assert len(fake.calls) == api.MAX_ATTEMPTS
+
+
+def test_selected_model_overrides_api_environment_without_changing_it(tmp_path, monkeypatch):
+    import os
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("SECFOO_API_MODEL", "environment-model")
+    (tmp_path / "app.py").write_text("pass\n")
+    fake = _fake_litellm(monkeypatch)
+    adapter = ApiAdapter()
+    adapter.configure_model("selected-model")
+    assert adapter.run("Review this.", workdir=tmp_path).status == "success"
+    assert fake.calls[0]["model"] == "selected-model"
+    assert os.environ["SECFOO_API_MODEL"] == "environment-model"

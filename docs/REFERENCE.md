@@ -484,6 +484,9 @@ exclude = ["vendor/", "some-cloned-repo/"]
 fail_on = "high"
 max_cost_usd = 2.00
 
+[agents.claude]
+model = "claude-sonnet-4-6"
+
 [[mcp_servers]]
 name = "Atlassian-Rovo-MCP"
 command = "npx"
@@ -493,6 +496,22 @@ args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
 CLI flags always override `[defaults]`. See
 [`src/secfoo/config.example.toml`](../src/secfoo/config.example.toml) for the
 full reference, including remote HTTP/SSE servers.
+
+`secfoo run --model <model-id>` overrides `[agents.<agent-id>].model` for
+that invocation without changing any CLI global settings. Use the registered
+agent ID (`agent` for Cursor, `agy` for Antigravity). Model IDs must be
+non-empty strings. Claude, Codex, Gemini, Copilot and Cursor receive `--model`;
+Droid receives `-m`. Antigravity and Devin currently warn and ignore model
+selection because no supported model flag is established for these adapters.
+The `api` agent uses the selected model ahead of `SECFOO_API_MODEL`, then its
+existing built-in default. With no selection, CLI commands remain unchanged.
+
+Each run stores the **requested** model (`runs.model`), not a provider-verified
+model identity. It is NULL when no model was selected (including older runs).
+A setting ignored by an unsupported adapter remains a requested label; its
+warning explains that the CLI default was used. Run records do not infer the
+CLI's global default or resolve provider aliases. Use model IDs supported by
+your installed CLI version; an invalid ID is reported by that CLI.
 
 How MCP servers reach each agent varies by what its CLI actually supports:
 

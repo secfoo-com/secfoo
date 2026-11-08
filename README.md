@@ -117,3 +117,6 @@ Developing this repo: `pip install -e ".[dev]"`.
 PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security issues go through
 [SECURITY.md](SECURITY.md), not a public issue.
+
+Choose a model for one assessment with `secfoo run --skill sast --agent claude --model <model-id>`,
+or set a per-agent default in [configuration](docs/REFERENCE.md#configuration-secfooconfigtoml).

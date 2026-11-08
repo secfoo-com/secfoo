@@ -52,6 +52,7 @@ class ClaudeAdapter(AgentAdapter):
     name = "claude"
     binary = "claude"
     default_timeout_seconds = 1800
+    model_flag = "--model"
     # SECFOO-42: with no prompt argument, `claude -p` reads the prompt from
     # stdin. Passing it as argv breaks an npm install on Windows, where
     # `claude` is a `.cmd` shim and cmd.exe cuts the argument at its first
@@ -78,6 +79,7 @@ class ClaudeAdapter(AgentAdapter):
 
         cmd = [
             self.binary,
+            *self.model_arguments(),
             # No prompt here: it arrives on stdin (see prompt_via_stdin).
             "-p",
             "--output-format",
