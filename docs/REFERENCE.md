@@ -1,6 +1,6 @@
 # Reference
 
-The full activity catalog, dashboards, assessments, configuration, and distribution details -- moved out of the README to keep that short. See the [main README](../README.md) for Quick Start.
+The full activity catalog, dashboards, assessments, configuration, and distribution details -- moved out of the README to keep that short. See the [main README](../README.md) for the dashboard screenshots and Quick Start.
 
 ## Activity catalog
 
