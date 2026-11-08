@@ -6,7 +6,7 @@ import sys
 from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -23,6 +23,7 @@ from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
 from secfoo.cost import format_cost, format_tokens, sum_optional
+from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
 from secfoo.skills.loader import load_all_skills
@@ -1444,6 +1445,11 @@ class FindingsStatus(str, Enum):
     ALL = "all"
 
 
+class FindingsFormat(str, Enum):
+    JSONL = "jsonl"
+    SARIF = "sarif"
+
+
 # Lifecycle bookkeeping that means nothing outside this one SQLite file.
 _EXPORT_DROP_COLUMNS = {"id", "project_id", "first_seen_run_id", "last_seen_run_id", "closed_in_run_id"}
 _EXPORT_LOCATION_COLUMNS = {"location_file", "location_line", "code_region_hash", "reachability_evidence"}
@@ -1454,13 +1460,14 @@ def findings_export(
     skill: list[FindingsSkill] = typer.Option([], "--skill", "-s", help="Limit to these skills. Repeatable."),
     project: Optional[int] = typer.Option(None, "--project", help="Limit to one project id."),
     status: FindingsStatus = typer.Option(FindingsStatus.OPEN, "--status", help="open, closed, or all."),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write JSONL here instead of stdout."),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write the export here instead of stdout."),
+    format: Annotated[FindingsFormat, typer.Option("--format", help="Export format: jsonl or sarif.")] = FindingsFormat.JSONL,
     no_locations: bool = typer.Option(
         False, "--no-locations",
         help="Drop file paths, line numbers, code-region hashes and reachability evidence.",
     ),
 ) -> None:
-    """Export structured findings (SAST, SCA, secret scanning) as JSON Lines.
+    """Export structured findings (SAST, SCA, secret scanning) as JSONL or SARIF.
 
     One record per finding, with its skill, severity, stack (language/
     framework) and code-free construct description -- the same shape for
@@ -1472,20 +1479,24 @@ def findings_export(
             project_id=project,
             status=None if status is FindingsStatus.ALL else status.value,
         )
-    lines = []
+    records = []
     for skill_id, row in rows:
         record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
         for column, value in row.items():
             if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
                 continue
             record[column] = value
-        lines.append(json.dumps(record, sort_keys=True))
-    text = "\n".join(lines) + ("\n" if lines else "")
+        records.append(record)
+    if format is FindingsFormat.SARIF:
+        text = json.dumps(findings_to_sarif(records), indent=2, sort_keys=True) + "\n"
+    else:
+        lines = [json.dumps(record, sort_keys=True) for record in records]
+        text = "\n".join(lines) + ("\n" if lines else "")
     if output is None:
         sys.stdout.write(text)
         return
     output.write_text(text, encoding="utf-8")
-    err_console.print(f"Wrote {len(lines)} finding(s) to {output}.")
+    err_console.print(f"Wrote {len(records)} finding(s) to {output}.")
 
 
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
