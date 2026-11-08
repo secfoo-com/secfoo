@@ -1,4 +1,9 @@
-# Secfoo - Everyone's a security professional.
+# secfoo
+
+<p align="center">
+  <strong>Turn any AI coding agent into a disciplined security reviewer.</strong><br>
+  Same standards, same report, every run.
+</p>
 
 <p align="center">
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
@@ -8,144 +13,57 @@
 </p>
 
 <p align="center">
-    Secfoo turns any AI coding agent into a disciplined security reviewer — same standards, same report, every run.
-Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them.
+  <img src="docs/assets/dashboard.png" alt="secfoo local dashboard: program posture across applications, findings, and security activities" width="900">
 </p>
 
 <p align="center">
   <a href="https://secfoo.com">Website</a> ·
-  <a href="https://secfoo.com/docs/index.html#install">Getting Started</a> ·
-  <a href="https://secfoo.com/docs/cli.html">CLI Reference</a> ·
-  <a href="https://secfoo.com/docs/index.html">Documentation</a>
+  <a href="https://secfoo.com/docs/index.html#install">Getting started</a> ·
+  <a href="https://secfoo.com/docs/cli.html">CLI</a> ·
+  <a href="https://secfoo.com/docs/index.html">Docs</a>
 </p>
 
-Pick one or more security **activities** (see the catalog below), point them
-at a **target** (a public GitHub URL, a local directory, plus optional
-Confluence links for extra context), choose which coding-agent CLI runs them
-(Claude Code, Cursor, Antigravity, Gemini CLI, or Codex CLI), and browse every
-assessment ever run, across every project, in a local web dashboard.
-
-> This repository is the open-source CLI and local dashboard. secfoo's
-> enterprise portal (multi-tenant cloud sync, admin console) is closed-source
-> and lives in a separate private repository — `secfoo cloud login` connects
-> this CLI to it, but nothing about the portal itself is in this repo.
-
-## Quick Start
-
-Requires Python 3.10+ for `pip install` — or skip Python entirely with
-npm, a standalone binary, or Docker (see [Install](#install) below).
+Point Claude Code, Cursor, Antigravity, Gemini CLI, or Codex at a target.
+Pick architecture review, threat modeling, SAST, and the rest of the catalog.
+Browse every result in a local dashboard — `secfoo serve`, on your machine.
 
 ```bash
 pip install secfoo
-secfoo run --skill security-architecture-review --agent claude
-```
-
-You'll need an agent CLI already installed and authenticated — Claude
-Code, Cursor, Antigravity, Gemini CLI, or Codex CLI (`--agent claude|agent|agy|gemini|codex`)
-— or just a model API key with the built-in `api` agent (below).
-On a real terminal, that first run prompts for a project name and
-application ID, then browse every result in the dashboard:
-
-```bash
-secfoo run --skill sast --skill threat-modeling \
-  --target https://github.com/org/repo --agent claude
+secfoo run --skill sast --target https://github.com/org/repo --agent claude
 secfoo serve
 ```
 
-### No agent CLI? Use an API key
+You need an agent CLI already installed and authenticated
+(`--agent claude|agent|agy|gemini|codex`), or an API key with the built-in
+`api` agent — see [Install](#install).
 
-The built-in `api` agent is a LangGraph workflow that sends the target's
-source to OpenAI, Anthropic or Gemini through LiteLLM — no coding-agent
-CLI needed, which suits CI. Keys are read from the environment only and
-never stored:
+## A 30-second look at the dashboard
 
-```bash
-pip install "secfoo[api]"
-export OPENAI_API_KEY=...            # or ANTHROPIC_API_KEY / GEMINI_API_KEY
-export SECFOO_API_MODEL=openai/gpt-4.1-mini   # optional; any LiteLLM model id
-secfoo run --skill sast --agent api --target https://github.com/org/repo
-```
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="30-second tour of the secfoo dashboard: posture, threat modeling, STRIDE coverage, architecture verdict, and SAST" width="900">
+</p>
 
-It suits small and medium repositories: the whole target has to fit in one
-request, and larger ones are rejected with a message suggesting `--exclude`.
+<p align="center"><a href="docs/assets/demo.mp4">Watch as MP4</a></p>
 
-### Tracking AI spend
+<p align="center">
+  <img src="docs/assets/threat-modeling.png" alt="Threat modeling program dashboard with coverage and STRIDE" width="48%">
+  <img src="docs/assets/architecture.png" alt="Security architecture design verdict and data-flow diagram" width="48%">
+</p>
 
-Every run records tokens and cost where the agent reports them (`api`,
-`claude`; `gemini` reports tokens only; `agent` and `agy` report
-neither and show as unpriced rather than $0). See it per run in
-`secfoo run`, `secfoo list`, the dashboard and the enterprise portal, or
-summarised:
+Screenshots are from a real local `secfoo serve` against public vulnerable-app targets.
 
-```bash
-secfoo cost                          # by agent
-secfoo cost --by skill --since 2026-09-01
-secfoo cost --project checkout
-```
+## What you get
 
-### Using it as a CI gate
-
-`secfoo run` is non-interactive when stdin isn't a terminal. Two flags turn
-an assessment into a policy check, and `--json` gives the pipeline
-something it can parse instead of a table:
-
-```bash
-secfoo run --skill sast --agent api --target . \
-  --fail-on high --max-cost 2.00 --json > secfoo-result.json
-```
-
-| Exit code | Meaning |
-|---|---|
-| `0` | Every run succeeded and no gate tripped |
-| `1` | A run failed or timed out (gate verdicts from a partial scan aren't trusted) |
-| `2` | Every run succeeded but `--fail-on` found a finding at/above the threshold, or `--max-cost` was exceeded |
-
-The JSON document carries per-skill status, severity counts
-(critical/high/medium/low/info parsed from the report contract, not the
-prose), tokens, USD, and each gate's verdict. `--max-cost` is checked after
-the runs finish — an agent only reports spend on completion — and runs
-whose agent reports no cost are counted as `unpriced_runs` so the pipeline
-can decide whether that's acceptable. Both flags have config-file
-defaults (`[defaults].fail_on`, `[defaults].max_cost_usd`).
-
-See [Getting Started](https://secfoo.com/docs/index.html#quickstart) or
-the [CLI reference](https://secfoo.com/docs/cli.html) for more.
-
-## What can you do with secfoo?
-
-- **Review architecture and threat-model a system** against secure
-  design principles, STRIDE/LINDDUN, and CSA CCM v4 domain conformance
-- **Find code and dependency vulnerabilities** — SAST and SCA reachability
-  triage; SAST uses an Open/Closed register keyed by skill + CWE + file +
-  a hash of the vulnerable source region (not agent wording), so rescans
-  stay stable when the model paraphrases
-- **Catch exposed credentials** across source, config, git history, and
-  linked Confluence pages
-- **Review LLM prompts and agent tool definitions** for injection and
-  over-permissioning risk
-- **Track third-party/vendor risk** with AI-BOM inventories and a
-  dedicated third-party review workflow
-- **Run it in CI** as a real gate: `--fail-on high`, `--max-cost 2.00`,
-  `--json`, and distinct exit codes for "scan broke" vs "policy failed"
-- **Browse every assessment across every project** in a local dashboard,
-  or sync to your org's enterprise portal
-
-## Why secfoo?
-
-- **Agent-native, not another parser**: a skill is a structured prompt,
-  not a bespoke rules engine — secfoo hands your existing coding-agent
-  CLI a brief and a target and lets it actually read the code, the way
-  a human reviewer would.
-- **Local-first**: `secfoo serve` and every run stay on your machine
-  unless you explicitly connect `secfoo cloud login` to your org's portal.
-- **One case file per system**: assessments consolidate repeat runs
-  under the same application ID instead of fragmenting into a new
-  record every rescan.
-- **Concurrent by default**: multiple `--skill` flags run at the same
-  time, not one after another.
-- **Bring your own agent**: Claude Code, Cursor, Antigravity, Gemini
-  CLI, or Codex CLI — pick whichever you already use and trust.
-- **Open source CLI**: MIT licensed.
+- **A skill is a brief, not a parser.** secfoo hands your coding agent a
+  structured prompt and a target, then collects a report in a fixed shape.
+- **One dashboard for the program.** Coverage, dispositions, STRIDE,
+  design verdicts, and findings across every project you have scanned.
+- **Local first.** Runs and `secfoo serve` stay on your machine. Optional
+  `secfoo cloud login` syncs to an org portal that is not in this repo.
+- **Concurrent by default.** Several `--skill` flags run at the same time.
+- **CI-ready.** `--fail-on high`, `--max-cost 2.00`, `--json`, and distinct
+  exit codes for "the scan broke" vs "policy failed". Details in
+  [docs/REFERENCE.md](docs/REFERENCE.md#ci-gates-and-machine-readable-output).
 
 ## Activity catalog
 
@@ -155,45 +73,44 @@ the [CLI reference](https://secfoo.com/docs/cli.html) for more.
 | Threat Modeling | `threat-modeling` |
 | SAST — Static Code Analysis | `sast` |
 | SCA — Reachability & Upgrade Triage | `sca-reachability` |
-| Secret Scanning — Code, Confluence & Docs | `secret-scanning` |
+| Secret Scanning | `secret-scanning` |
 | Prompt Review | `prompt-review` |
 | Deployment Readiness | `deployment-readiness` |
 | Responsible AI Compliance | `responsible-ai-compliance` |
 
-Run one, or several together — multiple `--skill` flags execute
-concurrently against the same target. Each has its own report shape and
-program-level dashboard; see [docs/REFERENCE.md](docs/REFERENCE.md) for
-what each one actually produces, plus assessments, configuration, and
-install/distribution details.
+Run one, or several together. What each report actually contains is in
+[docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## Install
 
 ```bash
-pip install secfoo               # PyPI, needs Python 3.10+
-npm install -g @rakfortltd/secfoo    # npm, no Python needed
+pip install secfoo                    # PyPI, Python 3.10+
+npm install -g @rakfortltd/secfoo     # npm, no Python needed
 docker run --rm ghcr.io/rakfortltd/secfoo --help
 ```
 
-Also available via a universal install script (macOS/Linux/Windows) and
-as standalone platform binaries — see
-[docs/REFERENCE.md#install](docs/REFERENCE.md#install) for every channel.
-Developing on this repo instead? `pip install -e ".[dev]"`.
+No agent CLI? Use an API key:
 
-## Learn More
+```bash
+pip install "secfoo[api]"
+export OPENAI_API_KEY=...             # or ANTHROPIC_API_KEY / GEMINI_API_KEY
+secfoo run --skill sast --agent api --target https://github.com/org/repo
+```
 
-- [docs/REFERENCE.md](docs/REFERENCE.md) — full activity catalog, dashboards, assessments, configuration, distribution
-- [Getting Started](https://secfoo.com/docs/index.html#quickstart)
-- [Full Documentation](https://secfoo.com/docs/index.html)
-- [CLI Reference](https://secfoo.com/docs/cli.html)
+Universal install scripts, standalone binaries, CI flags, spend tracking,
+and configuration live in [docs/REFERENCE.md](docs/REFERENCE.md#install).
+Developing this repo: `pip install -e ".[dev]"`.
+
+## Learn more
+
+- [docs/REFERENCE.md](docs/REFERENCE.md) — catalog, dashboards, assessments, config, distribution
+- [Getting started](https://secfoo.com/docs/index.html#quickstart)
+- [CLI reference](https://secfoo.com/docs/cli.html)
 - [Running an assessment](https://secfoo.com/docs/guide-running-an-assessment.html)
-- [Excluding paths from a scan](https://secfoo.com/docs/guide-excluding-paths.html)
-- [Rendering architecture diagrams](https://secfoo.com/docs/guide-architecture-diagrams.html)
-- [Connecting agent CLIs (MCP)](https://secfoo.com/docs/guide-connecting-mcp.html)
-- [Editions & pricing](https://secfoo.com/editions.html)
+- [Editions](https://secfoo.com/editions.html)
 
 ## Contributing
 
-We welcome contributions — see [CONTRIBUTING.md](CONTRIBUTING.md) to get
-started, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community
-expectations. Found a security issue? See [SECURITY.md](SECURITY.md)
-instead of opening a public issue.
+PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security issues go through
+[SECURITY.md](SECURITY.md), not a public issue.
