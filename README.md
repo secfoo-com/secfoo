@@ -37,6 +37,34 @@ You need an agent CLI already installed and authenticated
 (`--agent claude|agent|agy|gemini|codex`), or an API key with the built-in
 `api` agent — see [Install](#install).
 
+## Repository targets
+
+`--target` accepts local directories, GitHub URLs, GitLab (including nested
+namespaces), and Bitbucket Cloud repositories:
+
+```bash
+secfoo run --skill sast --target https://gitlab.com/group/subgroup/repo --agent claude
+secfoo run --skill sast --target https://bitbucket.org/workspace/repo --agent claude
+```
+
+GitLab and Bitbucket support HTTPS and `git@host:namespace/repo.git` SSH URLs;
+`.git` is optional. SSH uses your existing SSH authentication. For self-hosted
+GitLab, set `SECFOO_GITLAB_HOST` to its hostname, optionally with an HTTPS port
+(e.g. `git.example.org:8443`), then pass that host's repository URL. The default
+`gitlab.com` remains supported. URL credentials, queries, fragments, HTTP, and
+`ssh://` forms are rejected for these new targets.
+
+For private HTTPS repositories, provide `SECFOO_GITLAB_TOKEN` (a GitLab token
+with repository read access) or `SECFOO_BITBUCKET_TOKEN` (a Bitbucket repository,
+project, or workspace access token with repository read permission) through your
+environment or CI secret store. Bitbucket user API tokens/app passwords are not
+supported by this token mode. Tokens are supplied to Git through a temporary
+askpass helper, never placed in clone arguments, repository URLs, reports, or
+Git config. Git errors omit raw server output to keep credentials out of logs.
+Authenticated HTTPS clones disable redirects to avoid forwarding credentials to
+another host. Without a token, Git uses your existing noninteractive authentication. Clones are shallow and
+removed after the run, including failures.
+
 ## A 30-second look at the dashboard
 
 <p align="center">

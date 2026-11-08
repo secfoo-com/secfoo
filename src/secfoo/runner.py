@@ -37,6 +37,7 @@ from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
 from secfoo.stack import Stack, detect_stack, language_for_ecosystem, language_for_path
 from secfoo.storage.repository import RunRepository
+from secfoo.targets.forge import clone_forge
 from secfoo.targets.github import clone_shallow
 from secfoo.targets.resolver import ResolvedTarget, TargetKind, resolve_target
 
@@ -126,11 +127,11 @@ class RunOutcome:
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
-    if resolved.kind is TargetKind.GITHUB:
+    if resolved.is_temporary:
         cleaned = resolved.display_name.rstrip("/")
         if cleaned.endswith(".git"):
             cleaned = cleaned[: -len(".git")]
-        match = re.search(r"github\.com[/:]([^/]+/[^/]+)$", cleaned)
+        match = re.search(r"(?:https?://[^/]+/|git@[^:]+:)(.+)$", cleaned)
         return match.group(1) if match else cleaned
     return Path(resolved.display_name).name or resolved.display_name
 
@@ -392,6 +393,9 @@ def update_structured_findings(
 def _target_workdir(resolved: ResolvedTarget) -> Iterator[Path]:
     if resolved.kind is TargetKind.GITHUB:
         with clone_shallow(resolved.display_name) as tmp_dir:
+            yield tmp_dir
+    elif resolved.kind in {TargetKind.GITLAB, TargetKind.BITBUCKET}:
+        with clone_forge(resolved.display_name, kind=resolved.kind) as tmp_dir:
             yield tmp_dir
     else:
         assert resolved.path is not None
