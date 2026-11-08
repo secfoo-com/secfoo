@@ -28,9 +28,12 @@ from secfoo.web.dashboard_common import append_boundary_changed_projects, percen
 
 SKILL_ID = "threat-modeling"
 
-# The post-build and falsified-assumption cards show only the newest
-# handful. The rest live on their own pages.
+# The post-build, falsified-assumption, and accepted-threat cards show
+# only the newest handful. The rest live on their own pages. The
+# accepted-threat preview is shorter because each row is a full table
+# row, and the whole list made that card too tall.
 LIST_PREVIEW_LIMIT = 8
+ACCEPTED_PREVIEW_LIMIT = 5
 
 # A Gap-disposition threat is "past due" once its most recent model is
 # older than this -- the same coarse, run-level proxy used for the
@@ -79,6 +82,7 @@ class ThreatModelingDashboard:
     disposition: dict[str, int] = field(default_factory=dict)
     disposition_total: int = 0
     accepted_threats: list[dict] = field(default_factory=list)
+    accepted_preview: list[dict] = field(default_factory=list)
     needs_rework: list[dict] = field(default_factory=list)
     recurring_patterns: list[tuple[str, int]] = field(default_factory=list)
     model_depth_mix: dict[str, int] = field(default_factory=dict)
@@ -180,6 +184,9 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
                         "project": project["project_display_name"],
                         "threat_ref": row["id"],
                         "threat": row["threat"],
+                        # No per-threat acceptance time exists on the report.
+                        # The model's own start is the closest "when".
+                        "modeled_at": started,
                     }
                 )
             elif disposition == "transferred":
@@ -227,10 +234,14 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
             matched_keys.add(key)
         merged_accepted.append(
             {
+                "project_id": entry["project_id"],
                 "project": entry["project"],
                 "threat_ref": entry["threat_ref"],
                 "threat": entry["threat"],
                 "accepted_by": record.accepted_by if record else None,
+                # A recorded sign-off has a real time. Otherwise fall back
+                # to when the model marked the threat Accepted.
+                "accepted_at": record.created_at if record else entry.get("modeled_at"),
             }
         )
     # A recorded acceptance whose threat no longer shows up as "Accepted" in
@@ -243,13 +254,17 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
             continue
         merged_accepted.append(
             {
+                "project_id": record.project_id,
                 "project": record.project_display_name,
                 "threat_ref": record.threat_ref,
                 "threat": record.title,
                 "accepted_by": record.accepted_by,
+                "accepted_at": record.created_at,
             }
         )
+    merged_accepted.sort(key=lambda entry: entry.get("accepted_at") or "", reverse=True)
     dash.accepted_threats = merged_accepted
+    dash.accepted_preview = merged_accepted[:ACCEPTED_PREVIEW_LIMIT]
 
     dash.model_depth_mix = {
         "full": depth_counter.get("Full", 0),

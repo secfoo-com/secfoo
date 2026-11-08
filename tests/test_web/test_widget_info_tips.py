@@ -113,7 +113,7 @@ def test_long_lists_scroll_after_ten_rows():
     tm = (STATIC_JS.parents[2] / "templates" / "activities" / "threat_modeling_dashboard.html").read_text()
     for marker in ("rework-list widget-scroll", "pattern-list widget-scroll", "miss-list widget-scroll", "assume-list widget-scroll"):
         assert marker in tm
-    assert tm.count('data-scroll-rows="10"') >= 4
+    assert tm.count('data-scroll-rows="10"') >= 3
     assert 'miss-list widget-scroll" data-scroll-rows="6"' in tm
     assert 'assume-list widget-scroll" data-scroll-rows="6"' in tm
 

@@ -214,6 +214,23 @@ def activity_detail(
     return templates.TemplateResponse(request, "activities/detail.html", context)
 
 
+@router.get("/activities/security-architecture-review/standards")
+def architecture_standards(request: Request):
+    """The longer most-deviated-standards ranking. Capped, so the page
+    stays a short list rather than every standard ever cited. The
+    dashboard card shows only the top five."""
+    with RunRepository() as repo:
+        dash = arch_dashboard.build(repo)
+    return templates.TemplateResponse(
+        request,
+        "activities/architecture_standards.html",
+        {
+            "standards": dash.top_standards,
+            "standards_total": dash.standards_total,
+        },
+    )
+
+
 @router.get("/activities/threat-modeling/post-build")
 def threat_modeling_post_build(request: Request):
     """Every threat recorded with `secfoo miss`. The dashboard card shows
@@ -222,6 +239,17 @@ def threat_modeling_post_build(request: Request):
         findings = repo.list_post_build_findings()
     return templates.TemplateResponse(
         request, "activities/threat_modeling_post_build.html", {"findings": findings}
+    )
+
+
+@router.get("/activities/threat-modeling/accepted")
+def threat_modeling_accepted(request: Request):
+    """Every accepted threat, newest first. The dashboard card shows
+    only the newest handful."""
+    with RunRepository() as repo:
+        threats = tm_dashboard.build(repo).accepted_threats
+    return templates.TemplateResponse(
+        request, "activities/threat_modeling_accepted.html", {"threats": threats}
     )
 
 

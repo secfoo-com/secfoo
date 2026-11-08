@@ -150,6 +150,38 @@ def test_dashboard_shows_standard_from_findings_register(client, tmp_path):
     assert "ISO 27001 A.10" in resp.text
 
 
+def test_most_deviated_standards_shows_five_and_links_to_a_capped_list(client, tmp_path):
+    """The card keeps the top five. The page behind the click keeps going,
+    but only through the top fifteen."""
+    rows = []
+    row_id = 1
+    for n in range(1, 19):
+        for _ in range(19 - n):
+            rows.append(
+                f"| A{row_id} | Finding | High | Secrets Management | STD {n:02d} | Confirmed |"
+            )
+            row_id += 1
+    rows = "\n".join(rows)
+    report = ARCHITECTURE_REPORT.replace(
+        "| A1 | Hardcoded key | High | Secrets Management | ISO 27001 A.10 | Confirmed |\n"
+        "| A2 | Missing rate limit | Medium | Authorization | N/A | Conditional |",
+        rows,
+    )
+    _seed(tmp_path, report_text=report)
+
+    page = client.get("/activities/security-architecture-review").text
+    card = page[page.index(">Most-deviated standards</h4>"):page.index(">Uncovered CCM domains</h4>")]
+    assert "STD 01" in card and "STD 05" in card
+    assert "STD 06" not in card
+    assert "View top 15" in card
+
+    full = client.get("/activities/security-architecture-review/standards")
+    assert full.status_code == 200
+    assert "STD 15" in full.text
+    assert "STD 16" not in full.text
+    assert "Showing the top 15 of 18" in full.text
+
+
 def test_dashboard_shows_exceptions_past_expiry(client, tmp_path):
     project_id, _, _ = _seed(tmp_path)
     repo = RunRepository()

@@ -68,9 +68,17 @@ class ArchitectureDashboard:
     root_causes: list[tuple[str, int]] = field(default_factory=list)
     gate_mix: dict[str, int] = field(default_factory=dict)
     top_standards: list[tuple[str, int]] = field(default_factory=list)
+    top_standards_preview: list[tuple[str, int]] = field(default_factory=list)
+    standards_total: int = 0
 
 
 RECENT_STALE_LIMIT = 5
+
+# The card shows the top of the ranking. The page behind the click shows
+# more, but still only the head of the list — a long tail of one-off
+# citations is not useful here.
+STANDARDS_PREVIEW_LIMIT = 5
+STANDARDS_LIST_LIMIT = 15
 
 
 def build(repo: RunRepository) -> ArchitectureDashboard:
@@ -174,7 +182,10 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
     dash.uncovered_ccm_domains = [name for code, name in CCM_DOMAINS if not ccm_assessed[code]]
 
     dash.root_causes = root_cause_counter.most_common()
-    dash.top_standards = standards_counter.most_common()
+    ranked_standards = standards_counter.most_common()
+    dash.standards_total = len(ranked_standards)
+    dash.top_standards = ranked_standards[:STANDARDS_LIST_LIMIT]
+    dash.top_standards_preview = ranked_standards[:STANDARDS_PREVIEW_LIMIT]
     dash.gate_mix = {
         "approve": gate_counter.get("approve", 0),
         "conditions": gate_counter.get("conditions", 0),
