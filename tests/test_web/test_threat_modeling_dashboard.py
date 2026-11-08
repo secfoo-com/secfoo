@@ -370,6 +370,43 @@ def test_post_build_card_keeps_eight_and_links_to_the_rest(client, tmp_path):
     assert "Miss 1" in full.text and "Miss 10" in full.text
 
 
+def test_accepted_threats_card_keeps_five_recent_and_links_to_the_rest(client, tmp_path):
+    """The card shows the five newest acceptances. Older ones stay off the
+    dashboard and are reachable from View all."""
+    project_id, _, _ = _seed(tmp_path)
+    repo = RunRepository()
+    for day in range(1, 8):
+        repo.create_threat_acceptance(
+            project_id=project_id,
+            threat_ref=f"T{100 + day}",
+            title=f"Accepted threat {day}",
+            justification="j",
+            accepted_by="Jane Doe",
+        )
+        repo._conn.execute(
+            "UPDATE threat_acceptances SET created_at = ? WHERE threat_ref = ?",
+            (f"2026-01-{day:02d}T00:00:00+00:00", f"T{100 + day}"),
+        )
+    repo._conn.commit()
+    repo.close()
+
+    page = client.get("/activities/threat-modeling").text
+    card = page[page.index(">Accepted threats</h4>"):page.index('heading-with-info">Models needing rework')]
+    # The seeded report's T4 is newer than the January sign-offs, so it
+    # leads the preview. The oldest recorded titles stay off the card.
+    assert "Risk accepted for legacy endpoint" in card
+    assert "Accepted threat 7" in card
+    assert "Accepted threat 4" in card
+    assert "Accepted threat 3" not in card
+    assert "View all 8" in card
+
+    full = client.get("/activities/threat-modeling/accepted")
+    assert full.status_code == 200
+    assert "Accepted threat 1" in full.text
+    assert "Accepted threat 7" in full.text
+    assert "Risk accepted for legacy endpoint" in full.text
+
+
 def test_dashboard_shows_accept_cli_hint(client, tmp_path):
     _seed(tmp_path)
     resp = client.get("/activities/threat-modeling")

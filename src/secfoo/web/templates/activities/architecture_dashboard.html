@@ -210,19 +210,21 @@
     {% call info_tip("Most-deviated standards") %}
     <p>Standards the reviews cite most often as not being met.</p>
     <p>A standard high on this list is a candidate for a shared control, rather than a one-off fix in each project.</p>
+    <p>This card shows the top five. The longer ranking is one click away, and it stops at the top fifteen.</p>
     {% endcall %}
     <h4 class="card__title">Most-deviated standards</h4>
-    {% if dash.top_standards %}
-    <div class="widget-scroll" data-scroll-rows="10">
-    {% for standard, count in dash.top_standards %}
+    {% if dash.top_standards_preview %}
+    {% for standard, count in dash.top_standards_preview %}
     <div class="severity-bar">
       <span class="severity-bar__dot severity-bar__dot--medium"></span>
       <span class="severity-bar__label u-w-10rem">{{ standard }}</span>
-      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--medium" data-bar-width="{{ (count / dash.top_standards[0][1] * 100) }}"></div></div>
+      <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--medium" data-bar-width="{{ (count / dash.top_standards_preview[0][1] * 100) }}"></div></div>
       <span class="severity-bar__count">{{ count }}</span>
     </div>
     {% endfor %}
-    </div>
+    {% if dash.standards_total > dash.top_standards_preview | length %}
+    <a class="ds-caption u-d-block u-mt-3" href="/activities/security-architecture-review/standards">{% if dash.standards_total > dash.top_standards | length %}View top {{ dash.top_standards | length }}{% else %}View all {{ dash.standards_total }}{% endif %} &rarr;</a>
+    {% endif %}
     {% else %}
     <p class="ds-body u-color-text-muted">No standard-specific findings cited yet.</p>
     {% endif %}

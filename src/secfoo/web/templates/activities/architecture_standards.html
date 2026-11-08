@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Most-deviated standards — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/security-architecture-review" class="ds-caption">&larr; Back to Security Architecture</a>
+<span class="ds-overline u-d-block u-mt-4">Security Architecture</span>
+<h1>Most-deviated standards</h1>
+<p class="ds-body u-color-text-muted u-max-w-44rem">
+  Standards the reviews cite most often as not being met.
+  {% if standards_total > standards | length %}
+  Showing the top {{ standards | length }} of {{ standards_total }}.
+  {% elif standards %}
+  {{ standards | length }} standard{{ "s" if standards | length != 1 else "" }} cited.
+  {% endif %}
+</p>
+
+{% if standards %}
+<div class="card u-mt-6">
+  {% for standard, count in standards %}
+  <div class="severity-bar">
+    <span class="severity-bar__dot severity-bar__dot--medium"></span>
+    <span class="severity-bar__label u-w-12rem">{{ standard }}</span>
+    <div class="severity-bar__track"><div class="severity-bar__fill severity-bar__fill--medium" data-bar-width="{{ (count / standards[0][1] * 100) }}"></div></div>
+    <span class="severity-bar__count">{{ count }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert--info u-mt-6"><div>No standard-specific findings cited yet.</div></div>
+{% endif %}
+{% endblock %}

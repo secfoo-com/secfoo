@@ -152,17 +152,18 @@
       {% call info_tip("Accepted threats") %}
       <p>Every threat a model marked <strong>Accepted</strong>, matched with the person who signed it off.</p>
       <p>A threat with no owner shown has not been signed off by anyone yet. Record the owner with <code>secfoo accept create</code>.</p>
+      <p>This card shows the newest ones. The full list is on its own page.</p>
       {% endcall %}
       <h4 class="card__title">Accepted threats</h4>
       <p class="card__body u-mb-3 u-color-text-muted">
-        Every threat marked Accepted, reconciled with who actually signed off — <code>secfoo accept create</code> is how "not recorded" turns into a real name.
+        The newest threats marked Accepted, reconciled with who signed off. <code>secfoo accept create</code> is how "not recorded" turns into a real name.
       </p>
-      {% if tm_dash.accepted_threats %}
-      <div class="table-wrap widget-scroll" data-scroll-rows="10">
+      {% if tm_dash.accepted_preview %}
+      <div class="table-wrap">
         <table class="table">
           <thead><tr><th>Threat</th><th>Project</th><th>Accepted by</th></tr></thead>
           <tbody>
-            {% for item in tm_dash.accepted_threats %}
+            {% for item in tm_dash.accepted_preview %}
             <tr>
               <td>{{ item.threat }}</td>
               <td>{{ item.project }}</td>
@@ -175,6 +176,9 @@
           </tbody>
         </table>
       </div>
+      {% if tm_dash.accepted_threats | length > tm_dash.accepted_preview | length %}
+      <a class="ds-caption u-d-block u-mt-3" href="/activities/threat-modeling/accepted">View all {{ tm_dash.accepted_threats | length }} &rarr;</a>
+      {% endif %}
       {% else %}
       <p class="ds-body u-color-text-muted">No accepted threats yet.</p>
       {% endif %}

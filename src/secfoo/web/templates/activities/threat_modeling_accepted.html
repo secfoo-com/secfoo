@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Accepted threats — secfoo{% endblock %}
+{% block content %}
+<a href="/activities/threat-modeling" class="ds-caption">&larr; Back to Threat Modeling</a>
+<span class="ds-overline u-d-block u-mt-4">Threat Modeling</span>
+<h1>Accepted threats</h1>
+<p class="ds-body u-color-text-muted u-max-w-44rem">
+  Every threat marked Accepted, reconciled with who signed it off. Record an owner with <code>secfoo accept create</code>.
+</p>
+
+{% if threats %}
+<div class="table-wrap u-mt-6">
+  <table class="table">
+    <thead>
+      <tr><th>Threat</th><th>Project</th><th>Accepted by</th><th>When</th></tr>
+    </thead>
+    <tbody>
+      {% for item in threats %}
+      <tr>
+        <td>{{ item.threat }}</td>
+        <td class="u-ws-nowrap"><a href="/projects/{{ item.project_id }}">{{ item.project }}</a></td>
+        <td>
+          {% if item.accepted_by %}{{ item.accepted_by }}
+          {% else %}<span class="badge badge--warning">Not recorded</span>{% endif %}
+        </td>
+        <td class="u-ws-nowrap">{{ item.accepted_at | fmt_ago }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert--info u-mt-6"><div>No accepted threats yet. Record one with <code>secfoo accept create</code>.</div></div>
+{% endif %}
+{% endblock %}
