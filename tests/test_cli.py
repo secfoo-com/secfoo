@@ -587,3 +587,29 @@ def test_mcp_sync_codex_is_reported_unsupported(monkeypatch):
     result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
     assert result.exit_code == 1
     assert "codex" in result.output
+
+
+@pytest.mark.parametrize("override,expected", [(None, "config-model"), ("override-model", "override-model")])
+def test_run_model_override_precedence(monkeypatch, override, expected):
+    captured = {}
+    config = SecfooConfig(defaults=Defaults(agent="codex"), mcp_servers=[], agent_models={"codex": "config-model", "claude": "other-model"})
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: config)
+    def execute(**kwargs):
+        captured.update(kwargs)
+        return [_outcome("success")]
+    monkeypatch.setattr("secfoo.cli.execute_runs", execute)
+    args = ["run", "--skill", "sast"]
+    if override is not None:
+        args += ["--model", override]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert captured["model"] == expected
+    assert captured["agent_id"] == "codex"
+    assert config.agent_models["codex"] == "config-model"
+
+
+def test_run_empty_model_rejected(monkeypatch):
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
+    result = runner.invoke(app, ["run", "--skill", "sast", "--model", "   "])
+    assert result.exit_code == 1
+    assert "non-empty string" in result.output

@@ -870,3 +870,22 @@ def test_execute_runs_does_not_touch_sast_findings_for_non_sast_skills(tmp_path,
     findings = repo.list_sast_findings()
     repo.close()
     assert findings == []
+
+
+def test_runner_applies_and_persists_selected_model(tmp_path, monkeypatch):
+    _patch_runner(monkeypatch, tmp_path)
+    observed = []
+
+    class ModelAdapter(_SleepyAdapter):
+        model_flag = "--model"
+
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
+            observed.append(self.model)
+            return super().run(prompt, workdir=workdir, timeout=timeout, prev_commit=prev_commit)
+
+    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: ModelAdapter())
+    repo = RunRepository(db_path=tmp_path / "models.sqlite")
+    outcomes = execute_runs(skill_ids=["sast"], target=str(tmp_path), confluence_urls=[], agent_id="claude", model="chosen-model", repo=repo)
+    assert observed == ["chosen-model"]
+    assert repo.get_run(outcomes[0].run_uuid).model == "chosen-model"
+    repo.close()

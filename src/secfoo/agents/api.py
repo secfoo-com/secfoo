@@ -249,6 +249,8 @@ class ApiAdapter(AgentAdapter):
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         return []  # required by the base class; there is no program to launch
 
+    supports_model = True
+
     def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit triggers incremental diff scan.
         started = time.monotonic()
         _strip_key_whitespace()
@@ -268,7 +270,7 @@ class ApiAdapter(AgentAdapter):
             final = build_graph(litellm, StateGraph, START, END).invoke({
                 "prompt": prompt,
                 "workdir": str(workdir),
-                "model": os.environ.get("SECFOO_API_MODEL", DEFAULT_MODEL),
+                "model": self.model or os.environ.get("SECFOO_API_MODEL", DEFAULT_MODEL),
                 "timeout": timeout or self.default_timeout_seconds,
                 "prev_commit": prev_commit,  # Memory Bank: None = full scan, SHA = incremental diff.
                 "scan_scope": None,

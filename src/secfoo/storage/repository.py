@@ -60,6 +60,7 @@ SCHEMA_INDEXES_PATH = Path(__file__).parent / "schema_indexes.sql"
 # adds them there too, idempotently, so upgrading never requires wiping a
 # user's local store.
 _RUNS_MIGRATIONS = {
+    "model": "ALTER TABLE runs ADD COLUMN model TEXT",
     "assessment_id": "ALTER TABLE runs ADD COLUMN assessment_id INTEGER REFERENCES assessments(id)",
     "critical_count": "ALTER TABLE runs ADD COLUMN critical_count INTEGER NOT NULL DEFAULT 0",
     "high_count": "ALTER TABLE runs ADD COLUMN high_count INTEGER NOT NULL DEFAULT 0",
@@ -257,12 +258,13 @@ class RunRepository:
         agent_id: str,
         confluence_urls: list[str],
         assessment_id: int | None = None,
+        model: str | None = None,
     ) -> str:
         run_uuid = str(uuid.uuid4())
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, "
-            "confluence_urls, status, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)",
-            (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls), _now()),
+            "confluence_urls, status, started_at, model) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)",
+            (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls), _now(), model),
         )
         self._conn.commit()
         return run_uuid

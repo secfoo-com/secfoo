@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess
 import time
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,6 +95,21 @@ class AgentAdapter(ABC):
     # line one. Only enable this for CLIs whose non-interactive mode
     # documents reading the prompt from stdin.
     prompt_via_stdin: ClassVar[bool] = False
+
+    model: str | None = None
+    model_flag: ClassVar[str | None] = None
+    supports_model: ClassVar[bool] = False
+
+    def configure_model(self, model: str | None) -> None:
+        if model is not None and (not isinstance(model, str) or not model.strip()):
+            raise ValueError("model must be a non-empty string")
+        if model is not None and not (self.model_flag or self.supports_model):
+            warnings.warn(f"Agent {self.name!r} does not support model selection; ignoring model", stacklevel=2)
+            model = None
+        self.model = model
+
+    def model_arguments(self) -> list[str]:
+        return [self.model_flag, self.model] if self.model_flag and self.model is not None else []
 
     def is_available(self) -> bool:
         return shutil.which(self.binary) is not None

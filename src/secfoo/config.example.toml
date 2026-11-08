@@ -25,6 +25,13 @@ depth = "quick"        # quick | standard
 # cost noticeably on large trees.
 # exclude = ["vendor/", "third_party/", "some-cloned-repo/"]
 
+# Optional per-agent model defaults. --model overrides one run; no CLI global
+# settings are changed. Use the registered agent ID (agent = Cursor).
+# [agents.claude]
+# model = "sonnet"
+# [agents.agent]
+# model = "your-cursor-model-id"
+
 [memory]
 # secfoo-memory: a hosted service of curated vulnerability patterns the
 # agent can consult mid-assessment (known trigger conditions, remediation,

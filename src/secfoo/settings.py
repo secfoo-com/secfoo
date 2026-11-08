@@ -69,6 +69,7 @@ class SecfooConfig:
     # once a memory key exists (secfoo memory signup/login). On by default;
     # without a key there is nothing to wire in either way.
     memory_enabled: bool = True
+    agent_models: dict[str, str] = field(default_factory=dict)
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
@@ -119,6 +120,19 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         max_cost_usd=max_cost_usd,
     )
 
+    agents_raw = data.get("agents", {})
+    if not isinstance(agents_raw, dict):
+        raise ConfigError("[agents] must be a table")
+    agent_models = {}
+    for agent_id, options in agents_raw.items():
+        if not isinstance(options, dict):
+            raise ConfigError(f"agents.{agent_id} must be a table")
+        model = options.get("model")
+        if model is not None:
+            if not isinstance(model, str) or not model.strip():
+                raise ConfigError(f"agents.{agent_id}.model must be a non-empty string")
+            agent_models[agent_id] = model
+
     servers = []
     seen_names: set[str] = set()
     for entry in data.get("mcp_servers", []):
@@ -137,4 +151,4 @@ def load_config(path: Path | None = None) -> SecfooConfig:
     if not isinstance(memory_enabled, bool):
         raise ConfigError("memory.enabled must be true or false")
 
-    return SecfooConfig(defaults=defaults, mcp_servers=servers, memory_enabled=memory_enabled)
+    return SecfooConfig(defaults=defaults, mcp_servers=servers, memory_enabled=memory_enabled, agent_models=agent_models)

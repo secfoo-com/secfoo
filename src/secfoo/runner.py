@@ -413,6 +413,7 @@ def _run_single_skill(
     assessment_id: int | None = None,
     exclude_paths: list[str] | None = None,
     stack: Stack | None = None,
+    model: str | None = None,
 ) -> RunOutcome:
     skill = load_skill(skill_id)
     memory_enabled = memory.is_active_for_agent(agent_id)
@@ -431,6 +432,7 @@ def _run_single_skill(
             agent_id=agent_id,
             confluence_urls=confluence_urls,
             assessment_id=assessment_id,
+            model=model,
         )
         started = time.monotonic()
 
@@ -448,6 +450,8 @@ def _run_single_skill(
                 on_skill_start(skill.name)
 
             adapter = get_adapter(agent_id)
+            if model is not None:
+                adapter.configure_model(model)
             # Memory Bank: look up the last successful commit so the adapter can diff and send only changed files.
             prev_commit = repo.get_last_commit(project_id=project_id, skill_id=skill.id)
             result = adapter.run(prompt, workdir=target_ctx.local_path, timeout=timeout, prev_commit=prev_commit)
@@ -538,6 +542,7 @@ def execute_runs(
     target: str | None,
     confluence_urls: list[str],
     agent_id: str,
+    model: str | None = None,
     depth: Literal["quick", "standard"] = "quick",
     timeout: int | None = None,
     repo: RunRepository | None = None,
@@ -637,6 +642,7 @@ def execute_runs(
                         skill_id=skill_id,
                         project_id=project_id,
                         agent_id=agent_id,
+                        model=model,
                         target_ctx=target_ctx,
                         confluence_urls=confluence_urls,
                         depth=depth,

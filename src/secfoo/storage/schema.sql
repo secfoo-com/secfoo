@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS runs (
     skill_id          TEXT NOT NULL,
     skill_name        TEXT NOT NULL,
     agent_id          TEXT NOT NULL,
+    model             TEXT,                  -- requested model; NULL = CLI default/unknown
     confluence_urls   TEXT NOT NULL DEFAULT '[]',
     status            TEXT NOT NULL CHECK (status IN
                           ('pending','running','success','failed','timeout','binary_not_found')),

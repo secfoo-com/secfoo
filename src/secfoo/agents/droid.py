@@ -52,11 +52,13 @@ class DroidAdapter(AgentAdapter):
     name = "droid"
     binary = "droid"
     default_timeout_seconds = 1800
+    model_flag = "-m"
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
         return [
             self.binary,
             "exec",
+            *self.model_arguments(),
             "--output-format",
             "json",
             "--cwd",
