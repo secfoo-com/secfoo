@@ -61,6 +61,9 @@ Screenshots are from a real local `secfoo serve` against public vulnerable-app t
 - **Local first.** Runs and `secfoo serve` stay on your machine. Optional
   `secfoo cloud login` syncs to an org portal that is not in this repo.
 - **Concurrent by default.** Several `--skill` flags run at the same time.
+- **Portable findings.** Export SAST, SCA, and secret-scanning findings as
+  JSON Lines or SARIF 2.1.0 for GitHub code scanning and IDEs. See
+  [export examples](docs/REFERENCE.md#structured-findings-export).
 - **CI-ready.** `--fail-on high`, `--max-cost 2.00`, `--json`, and distinct
   exit codes for "the scan broke" vs "policy failed". Details in
   [docs/REFERENCE.md](docs/REFERENCE.md#ci-gates-and-machine-readable-output).

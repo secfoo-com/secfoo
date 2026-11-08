@@ -157,6 +157,13 @@ def test_findings_export_emits_jsonl_and_can_drop_locations(monkeypatch, tmp_pat
     assert record["project"] == "proj"
     assert record["construct"] == "raw sql from request parameter"
     assert record["location_file"] == "app/db.py"
+    explicit_jsonl = runner.invoke(app, ["findings", "export", "--skill", "sast", "--format", "jsonl"])
+    assert explicit_jsonl.exit_code == 0
+    assert explicit_jsonl.stdout == result.stdout
+
+    sarif = runner.invoke(app, ["findings", "export", "--format", "sarif"])
+    assert sarif.exit_code == 0, sarif.output
+    assert len(json.loads(sarif.stdout)["runs"][0]["results"]) == 2
     assert "id" not in record and "project_id" not in record and "first_seen_run_id" not in record
 
     out = tmp_path / "f.jsonl"
@@ -167,3 +174,48 @@ def test_findings_export_emits_jsonl_and_can_drop_locations(monkeypatch, tmp_pat
     assert all("location_file" not in r and "code_region_hash" not in r for r in records)
 
     assert runner.invoke(app, ["findings", "export", "--status", "closed"]).stdout == ""
+
+
+def test_findings_export_sarif_uses_existing_filters_and_location_redaction(monkeypatch, tmp_path):
+    from test_report.test_sarif import validate_sarif
+
+    calls = []
+
+    class Repository:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def list_structured_findings(self, **kwargs):
+            calls.append(kwargs)
+            return [("sast", {
+                "id": 99, "display_name": "proj", "title": "SQL injection", "severity": "High",
+                "cwe": "CWE-89", "location_file": "private/path.py", "location_line": "4",
+                "code_region_hash": "private-hash", "reachability_evidence": "private-evidence",
+            })]
+
+    monkeypatch.setattr("secfoo.cli.RunRepository", Repository)
+    args = ["findings", "export", "--format", "sarif", "-s", "sast", "--project", "7", "--status", "all"]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    run = validate_sarif(json.loads(result.stdout))
+    assert calls == [{"skill_ids": ["sast"], "project_id": 7, "status": None}]
+    assert run["results"][0]["locations"][0]["physicalLocation"]["region"]["startLine"] == 4
+
+    output = tmp_path / "findings.sarif"
+    result = runner.invoke(app, args + ["--no-locations", "-o", str(output)])
+    assert result.exit_code == 0, result.output
+    text = output.read_text(encoding="utf-8")
+    run = validate_sarif(json.loads(text))
+    assert "locations" not in run["results"][0]
+    assert all(value not in text for value in ("private/path.py", "private-hash", "private-evidence"))
+    assert "Wrote 1 finding(s)" in result.stderr
+    assert result.stdout == ""
+
+
+def test_findings_export_rejects_unknown_format():
+    result = runner.invoke(app, ["findings", "export", "--format", "xml"])
+    assert result.exit_code == 2
+    assert "Invalid value" in result.output

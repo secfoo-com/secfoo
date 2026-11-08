@@ -297,11 +297,58 @@ records:
 Secret evidence is cut back down to its first 8 characters before it is
 stored, even when a report includes more.
 
+### Structured findings export
+
 ```bash
 secfoo findings export                       # open findings, every skill, JSON Lines to stdout
 secfoo findings export -s sast --status all  # one skill, open and closed
 secfoo findings export --no-locations -o findings.jsonl   # drop paths/lines/region hashes
 ```
+
+
+Use `--format sarif` to write a SARIF 2.1.0 document instead of JSON Lines
+(the default). The same `--skill`, `--project`, `--status`, and
+`--no-locations` options apply to both formats. Export one project at a time
+when uploading to code scanning so paths belong to the checked-out repository.
+Relative paths should be relative to that repository; absolute paths are emitted
+as `file:` URIs. Missing files or invalid line numbers omit the corresponding
+location or region rather than inventing one.
+
+```bash
+secfoo findings export --format sarif --project 1 -o findings.sarif
+```
+
+After a scan has populated secfoo's local findings database, upload the export
+in a GitHub Actions job (the checkout, scan and export must use the same runner
+and secfoo store):
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@v4
+  # Install secfoo and run your assessment here to populate the local store.
+  - name: Export findings
+    run: secfoo findings export --format sarif --project 1 -o findings.sarif
+  - uses: github/codeql-action/upload-sarif@v4
+    with:
+      sarif_file: findings.sarif
+      category: secfoo
+```
+
+Replace `1` with the scanned project's local ID. GitHub code scanning must be
+available and enabled for the repository. Use the default open status for uploads;
+`--status all` also exports closed findings as results.
+
+SARIF rules are grouped by skill, CWE and severity so different severities for
+the same CWE retain their own rule-level `security-severity`. Critical/high map
+to `error`, medium to `warning`, and low/informational to `note`. Their categorical
+security scores are `9.0`, `7.0`, `4.0`, `1.0`, and `0.0`, respectively; these are
+not calculated CVSS scores. Unknown severities use `warning` without a security
+score. CWE tags use `external/cwe/cwe-N`. Findings without a CWE still get a rule.
+`--no-locations` removes the same structured location fields as JSONL and omits
+SARIF locations; free-text finding titles and descriptions are not redacted.
 
 ## Install
 
