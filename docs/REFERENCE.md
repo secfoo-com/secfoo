@@ -597,7 +597,8 @@ along with a `SHA256SUMS` file.
 - **Docker**: `ghcr.io/rakfortltd/secfoo`, built from the PyPI package on
   a slim Python base (simplest, most robust route for a container image —
   no cross-platform concern since the image itself is the platform).
-  **Note**: none of the 5 agent CLIs (claude, cursor, antigravity, gemini, codex)
+  **Note**: none of the agent CLIs listed in the
+  [agent setup guide](agents.md)
   are installed in this image, so `secfoo run` needs one made available on
   `PATH` inside the container yourself (e.g. a custom image built `FROM`
   this one, or a volume/bind mount) to actually execute a skill — without

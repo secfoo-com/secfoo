@@ -35,7 +35,8 @@ secfoo serve
 
 You need an agent CLI already installed and authenticated
 (`--agent claude|agent|agy|gemini|codex`), or an API key with the built-in
-`api` agent — see [Install](#install).
+`api` agent — see [Install](#install) and the
+[agent setup and troubleshooting guide](docs/agents.md) for all adapters.
 
 ## Repository targets
 
