@@ -1,0 +1,61 @@
+name: OpenSSF Scorecard
+
+# Scores this repo's supply-chain security practices (branch protection,
+# code review, pinned dependencies, token permissions, maintenance, ...)
+# on a 0-10 scale. Results feed the README badge, the public dashboard at
+# https://scorecard.dev/viewer/?uri=github.com/secfoo-com/secfoo, and the
+# Security > Code scanning tab of this repo.
+#
+# Only the default branch is scored, so this runs on pushes to main plus a
+# weekly schedule to pick up changes to GitHub settings that don't involve
+# a commit (branch protection rules, new releases, etc.).
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Weekly, Monday 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Scorecard's Token-Permissions check wants the top-level grant to be
+# read-only, with writes scoped to the job that needs them.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload the SARIF to the Code scanning dashboard.
+      security-events: write
+      # OIDC token for publish_results so scorecard.dev can verify the run.
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publishes the score to scorecard.dev so the README badge and the
+          # public viewer stay current. Only works on public repos.
+          publish_results: true
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif
