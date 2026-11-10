@@ -286,7 +286,8 @@ def run(
     Multiple --skill flags run concurrently, not one after another.
 
     Exit codes: 0 success, 1 a run failed/timed out, 2 all runs succeeded
-    but a --fail-on / --max-cost gate tripped.
+    but the --fail-on gate tripped, 3 all runs succeeded but the --max-cost
+    gate tripped.
     """
     for url in confluence:
         if not url.strip().lower().startswith(("http://", "https://")):
