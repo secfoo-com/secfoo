@@ -9,6 +9,7 @@
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/v/secfoo" alt="PyPI"></a>
   <a href="https://pypi.org/project/secfoo/"><img src="https://img.shields.io/pypi/dm/secfoo" alt="PyPI downloads"></a>
   <a href="https://github.com/secfoo-com/secfoo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/secfoo-com/secfoo/ci.yml" alt="CI"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/secfoo-com/secfoo"><img src="https://api.scorecard.dev/projects/github.com/secfoo-com/secfoo/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://github.com/secfoo-com/secfoo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/secfoo-com/secfoo" alt="MIT license"></a>
 </p>
 
