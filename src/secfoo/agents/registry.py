@@ -10,6 +10,7 @@ from secfoo.agents.cursor import CursorAdapter
 from secfoo.agents.devin import DevinAdapter
 from secfoo.agents.droid import DroidAdapter
 from secfoo.agents.gemini import GeminiAdapter
+from secfoo.agents.opencode import OpenCodeAdapter
 
 ADAPTERS: dict[str, type[AgentAdapter]] = {
     ClaudeAdapter.name: ClaudeAdapter,
@@ -21,6 +22,7 @@ ADAPTERS: dict[str, type[AgentAdapter]] = {
     CodexAdapter.name: CodexAdapter,
     DroidAdapter.name: DroidAdapter,
     DevinAdapter.name: DevinAdapter,
+    OpenCodeAdapter.name: OpenCodeAdapter,
 }
 
 

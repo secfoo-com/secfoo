@@ -23,7 +23,7 @@
   <a href="https://secfoo.com/docs/index.html">Docs</a>
 </p>
 
-Point Claude Code, Cursor, Antigravity, Gemini CLI, or Codex at a target.
+Point Claude Code, Cursor, Antigravity, Gemini CLI, Codex, or OpenCode at a target.
 Pick architecture review, threat modeling, SAST, and the rest of the catalog.
 Browse every result in a local dashboard — `secfoo serve`, on your machine.
 

@@ -106,6 +106,7 @@ class AgentId(str, Enum):
     CODEX = "codex"
     DROID = "droid"
     DEVIN = "devin"
+    OPENCODE = "opencode"
 
 
 class DepthId(str, Enum):

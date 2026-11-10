@@ -7,7 +7,7 @@ from secfoo.agents.registry import ADAPTERS, get_adapter
 
 MODEL_FLAGS = {
     "claude": "--model", "codex": "--model", "gemini": "--model",
-    "copilot": "--model", "agent": "--model", "droid": "-m",
+    "copilot": "--model", "agent": "--model", "droid": "-m", "opencode": "-m",
 }
 
 

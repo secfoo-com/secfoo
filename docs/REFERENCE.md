@@ -501,7 +501,7 @@ full reference, including remote HTTP/SSE servers.
 that invocation without changing any CLI global settings. Use the registered
 agent ID (`agent` for Cursor, `agy` for Antigravity). Model IDs must be
 non-empty strings. Claude, Codex, Gemini, Copilot and Cursor receive `--model`;
-Droid receives `-m`. Antigravity and Devin currently warn and ignore model
+Droid and OpenCode receive `-m`. Antigravity and Devin currently warn and ignore model
 selection because no supported model flag is established for these adapters.
 The `api` agent uses the selected model ahead of `SECFOO_API_MODEL`, then its
 existing built-in default. With no selection, CLI commands remain unchanged.

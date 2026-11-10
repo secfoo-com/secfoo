@@ -95,6 +95,7 @@ class AgentAdapter(ABC):
     # line one. Only enable this for CLIs whose non-interactive mode
     # documents reading the prompt from stdin.
     prompt_via_stdin: ClassVar[bool] = False
+    extra_env: ClassVar[dict[str, str]] = {}
 
     model: str | None = None
     model_flag: ClassVar[str | None] = None
@@ -195,6 +196,7 @@ class AgentAdapter(ABC):
                 encoding="utf-8",
                 errors="replace",
                 start_new_session=True,
+                **({"env": {**os.environ, **self.extra_env}} if self.extra_env else {}),
             )
         except OSError as exc:
             return AgentResult(
