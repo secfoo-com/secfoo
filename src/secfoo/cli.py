@@ -125,6 +125,7 @@ class FailOn(str, Enum):
 # scan worked and the policy gate failed" without parsing output.
 EXIT_RUN_FAILED = 1
 EXIT_GATE_FAILED = 2
+EXIT_COST_EXCEEDED = 3
 
 _SEVERITY_ORDER = ("critical", "high", "medium", "low")
 
@@ -286,7 +287,8 @@ def run(
     Multiple --skill flags run concurrently, not one after another.
 
     Exit codes: 0 success, 1 a run failed/timed out, 2 all runs succeeded
-    but a --fail-on / --max-cost gate tripped.
+    but the --fail-on gate tripped, 3 all runs succeeded but the --max-cost
+    gate tripped.
     """
     for url in confluence:
         if not url.strip().lower().startswith(("http://", "https://")):
@@ -426,9 +428,14 @@ def run(
             # as passed but surface unpriced_runs so CI can decide otherwise.
             "passed": total_cost is None or total_cost <= max_cost,
         }
-    gate_failed = (gate_findings is not None and not gate_findings["passed"]) or (
-        gate_cost is not None and not gate_cost["passed"]
-    )
+    if any_failed:
+        exit_code = EXIT_RUN_FAILED
+    elif gate_cost is not None and not gate_cost["passed"]:
+        exit_code = EXIT_COST_EXCEEDED
+    elif gate_findings is not None and not gate_findings["passed"]:
+        exit_code = EXIT_GATE_FAILED
+    else:
+        exit_code = 0
 
     if json_output:
         document = {
@@ -460,7 +467,7 @@ def run(
             "unpriced_runs": unpriced_runs,
             "gates": {"findings": gate_findings, "cost": gate_cost},
             "any_run_failed": any_failed,
-            "exit_code": EXIT_RUN_FAILED if any_failed else (EXIT_GATE_FAILED if gate_failed else 0),
+            "exit_code": exit_code,
         }
         # Plain print, not rich: the document must be byte-exact JSON.
         print(json.dumps(document, indent=2))
@@ -503,10 +510,8 @@ def run(
             )
         console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
 
-    if any_failed:
-        raise typer.Exit(code=EXIT_RUN_FAILED)
-    if gate_failed:
-        raise typer.Exit(code=EXIT_GATE_FAILED)
+    if exit_code:
+        raise typer.Exit(code=exit_code)
 
 
 @app.command(name="list")

@@ -473,8 +473,9 @@ def test_max_cost_trips_when_summed_spend_exceeds_cap(monkeypatch):
         "secfoo.cli.execute_runs",
         lambda **kw: [_priced_outcome(cost=0.80, skill="sast"), _priced_outcome(cost=0.70, skill="sca")],
     )
-    result = runner.invoke(app, ["run", "--skill", "sast", "--max-cost", "1.00"])
-    assert result.exit_code == 2
+    result = runner.invoke(app, ["run", "--skill", "sast", "--max-cost", "1.00", "--json"])
+    assert result.exit_code == 3
+    assert json.loads(result.stdout)["exit_code"] == 3
 
 
 def test_max_cost_passes_under_cap(monkeypatch):
