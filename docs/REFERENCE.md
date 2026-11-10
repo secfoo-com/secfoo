@@ -416,12 +416,14 @@ secfoo run --skill sast --skill secret-scanning --agent api --target . \
 | Flag | Effect |
 |---|---|
 | `--fail-on critical\|high\|medium\|low` | Exit `2` if any run reports a finding at that severity or worse. Counts come from the report contract's `### [SEVERITY] Fn:` headings, not from prose. |
-| `--max-cost <usd>` | Exit `2` if the summed agent-reported spend for this invocation exceeds the cap. Evaluated after the runs complete. |
+| `--max-cost <usd>` | Exit `3` if the summed agent-reported spend for this invocation exceeds the cap. Evaluated after the runs complete. |
 | `--json` | Write one JSON document to stdout (per-skill status, severity counts, tokens, USD, gate verdicts, resolved exit code); progress and notes go to stderr. Also suppresses the interactive project-name prompt. |
 
 Exit codes: `0` clean, `1` a run failed or timed out (gate verdicts are
 still reported in the JSON but a partial scan never passes), `2` all runs
-succeeded but a gate tripped. Config-file defaults: `[defaults].fail_on`
+succeeded but the findings gate tripped, `3` all runs succeeded but the cost
+gate tripped. If both gates trip, `3` takes precedence so CI can distinguish
+budget overruns. Config-file defaults: `[defaults].fail_on`
 and `[defaults].max_cost_usd`.
 
 Cost provenance: `api`/`secfoo` take LiteLLM's `completion_cost`, `claude`
