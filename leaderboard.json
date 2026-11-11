@@ -1,0 +1,182 @@
+{
+  "repo": "secfoo-com/secfoo",
+  "generated_at": "2026-11-11T19:54:36Z",
+  "since": null,
+  "points": {
+    "hard": 10,
+    "medium": 6,
+    "low": 3
+  },
+  "levels": [
+    {
+      "name": "Level 1",
+      "min_points": 100
+    },
+    {
+      "name": "Level 2",
+      "min_points": 50
+    },
+    {
+      "name": "Level 3",
+      "min_points": 25
+    }
+  ],
+  "contributors": [
+    {
+      "login": "vsn411",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 18,
+      "awards": [],
+      "rank": 1,
+      "level": null
+    },
+    {
+      "login": "AmirNCI",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 7,
+      "awards": [],
+      "rank": 2,
+      "level": null
+    },
+    {
+      "login": "karthickmk2001",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 6,
+      "awards": [],
+      "rank": 3,
+      "level": null
+    },
+    {
+      "login": "Varunpoojari",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 6,
+      "awards": [],
+      "rank": 4,
+      "level": null
+    },
+    {
+      "login": "dbdefault",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 3,
+      "awards": [],
+      "rank": 5,
+      "level": null
+    },
+    {
+      "login": "kushaldave002",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 3,
+      "awards": [],
+      "rank": 6,
+      "level": null
+    },
+    {
+      "login": "AdithKB",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 2,
+      "awards": [],
+      "rank": 7,
+      "level": null
+    },
+    {
+      "login": "geet038",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [],
+      "rank": 8,
+      "level": null
+    },
+    {
+      "login": "Melwinjoel20",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [],
+      "rank": 9,
+      "level": null
+    }
+  ],
+  "awards": [],
+  "needs_difficulty": [
+    {
+      "pr": 65,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
+      "issue": 50,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
+      "issue_title": "Docs: per-agent setup and troubleshooting guide",
+      "contributor": "dbdefault",
+      "merged_at": "2026-11-10T17:11:30Z"
+    },
+    {
+      "pr": 64,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
+      "issue": 48,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
+      "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
+      "contributor": "dbdefault",
+      "merged_at": "2026-11-10T16:59:26Z"
+    },
+    {
+      "pr": 63,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/63",
+      "issue": 49,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/49",
+      "issue_title": "New agent adapter: add support for another coding-agent CLI",
+      "contributor": "dbdefault",
+      "merged_at": "2026-11-10T16:57:25Z"
+    },
+    {
+      "pr": 59,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
+      "issue": 46,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
+      "issue_title": "SARIF output for `secfoo findings export`",
+      "contributor": "kushaldave002",
+      "merged_at": "2026-11-08T23:25:19Z"
+    }
+  ]
+}
