@@ -27,7 +27,12 @@ from secfoo.skills.renderer import (
 )
 from secfoo.storage.repository import RunRepository
 
-runner = CliRunner()
+runner = CliRunner(env={"COLUMNS": "300"})  # wide, so rich doesn't wrap paths in CI
+
+
+def _out(result) -> str:
+    """CLI output with whitespace collapsed, so line wrapping can't split a phrase."""
+    return " ".join(result.output.split())
 
 
 def _skill(folder: Path, skill_id: str, *, extra: str = "", body: str = "Review the GraphQL resolvers.") -> Path:
@@ -124,7 +129,7 @@ def test_malformed_user_skill_is_skipped_and_the_cli_keeps_working(home, content
     assert any(reason in p for p in loader.load_problems())
     result = runner.invoke(app, ["skills", "list"])
     assert result.exit_code == 0, result.output
-    assert "good-skill" in result.output and reason in result.output
+    assert "good-skill" in _out(result) and reason in _out(result)
 
 
 def test_a_broken_builtin_still_fails_hard(tmp_path, monkeypatch):
@@ -257,13 +262,13 @@ def test_run_skill_file_errors_are_reported(tmp_path, monkeypatch):
     bad.write_text("nope", encoding="utf-8")
     monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
     result = runner.invoke(app, ["run", "--skill-file", str(bad)])
-    assert result.exit_code == 1 and "missing frontmatter" in result.output
+    assert result.exit_code == 1 and "missing frontmatter" in _out(result)
 
 
 def test_run_needs_a_skill(monkeypatch):
     monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
     result = runner.invoke(app, ["run"])
-    assert result.exit_code == 2 and "--skill or --skill-file" in result.output
+    assert result.exit_code == 2 and "--skill or --skill-file" in _out(result)
 
 
 def test_skills_new_scaffolds_a_valid_skill(home):
@@ -285,27 +290,27 @@ def test_skills_validate_reports_problems_with_a_nonzero_exit(tmp_path):
                                                      encoding="utf-8")
     result = runner.invoke(app, ["skills", "validate", str(tmp_path / "repo")])
     assert result.exit_code == 1
-    assert "ok  fine-skill" in result.output
-    assert "missing frontmatter" in result.output and "'sast' is already used by" in result.output
+    assert "ok fine-skill" in _out(result)
+    assert "missing frontmatter" in _out(result) and "'sast' is already used by" in _out(result)
 
 
 def test_bundled_examples_validate():
     examples = Path(__file__).resolve().parents[1] / "examples" / "skills"
     result = runner.invoke(app, ["skills", "validate", str(examples)])
     assert result.exit_code == 0, result.output
-    assert "2 valid, 0 problem(s)" in result.output
+    assert "2 valid, 0 problem(s)" in _out(result)
 
 
 def test_skills_show_prints_the_rendered_prompt(home, tmp_path):
     _skill(home / "skills", "graphql-review")
     result = runner.invoke(app, ["skills", "show", "graphql-review", "--target", str(tmp_path)])
     assert result.exit_code == 0
-    assert "Review the GraphQL resolvers." in result.output and str(tmp_path.resolve()) in result.output
+    assert "Review the GraphQL resolvers." in _out(result) and str(tmp_path.resolve()) in result.output
 
 
 def test_skills_list_shows_source_and_output(home):
     _skill(home / "skills", "django-sast", extra="output: sast\n")
-    result = runner.invoke(app, ["skills", "list"], env={"COLUMNS": "250"})
+    result = runner.invoke(app, ["skills", "list"])
     assert result.exit_code == 0
     line = next(line for line in result.output.splitlines() if "django-sast" in line)
     assert "user" in line and "sast" in line
