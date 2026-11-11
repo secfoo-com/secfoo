@@ -148,5 +148,12 @@ PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security issues go through
 [SECURITY.md](SECURITY.md), not a public issue.
 
+Hackathon? Issues tagged [`hackathon`](https://github.com/secfoo-com/secfoo/issues?q=is%3Aopen+label%3Ahackathon)
+are open for contribution, and merged PRs earn points on the
+[contributor leaderboard](https://github.com/secfoo-com/secfoo/blob/leaderboard/LEADERBOARD.md)
+(10 / 6 / 3 for hard / medium / low issues; levels at 25, 50 and 100).
+
+<a href="https://github.com/secfoo-com/secfoo/blob/leaderboard/LEADERBOARD.md"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsecfoo-com%2Fsecfoo%2Fleaderboard%2Fbadge.json" alt="Hackathon leaderboard"></a>
+
 Choose a model for one assessment with `secfoo run --skill sast --agent claude --model <model-id>`,
 or set a per-agent default in [configuration](docs/REFERENCE.md#configuration-secfooconfigtoml).

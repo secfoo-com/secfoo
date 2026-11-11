@@ -43,6 +43,39 @@ fine with the generic activity page (`activities/detail.html`).
 - Explain the *why* in the PR description, not just the what — what
   broke, or what was missing, that this fixes.
 
+## Hackathon points
+
+Merged PRs earn points on the
+[contributor leaderboard](https://github.com/secfoo-com/secfoo/blob/leaderboard/LEADERBOARD.md),
+based on the difficulty of the issue they close:
+
+| Issue label          | Points |
+|----------------------|-------:|
+| `difficulty: hard`   |     10 |
+| `difficulty: medium` |      6 |
+| `difficulty: low`    |      3 |
+
+| Level   | Points needed |
+|---------|--------------:|
+| Level 1 |           100 |
+| Level 2 |            50 |
+| Level 3 |            25 |
+
+How it works:
+
+- Maintainers put one `difficulty:` label on every issue. Issues without
+  one carry `needs difficulty` until that's done; if you pick one up, ask
+  for a difficulty in the issue before you start so you know its value.
+- Link the issue from your PR (`Fixes #123` in the description, or the
+  "Development" sidebar). Only issues GitHub records as closed by the
+  merged PR are scored. A PR that closes several issues scores each one.
+- Each issue is scored once, for the first merged PR that closes it.
+- The board is rebuilt from scratch after every merge and every label
+  change, so an issue labelled after your PR merged still counts. The
+  workflow leaves a comment on your PR with the points it earned.
+- Scoring lives in `scripts/leaderboard.py`; the rules above are the
+  constants at the top of that file.
+
 ## Reporting bugs
 
 Open a GitHub issue with the exact command you ran, what you expected,

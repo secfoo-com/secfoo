@@ -1,0 +1,61 @@
+name: Issue difficulty
+
+# Every issue needs a `difficulty: hard|medium|low` label so that the PR
+# closing it can be scored on the leaderboard. This workflow creates those
+# labels if they're missing and marks any issue that lacks one with
+# `needs difficulty`, so untriaged issues are easy to find:
+# https://github.com/secfoo-com/secfoo/issues?q=is:open+label:"needs+difficulty"
+
+on:
+  issues:
+    types: [opened, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Flag every open issue that has no difficulty label"
+        type: boolean
+        default: true
+
+permissions: read-all
+
+jobs:
+  triage:
+    name: Check difficulty label
+    # Ignore the events this workflow causes itself (adding/removing
+    # `needs difficulty`), so it can't loop.
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name != 'needs difficulty'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Ensure the labels exist
+        run: |
+          gh label create "difficulty: hard"   --force --color b60205 --description "Leaderboard: 10 points when the PR closing this is merged"
+          gh label create "difficulty: medium" --force --color d93f0b --description "Leaderboard: 6 points when the PR closing this is merged"
+          gh label create "difficulty: low"    --force --color 0e8a16 --description "Leaderboard: 3 points when the PR closing this is merged"
+          gh label create "needs difficulty"   --force --color fbca04 --description "Maintainer: add difficulty: hard, medium or low so this can be scored"
+
+      - name: Flag or clear this issue
+        if: github.event_name == 'issues'
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -qiE '^difficulty'; then
+            gh issue edit "$ISSUE" --remove-label "needs difficulty" || true
+          else
+            gh issue edit "$ISSUE" --add-label "needs difficulty"
+          fi
+
+      - name: Backfill open issues
+        if: github.event_name == 'workflow_dispatch' && inputs.backfill
+        run: |
+          gh issue list --state open --limit 500 --json number,labels \
+            --jq '.[] | select(([.labels[].name] | map(test("^difficulty"; "i")) | any) | not) | .number' \
+          | while read -r number; do
+              echo "#$number needs a difficulty label"
+              gh issue edit "$number" --add-label "needs difficulty"
+            done
