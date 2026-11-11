@@ -42,6 +42,19 @@
     <span class="stat-card__value{% if sca_dash.reachability_counts.reachable %} u-color-error{% endif %}">{{ sca_dash.reachability_counts.reachable }}</span>
     <span class="stat-card__label">Reachable</span>
   </div>
+  {% if sca_dash.has_runtime_data %}
+  {% set runtime_confirmed = sca_dash.runtime_reached_count + sca_dash.runtime_executed_count %}
+  <div class="stat-card has-info{% if sca_dash.runtime_conflict_count %} stat-card--error u-border-t-error{% endif %}" id="runtime-confirmed">
+    {% call info_tip("Runtime-confirmed reachable") %}
+    <p>Vulnerabilities whose vulnerable code actually ran in a deployed app, from a runtime sensor or an imported coverage file.</p>
+    <p><strong>Reached from traffic</strong> means it ran while handling a request. <strong>Executed</strong> means it ran, with no request context.</p>
+    {% endcall %}
+    <span class="stat-card__value{% if sca_dash.runtime_conflict_count %} u-color-error{% endif %}">{{ runtime_confirmed }}</span>
+    <span class="stat-card__label">
+      Runtime-confirmed reachable: {{ sca_dash.runtime_reached_count }} reached from traffic, {{ sca_dash.runtime_executed_count }} executed{% if sca_dash.runtime_conflict_count %}. <strong>{{ sca_dash.runtime_conflict_count }} contradict{{ "s" if sca_dash.runtime_conflict_count == 1 }} a static "Not reachable"</strong>{% endif %}
+    </span>
+  </div>
+  {% endif %}
   <div class="stat-card has-info">
     {% call info_tip("Unrecognized ecosystem") %}
     <p>Findings whose package ecosystem OSV.dev does not recognize, so they could not be checked against a known advisory.</p>

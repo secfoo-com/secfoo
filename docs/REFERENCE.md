@@ -408,6 +408,25 @@ finding, symbol and route, with a foreign key to `sca_findings`) and
 live in `secfoo/runtime/evidence.py` (`ingest_events`), which the live
 ingest API will reuse.
 
+**In the dashboard.** Once a project has runtime data, the SCA
+vulnerabilities list gets a **Runtime** column. Each finding shows the
+strongest state seen across the projects it affects:
+
+| State | Meaning |
+|---|---|
+| Reached from traffic | A watched symbol ran while handling a request route (shows route, auth state and hits). |
+| Executed | It ran, with no request context (startup, a job, or no route). |
+| Loaded | The package was in memory, but no watched symbol was called. Flags version drift when the loaded version differs from the scanned one. |
+| Not loaded / Not observed | Sessions exist, nothing was seen for this finding. Always shown with the coverage % and observation time. |
+| No runtime data | No sensor or coverage import for the project. |
+
+A finding the static scan rated **Not reachable** whose code was Executed or
+Reached is highlighted as a conflict. The vulnerability page shows sessions,
+routes, entry frames and stack samples. The SCA overview counts
+runtime-confirmed findings, but only once there is runtime data.
+
+![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.
