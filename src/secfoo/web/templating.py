@@ -38,6 +38,34 @@ def _sidebar_activities() -> list[dict[str, str]]:
     ]
 
 
+def custom_skill_groups() -> list[dict]:
+    """Custom skills (#79) for the sidebar, grouped by their `category`
+    (uncategorised ones last, under "Custom")."""
+    groups: dict[str, list[dict[str, str]]] = {}
+    for skill in load_all_skills().values():
+        if not skill.is_builtin:
+            groups.setdefault(skill.category or "", []).append({"id": skill.id, "label": skill.nav_label})
+    ordered = sorted(groups.items(), key=lambda item: (item[0] == "", item[0].lower()))
+    return [
+        {"label": category or "Custom", "skills": sorted(items, key=lambda s: s["label"].lower())}
+        for category, items in ordered
+    ]
+
+
+class _Lazy:
+    """A template global re-evaluated on every render, so skills added to
+    ~/.secfoo/skills appear in a running `secfoo serve` without a restart."""
+
+    def __init__(self, fn) -> None:
+        self._fn = fn
+
+    def __iter__(self):
+        return iter(self._fn())
+
+    def __bool__(self) -> bool:
+        return bool(self._fn())
+
+
 # Curated presentation order for skill lists (dashboard coverage panel,
 # project activity table). Deliberately workflow order, not alphabetical:
 # understand the design, model the threats, then hunt concrete defects in
@@ -274,7 +302,8 @@ def active_run_count() -> int:
         return 0
 
 
-templates.env.globals["sidebar_activities"] = _sidebar_activities()
+templates.env.globals["sidebar_activities"] = _Lazy(_sidebar_activities)
+templates.env.globals["sidebar_custom_skills"] = _Lazy(custom_skill_groups)
 templates.env.globals["breadcrumbs"] = breadcrumbs
 templates.env.globals["active_run_count"] = active_run_count
 

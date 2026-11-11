@@ -81,7 +81,13 @@ CREATE TABLE IF NOT EXISTS runs (
     -- Memory Bank: JSON list of the paths an incremental scan covered (files
     -- sent plus files deleted). NULL means a full scan. Findings lifecycle
     -- only closes findings inside this set for an incremental run.
-    scan_scope        TEXT
+    scan_scope        TEXT,
+    -- #79: which definition text produced this report. Custom skills change
+    -- over time, so version alone isn't enough: sha256 is a hash of the
+    -- skill's Markdown file. NULL for runs from before these existed.
+    skill_version     INTEGER,
+    skill_source      TEXT,   -- builtin / user
+    skill_sha256      TEXT
 );
 
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other

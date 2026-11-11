@@ -30,7 +30,7 @@
         {% for s in skills %}
         <label class="skill-card">
           <input type="checkbox" name="skill" value="{{ s.id }}">
-          <span class="skill-card__name">{{ s.nav_label }}</span>
+          <span class="skill-card__name">{{ s.nav_label }}{% if not s.is_builtin %} <span class="badge badge--teal" title="Custom skill{% if s.path %} from {{ s.path }}{% endif %}">Custom</span>{% endif %}</span>
           <span class="skill-card__desc" title="{{ s.description }}">{{ s.description }}</span>
         </label>
         {% endfor %}

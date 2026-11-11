@@ -48,3 +48,7 @@ jobs:
 
       - name: Test (secfoo core)
         run: pytest tests
+
+      - name: Validate example custom skills
+        # Same check a team's own skills repo would run (docs/SKILLS.md).
+        run: secfoo skills validate examples/skills

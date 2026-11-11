@@ -894,6 +894,10 @@ def render_prompt(
         sections.append(confluence)
     if memory_enabled:
         sections.append(_memory_section(stack, depth))
-    contract = SKILL_OUTPUT_CONTRACTS.get(skill.id)
+    # A custom skill with `output: sast` gets the SAST contract (#79), so its
+    # report parses into the same findings lifecycle. The safety preamble,
+    # target, depth and contract always wrap a custom skill's body: it can
+    # add instructions but can't remove these.
+    contract = SKILL_OUTPUT_CONTRACTS.get(skill.output_type)
     sections.append(contract or OUTPUT_CONTRACT.format(skill_name=skill.name))
     return "\n\n".join(sections)

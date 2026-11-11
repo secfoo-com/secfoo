@@ -189,6 +189,7 @@ def update_sast_findings(
     workdir: Path | None = None,
     stack: Stack | None = None,
     scan_scope: list[str] | None = None,
+    close_stale: bool = True,
 ) -> None:
     """Matches this run's Findings Register against the project's
     currently-open sast_findings rows by fingerprint (report/sast.py),
@@ -252,13 +253,14 @@ def update_sast_findings(
 
     # scan_scope (Memory Bank incremental scan): only findings in files this
     # run actually looked at can be closed; everything else stays as it was.
-    repo.close_stale_sast_findings(
-        project_id=project_id,
-        run_id=run_id,
-        seen_fingerprints=seen_fingerprints,
-        closed_at=_closed_now(),
-        only_files=scan_scope,
-    )
+    if close_stale:
+        repo.close_stale_sast_findings(
+            project_id=project_id,
+            run_id=run_id,
+            seen_fingerprints=seen_fingerprints,
+            closed_at=_closed_now(),
+            only_files=scan_scope,
+        )
 
 
 def update_sca_findings(
@@ -269,6 +271,7 @@ def update_sca_findings(
     report_text: str,
     stack: Stack | None = None,
     scan_scope: list[str] | None = None,
+    close_stale: bool = True,
 ) -> None:
     """update_sast_findings' lifecycle for the SCA Risk Register."""
     seen_fingerprints = []
@@ -292,10 +295,11 @@ def update_sca_findings(
             **_stack_fields(stack, language_for_ecosystem(row.get("ecosystem"))),
         )
         seen_fingerprints.append(row["fingerprint"])
-    repo.close_stale_findings(
-        SCA_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
-        closed_at=_closed_now(), only_files=scan_scope,
-    )
+    if close_stale:
+        repo.close_stale_findings(
+            SCA_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
+            closed_at=_closed_now(), only_files=scan_scope,
+        )
 
 
 def update_secret_findings(
@@ -307,6 +311,7 @@ def update_secret_findings(
     workdir: Path | None = None,
     stack: Stack | None = None,
     scan_scope: list[str] | None = None,
+    close_stale: bool = True,
 ) -> None:
     """update_sast_findings' lifecycle for the Secret Scanning register."""
     seen_fingerprints = []
@@ -330,10 +335,11 @@ def update_secret_findings(
             **_stack_fields(stack, language_for_path(row["location_file"])),
         )
         seen_fingerprints.append(row["fingerprint"])
-    repo.close_stale_findings(
-        SECRET_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
-        closed_at=_closed_now(), only_files=scan_scope,
-    )
+    if close_stale:
+        repo.close_stale_findings(
+            SECRET_SKILL_ID, project_id=project_id, run_id=run_id, seen_fingerprints=seen_fingerprints,
+            closed_at=_closed_now(), only_files=scan_scope,
+        )
 
 
 def _mark_run_crashed(repo: RunRepository, run_uuid: str, *, duration_seconds: float) -> None:
@@ -367,25 +373,32 @@ def update_structured_findings(
     workdir: Path | None = None,
     stack: Stack | None = None,
     scan_scope: list[str] | None = None,
+    close_stale: bool = True,
 ) -> None:
     """Dispatches one successful run's report to its skill's findings
     lifecycle (a no-op for skills without one). The single entry point both
     callers use -- _run_single_skill after a local run, and
     portal/routes/ingest.py after a pushed one (no workdir there, so no
-    region hashes or framework detection)."""
+    region hashes or framework detection).
+
+    `skill_id` is the OUTPUT type: a custom skill with `output: sast` (#79)
+    passes "sast" here, with close_stale=False -- its report covers only
+    what that custom review looked at, so it must never close findings
+    the built-in scan recorded."""
     if skill_id == SAST_SKILL_ID:
         update_sast_findings(
             repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack,
-            scan_scope=scan_scope,
+            scan_scope=scan_scope, close_stale=close_stale,
         )
     elif skill_id == SCA_SKILL_ID:
         update_sca_findings(
-            repo, project_id=project_id, run_id=run_id, report_text=report_text, stack=stack, scan_scope=scan_scope
+            repo, project_id=project_id, run_id=run_id, report_text=report_text, stack=stack, scan_scope=scan_scope,
+            close_stale=close_stale,
         )
     elif skill_id == SECRET_SKILL_ID:
         update_secret_findings(
             repo, project_id=project_id, run_id=run_id, report_text=report_text, workdir=workdir, stack=stack,
-            scan_scope=scan_scope,
+            scan_scope=scan_scope, close_stale=close_stale,
         )
 
 
@@ -438,6 +451,9 @@ def _run_single_skill(
             confluence_urls=confluence_urls,
             assessment_id=assessment_id,
             model=model,
+            skill_version=skill.version,
+            skill_source="builtin" if skill.is_builtin else "user",
+            skill_sha256=skill.sha256 or None,
         )
         started = time.monotonic()
 
@@ -503,20 +519,22 @@ def _run_single_skill(
 
         if result.status == "success":
             _try_cloud_sync(repo, run_uuid)
-            if skill.id == SCA_SKILL_ID:
+            output_type = skill.output_type  # #79: a custom skill may reuse a built-in's lifecycle
+            if output_type == SCA_SKILL_ID:
                 _try_osv_enrich(repo, report_text)
-            if skill.id in STRUCTURED_FINDINGS_SKILLS:
+            if output_type in STRUCTURED_FINDINGS_SKILLS:
                 try:
                     completed_run = repo.get_run(run_uuid)
                     update_structured_findings(
                         repo,
-                        skill_id=skill.id,
+                        skill_id=output_type,
                         project_id=project_id,
                         run_id=completed_run.id,
                         report_text=report_text,
                         workdir=target_ctx.local_path,
                         stack=stack,
                         scan_scope=result.scan_scope,
+                        close_stale=skill.is_builtin,
                     )
                 except Exception:
                     logger.exception("Failed to update %s finding lifecycle for run %s", skill.id, run_uuid)
