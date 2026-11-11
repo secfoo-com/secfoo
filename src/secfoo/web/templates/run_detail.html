@@ -38,6 +38,9 @@
     <div class="receipt">
       <div class="receipt__line"><span>agent</span><span>{{ run.agent_id }}</span></div>
       <div class="receipt__line"><span>skill</span><span>{{ run.skill_id }}</span></div>
+      {% if run.skill_source %}
+      <div class="receipt__line"><span>skill definition</span><span>v{{ run.skill_version }} &middot; {{ "built-in" if run.skill_source == "builtin" else "custom" }}{% if run.skill_sha256 %} &middot; <code title="sha256 of the skill file: {{ run.skill_sha256 }}">{{ run.skill_sha256[:12] }}</code>{% endif %}</span></div>
+      {% endif %}
       <div class="receipt__line"><span>confluence pages</span><span>{{ run.confluence_urls | length }}</span></div>
       <div class="receipt__line"><span>duration</span><span>{{ run.duration_seconds | fmt_duration }}</span></div>
       <div class="receipt__line"><span>exit code</span><span>{{ run.exit_code if run.exit_code is not none else '-' }}</span></div>

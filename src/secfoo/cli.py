@@ -26,7 +26,7 @@ from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
-from secfoo.skills.loader import load_all_skills
+from secfoo.skills.loader import SkillLoadError, load_all_skills, register_skill_file
 from secfoo.skills.renderer import merge_excludes as _merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
@@ -54,6 +54,8 @@ app.add_typer(miss_app, name="miss")
 app.add_typer(accept_app, name="accept")
 app.add_typer(cloud_app, name="cloud")
 app.add_typer(vendor_app, name="vendor")
+skills_app = typer.Typer(name="skills", help="List, create, validate and preview skills, including your own.")
+app.add_typer(skills_app, name="skills")
 console = Console()
 err_console = Console(stderr=True)
 
@@ -191,8 +193,12 @@ _STATUS_STYLE = {
 @app.command()
 def run(
     skill: list[SkillId] = typer.Option(
-        ..., "--skill", "-s", help="Security skill to run. Repeatable."
+        [], "--skill", "-s", help="Security skill to run. Repeatable. Includes custom skills (`secfoo skills list`)."
     ),
+    skill_file: Annotated[list[Path] | None, typer.Option(
+        "--skill-file",
+        help="Run a skill straight from a Markdown definition file, without installing it. Repeatable.",
+    )] = None,
     target: Optional[str] = typer.Option(
         None, "--target", "-t", help="GitHub URL or local directory. Defaults to the current directory."
     ),
@@ -307,6 +313,17 @@ def run(
                 f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway."
             )
 
+    skill_ids = [s.value for s in skill]
+    for path in skill_file or []:
+        try:
+            skill_ids.append(register_skill_file(path).id)
+        except (SkillLoadError, OSError, UnicodeDecodeError) as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+    if not skill_ids:
+        err_console.print("[red]Error:[/] pass at least one --skill or --skill-file.")
+        raise typer.Exit(code=2)
+
     # No --assessment means execute_runs() will auto-create one for this run.
     # On a real terminal, ask for the two fields that make that case file
     # actually trackable later instead of silently falling back to a
@@ -357,7 +374,7 @@ def run(
     # dashboard and CI also call with no terminal to answer.
     if not rescan and _is_interactive() and not json_output:
         try:
-            head, repeats = already_scanned_skills(skill_ids=[s.value for s in skill], target=target)
+            head, repeats = already_scanned_skills(skill_ids=skill_ids, target=target)
         except TargetResolutionError:
             head, repeats = None, []  # execute_runs reports the bad target below
         if head and repeats and not Confirm.ask(
@@ -365,8 +382,8 @@ def run(
             default=False,
             console=console,
         ):
-            skill = [s for s in skill if s.value not in repeats]
-            if not skill:
+            skill_ids = [s for s in skill_ids if s not in repeats]
+            if not skill_ids:
                 console.print("Nothing new to scan. Use --rescan to scan this commit again.")
                 raise typer.Exit(code=0)
 
@@ -398,7 +415,7 @@ def run(
     with progress:
         try:
             outcomes = execute_runs(
-                skill_ids=[s.value for s in skill],
+                skill_ids=skill_ids,
                 target=target,
                 confluence_urls=confluence,
                 agent_id=agent.value,
@@ -1609,6 +1626,123 @@ def runtime_watchlist(
         f"{len(entries)} watchlist entr{'y' if len(entries) == 1 else 'ies'}: {symbol_entries} with symbols, "
         f"{len(entries) - symbol_entries} at package granularity" + (f". Wrote {output}." if output else ".")
     )
+SKILL_TEMPLATE = """\
+---
+# Lowercase kebab-case, unique across built-in and custom skills.
+id: {skill_id}
+name: {name}
+short_name: {short_name}
+description: One sentence on what this review checks.
+version: 1
+# generic (own report) or a built-in id whose report format and findings
+# dashboard to reuse: sast, sca-reachability, secret-scanning, ...
+output: generic
+# Optional sidebar group, e.g. Compliance.
+category:
+---
+
+Describe the review you want, as you would brief a senior reviewer. Name the
+specific risks to look for, where they tend to hide in this kind of codebase,
+and what a good finding looks like.
+
+secfoo adds its own safety rules, the target, depth guidance and the required
+report format around these instructions, so don't restate them here.
+"""
+
+
+def _skill_source_label(skill) -> str:
+    return {"builtin": "built-in", "user": "user", "path": "path", "file": "file"}.get(skill.source, skill.source)
+
+
+@skills_app.command(name="list")
+def skills_list() -> None:
+    """Every skill secfoo can run: built-in and custom, with where each one comes from."""
+    from secfoo.skills.loader import load_problems, user_skill_dirs
+
+    table = Table(show_header=True, header_style="bold")
+    for column in ("id", "name", "version", "source", "output"):
+        table.add_column(column)
+    for skill in sorted(load_all_skills().values(), key=lambda s: (not s.is_builtin, s.id)):
+        source = _skill_source_label(skill)
+        if not skill.is_builtin and skill.path:
+            source = f"{source}: {skill.path}"
+        table.add_row(skill.id, skill.name, str(skill.version), source, skill.output_type)
+    console.print(table)
+    folders = ", ".join(str(folder) for folder, _ in user_skill_dirs())
+    console.print(f"[dim]Custom skills are read from: {folders}[/]")
+    for problem in load_problems():
+        err_console.print(f"[yellow]Warning:[/] {problem}")
+
+
+@skills_app.command(name="new")
+def skills_new(
+    skill_id: Annotated[str, typer.Argument(help="Id for the new skill, e.g. graphql-review.")],
+    force: Annotated[bool, typer.Option("--force", help="Overwrite an existing file.")] = False,
+) -> None:
+    """Scaffold ~/.secfoo/skills/<id>.md from a commented template."""
+    from secfoo.config import STORE_DIR
+    from secfoo.skills.loader import ID_RE, builtin_skills
+
+    if not ID_RE.match(skill_id):
+        err_console.print(f"[red]Error:[/] {skill_id!r} must be lowercase kebab-case, e.g. graphql-review.")
+        raise typer.Exit(code=1)
+    if skill_id in builtin_skills():
+        err_console.print(f"[red]Error:[/] {skill_id!r} is a built-in skill id; pick another.")
+        raise typer.Exit(code=1)
+    path = STORE_DIR / "skills" / f"{skill_id}.md"
+    if path.exists() and not force:
+        err_console.print(f"[red]Error:[/] {path} already exists (use --force to overwrite).")
+        raise typer.Exit(code=1)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    words = skill_id.replace("-", " ")
+    path.write_text(
+        SKILL_TEMPLATE.format(skill_id=skill_id, name=words.title(), short_name=words.title()[:24]),
+        encoding="utf-8",
+    )
+    console.print(f"Created {path}. Edit it, then `secfoo skills validate {path}` and `secfoo run --skill {skill_id}`.")
+
+
+@skills_app.command(name="validate")
+def skills_validate(
+    paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Skill files or folders. Defaults to every configured custom skill folder."),
+    ] = None,
+) -> None:
+    """Check custom skill files: frontmatter, ids, output type. Exits 1 on any problem (for CI)."""
+    from secfoo.skills.loader import user_skill_dirs, validate_files
+
+    targets = list(paths) if paths else [folder for folder, _ in user_skill_dirs() if folder.is_dir()]
+    valid, problems = validate_files(targets)
+    for skill in valid:
+        console.print(f"[green]ok[/]  {skill.id}  ({skill.path})")
+    for problem in problems:
+        err_console.print(f"[red]error[/] {problem}")
+    console.print(f"{len(valid)} valid, {len(problems)} problem(s).")
+    if problems:
+        raise typer.Exit(code=1)
+
+
+@skills_app.command(name="show")
+def skills_show(
+    skill_id: Annotated[str, typer.Argument(help="Skill id (see `secfoo skills list`).")],
+    target: Annotated[
+        Path | None, typer.Option("--target", help="Local folder to render the prompt for. Defaults to cwd.")
+    ] = None,
+    depth: Annotated[DepthId, typer.Option("--depth", "-d")] = DepthId.QUICK,
+) -> None:
+    """Print the full prompt the agent would receive for a skill, without running it."""
+    from secfoo.skills.loader import load_skill
+    from secfoo.skills.renderer import TargetContext, render_prompt
+
+    try:
+        skill = load_skill(skill_id)
+    except SkillLoadError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    workdir = (target or Path.cwd()).resolve()
+    context = TargetContext(kind="local", local_path=workdir, display_source=str(workdir))
+    sys.stdout.write(render_prompt(skill, context, depth=depth.value) + "\n")
 
 
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"

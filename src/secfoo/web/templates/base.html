@@ -36,6 +36,22 @@
         {% endfor %}
       </ul>
 
+      {% if sidebar_custom_skills %}
+      <hr class="sidebar__divider">
+      <span class="sidebar__section-label">Custom skills</span>
+      {% for group in sidebar_custom_skills %}
+      {% if group.label != "Custom" or loop.length > 1 %}<span class="ds-caption sidebar__group-label">{{ group.label }}</span>{% endif %}
+      <ul class="sidebar__nav" data-custom-skills>
+        {% for activity in group.skills %}
+        <li>
+          <a class="sidebar__link" href="/activities/{{ activity.id }}"
+             {% if path == '/activities/' + activity.id or path.startswith('/activities/' + activity.id + '/') %}aria-current="page"{% endif %}>{{ icon("custom-skill", "sidebar__icon", 1.6, 16) }}{{ activity.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+      {% endif %}
+
       <hr class="sidebar__divider">
       <span class="sidebar__section-label">Governance</span>
       <ul class="sidebar__nav">

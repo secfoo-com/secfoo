@@ -72,6 +72,8 @@ class SecfooConfig:
     agent_models: dict[str, str] = field(default_factory=dict)
     # [agents.<id>].max_input_tokens -- pre-flight prompt-size cap (#32).
     agent_max_input_tokens: dict[str, int] = field(default_factory=dict)
+    # [skills] paths -- extra folders of custom skill definitions (#79).
+    skill_paths: list[str] = field(default_factory=list)
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
@@ -152,6 +154,13 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         seen_names.add(name)
         servers.append(_parse_mcp_server(name, entry))
 
+    skills_raw = data.get("skills", {})
+    if not isinstance(skills_raw, dict):
+        raise ConfigError("[skills] must be a table")
+    skill_paths = skills_raw.get("paths", [])
+    if not isinstance(skill_paths, list) or not all(isinstance(p, str) and p.strip() for p in skill_paths):
+        raise ConfigError("skills.paths must be an array of folder paths")
+
     memory_raw = data.get("memory", {})
     if not isinstance(memory_raw, dict):
         raise ConfigError("[memory] must be a table")
@@ -165,4 +174,5 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         memory_enabled=memory_enabled,
         agent_models=agent_models,
         agent_max_input_tokens=agent_max_input_tokens,
+        skill_paths=list(skill_paths),
     )

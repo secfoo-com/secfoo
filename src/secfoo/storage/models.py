@@ -46,6 +46,10 @@ class RunRecord:
     memory_enabled: int | None = None  # 1/0: secfoo-memory tools wired in; NULL = unknown (older run).
     # Memory Bank: paths an incremental scan covered; None = full scan.
     scan_scope: list[str] | None = None
+    # #79: the skill definition that produced this run (NULL on older runs).
+    skill_version: int | None = None
+    skill_source: str | None = None
+    skill_sha256: str | None = None
 
 
 @dataclass(frozen=True)

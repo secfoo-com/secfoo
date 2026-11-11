@@ -5,6 +5,22 @@ import subprocess
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolated_custom_skills(tmp_path_factory, monkeypatch):
+    """Custom skills (#79) load from ~/.secfoo/skills, [skills] paths and
+    SECFOO_SKILLS_PATH. Point all three at nothing so a developer's own
+    skills never leak into the test run, and reset the loader's cache."""
+    from secfoo.skills import loader
+
+    empty_home = tmp_path_factory.mktemp("secfoo-home")
+    monkeypatch.setattr("secfoo.config.STORE_DIR", empty_home)
+    monkeypatch.setattr("secfoo.settings.CONFIG_PATH", empty_home / "config.toml")
+    monkeypatch.delenv(loader.SKILLS_PATH_ENV, raising=False)
+    loader._reset_for_tests()
+    yield empty_home
+    loader._reset_for_tests()
+
+
 class FakePopen:
     """Stand-in for subprocess.Popen used by AgentAdapter.run()."""
 

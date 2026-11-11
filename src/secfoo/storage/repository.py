@@ -80,6 +80,10 @@ _RUNS_MIGRATIONS = {
     "memory_enabled": "ALTER TABLE runs ADD COLUMN memory_enabled INTEGER",
     # Memory Bank: JSON list of paths an incremental scan covered; NULL = full scan.
     "scan_scope": "ALTER TABLE runs ADD COLUMN scan_scope TEXT",
+    # #79: skill version / builtin-or-user / hash of the definition file.
+    "skill_version": "ALTER TABLE runs ADD COLUMN skill_version INTEGER",
+    "skill_source": "ALTER TABLE runs ADD COLUMN skill_source TEXT",
+    "skill_sha256": "ALTER TABLE runs ADD COLUMN skill_sha256 TEXT",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -259,12 +263,17 @@ class RunRepository:
         confluence_urls: list[str],
         assessment_id: int | None = None,
         model: str | None = None,
+        skill_version: int | None = None,
+        skill_source: str | None = None,
+        skill_sha256: str | None = None,
     ) -> str:
         run_uuid = str(uuid.uuid4())
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, "
-            "confluence_urls, status, started_at, model) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)",
-            (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls), _now(), model),
+            "confluence_urls, status, started_at, model, skill_version, skill_source, skill_sha256) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)",
+            (run_uuid, project_id, assessment_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls), _now(),
+             model, skill_version, skill_source, skill_sha256),
         )
         self._conn.commit()
         return run_uuid
