@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T20:44:42Z",
+  "generated_at": "2026-11-11T20:57:21Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -117,6 +117,31 @@
       "level": null
     },
     {
+      "login": "karthickmk2001",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 7,
+      "awards": [
+        {
+          "pr": 86,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/86",
+          "issue": 32,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/32",
+          "issue_title": "api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T20:57:08Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 3,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -126,7 +151,7 @@
       },
       "merged_prs": 19,
       "awards": [],
-      "rank": 3,
+      "rank": 4,
       "level": null
     },
     {
@@ -138,19 +163,6 @@
         "low": 0
       },
       "merged_prs": 7,
-      "awards": [],
-      "rank": 4,
-      "level": null
-    },
-    {
-      "login": "karthickmk2001",
-      "points": 0,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 0
-      },
-      "merged_prs": 6,
       "awards": [],
       "rank": 5,
       "level": null
@@ -209,6 +221,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 86,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/86",
+      "issue": 32,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/32",
+      "issue_title": "api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-11T20:57:08Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 65,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
