@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-11 21:34:09 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-11 21:38:26 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **25** | Bronze | 1 | 2 | 1 | 10 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **25** | Bronze | 1 | 2 | 1 | 11 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 
