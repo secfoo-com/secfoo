@@ -24,6 +24,19 @@ ruff check .
 
 CI runs both on every push and PR, on Python 3.10 and 3.12.
 
+The text parsers (report severities, skill frontmatter, severity filters)
+also have property-based tests in `tests/test_property_parsers.py`
+(Hypothesis, run as part of `pytest tests`) and a coverage-guided fuzz
+harness in `fuzz/fuzz_parsers.py`:
+
+```sh
+pip install atheris
+python fuzz/fuzz_parsers.py -max_total_time=60
+```
+
+If you change one of those parsers, run the harness for a minute before
+opening the PR.
+
 ## Adding or changing a skill
 
 Skills live under `src/secfoo/skills/definitions/*.md` as a prompt
