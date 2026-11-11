@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T20:01:53Z",
+  "generated_at": "2026-11-11T20:02:03Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -23,6 +23,31 @@
   ],
   "contributors": [
     {
+      "login": "kushaldave002",
+      "points": 6,
+      "counts": {
+        "hard": 0,
+        "medium": 1,
+        "low": 0
+      },
+      "merged_prs": 3,
+      "awards": [
+        {
+          "pr": 59,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
+          "issue": 46,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
+          "issue_title": "SARIF output for `secfoo findings export`",
+          "contributor": "kushaldave002",
+          "merged_at": "2026-11-08T23:25:19Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 1,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -32,7 +57,7 @@
       },
       "merged_prs": 18,
       "awards": [],
-      "rank": 1,
+      "rank": 2,
       "level": null
     },
     {
@@ -45,7 +70,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 2,
+      "rank": 3,
       "level": null
     },
     {
@@ -58,7 +83,7 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 3,
+      "rank": 4,
       "level": null
     },
     {
@@ -71,24 +96,11 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 4,
-      "level": null
-    },
-    {
-      "login": "dbdefault",
-      "points": 0,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 0
-      },
-      "merged_prs": 3,
-      "awards": [],
       "rank": 5,
       "level": null
     },
     {
-      "login": "kushaldave002",
+      "login": "dbdefault",
       "points": 0,
       "counts": {
         "hard": 0,
@@ -140,7 +152,19 @@
       "level": null
     }
   ],
-  "awards": [],
+  "awards": [
+    {
+      "pr": 59,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
+      "issue": 46,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
+      "issue_title": "SARIF output for `secfoo findings export`",
+      "contributor": "kushaldave002",
+      "merged_at": "2026-11-08T23:25:19Z",
+      "difficulty": "medium",
+      "points": 6
+    }
+  ],
   "needs_difficulty": [
     {
       "pr": 65,
@@ -168,15 +192,6 @@
       "issue_title": "New agent adapter: add support for another coding-agent CLI",
       "contributor": "dbdefault",
       "merged_at": "2026-11-10T16:57:25Z"
-    },
-    {
-      "pr": 59,
-      "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
-      "issue": 46,
-      "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
-      "issue_title": "SARIF output for `secfoo findings export`",
-      "contributor": "kushaldave002",
-      "merged_at": "2026-11-08T23:25:19Z"
     }
   ]
 }
