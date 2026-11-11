@@ -1,14 +1,14 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-11 21:26:32 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-11 21:26:53 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
-| 2 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 3 | [@karthickmk2001](https://github.com/karthickmk2001) | **3** | — | 0 | 0 | 1 | 7 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **19** | — | 1 | 1 | 1 | 9 |
+| 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
+| 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@AmirNCI](https://github.com/AmirNCI), [@Varunpoojari](https://github.com/Varunpoojari), [@AdithKB](https://github.com/AdithKB), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20).
 
@@ -34,6 +34,8 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#88](https://github.com/secfoo-com/secfoo/pull/88) | [#53](https://github.com/secfoo-com/secfoo/issues/53) Runtime evidence format, storage and `secfoo runtime ingest` | hard | +10 |
+| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#90](https://github.com/secfoo-com/secfoo/pull/90) | [#57](https://github.com/secfoo-com/secfoo/issues/57) Runtime evidence in the SCA dashboard | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#86](https://github.com/secfoo-com/secfoo/pull/86) | [#32](https://github.com/secfoo-com/secfoo/issues/32) api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded | low | +3 |
 | 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#65](https://github.com/secfoo-com/secfoo/pull/65) | [#50](https://github.com/secfoo-com/secfoo/issues/50) Docs: per-agent setup and troubleshooting guide | low | +3 |
 | 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#64](https://github.com/secfoo-com/secfoo/pull/64) | [#48](https://github.com/secfoo-com/secfoo/issues/48) Use a distinct exit code when a run stops at `--max-cost` | low | +3 |

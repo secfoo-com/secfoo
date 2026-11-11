@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T21:26:32Z",
+  "generated_at": "2026-11-11T21:26:53Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -22,6 +22,53 @@
     }
   ],
   "contributors": [
+    {
+      "login": "karthickmk2001",
+      "points": 19,
+      "counts": {
+        "hard": 1,
+        "medium": 1,
+        "low": 1
+      },
+      "merged_prs": 9,
+      "awards": [
+        {
+          "pr": 86,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/86",
+          "issue": 32,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/32",
+          "issue_title": "api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T20:57:08Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 90,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/90",
+          "issue": 57,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/57",
+          "issue_title": "Runtime evidence in the SCA dashboard",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T21:26:43Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 88,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/88",
+          "issue": 53,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/53",
+          "issue_title": "Runtime evidence format, storage and `secfoo runtime ingest`",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T21:26:45Z",
+          "difficulty": "hard",
+          "points": 10
+        }
+      ],
+      "rank": 1,
+      "level": null
+    },
     {
       "login": "kushaldave002",
       "points": 18,
@@ -66,7 +113,7 @@
           "points": 6
         }
       ],
-      "rank": 1,
+      "rank": 2,
       "level": null
     },
     {
@@ -109,31 +156,6 @@
           "issue_title": "Docs: per-agent setup and troubleshooting guide",
           "contributor": "dbdefault",
           "merged_at": "2026-11-10T17:11:30Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 2,
-      "level": null
-    },
-    {
-      "login": "karthickmk2001",
-      "points": 3,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 1
-      },
-      "merged_prs": 7,
-      "awards": [
-        {
-          "pr": 86,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/86",
-          "issue": 32,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/32",
-          "issue_title": "api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded",
-          "contributor": "karthickmk2001",
-          "merged_at": "2026-11-11T20:57:08Z",
           "difficulty": "low",
           "points": 3
         }
@@ -221,6 +243,28 @@
     }
   ],
   "awards": [
+    {
+      "pr": 88,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/88",
+      "issue": 53,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/53",
+      "issue_title": "Runtime evidence format, storage and `secfoo runtime ingest`",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-11T21:26:45Z",
+      "difficulty": "hard",
+      "points": 10
+    },
+    {
+      "pr": 90,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/90",
+      "issue": 57,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/57",
+      "issue_title": "Runtime evidence in the SCA dashboard",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-11T21:26:43Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 86,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/86",
