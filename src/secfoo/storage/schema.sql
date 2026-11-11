@@ -302,3 +302,71 @@ CREATE TABLE IF NOT EXISTS secret_findings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_secret_findings_project_status ON secret_findings(project_id, status);
+
+-- Runtime evidence for SCA findings (#51 / #53): what a probe, sensor or
+-- imported coverage file observed in a running app. Written only by
+-- runtime/evidence.py (`secfoo runtime ingest`, later the live API in #66),
+-- which validates every line first. Never holds argument values, request
+-- bodies, concrete URLs or user identity -- see the design rules in #51.
+--
+-- One row per observation session (a process run, a coverage file).
+-- `session_uuid` is the producer's own id, so re-ingesting the same file
+-- updates rows instead of adding duplicates.
+CREATE TABLE IF NOT EXISTS runtime_sessions (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id             INTEGER NOT NULL REFERENCES projects(id),
+    session_uuid           TEXT NOT NULL,
+    language               TEXT NOT NULL,   -- python / node / jvm / dotnet / go / rust / ruby / php / native
+    runtime                TEXT,            -- runtime version, e.g. "3.12.4"
+    source                 TEXT NOT NULL CHECK (source IN ('sensor','coverage')),
+    app                    TEXT,
+    env                    TEXT,
+    instance               TEXT,
+    sensor_version         TEXT,
+    started_at             TEXT NOT NULL,
+    ended_at               TEXT,
+    app_functions_total    INTEGER,         -- with _executed, the coverage behind any "not observed"
+    app_functions_executed INTEGER,
+    ingested_at            TEXT NOT NULL,
+    UNIQUE (project_id, session_uuid)
+);
+
+-- A watched vulnerable symbol (or package, for package-granularity
+-- watchlist entries) seen during a session, aggregated per route. `route`
+-- is a template ("POST /upload") or job:<name> / startup / unknown, never
+-- a concrete URL; '' when the producer has no request context.
+CREATE TABLE IF NOT EXISTS runtime_evidence (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id          INTEGER NOT NULL REFERENCES projects(id),
+    session_id          INTEGER NOT NULL REFERENCES runtime_sessions(id),
+    finding_fingerprint TEXT NOT NULL,
+    symbol              TEXT NOT NULL,
+    route               TEXT NOT NULL DEFAULT '',
+    auth                TEXT CHECK (auth IS NULL OR auth IN ('anonymous','authenticated')),
+    count               INTEGER NOT NULL CHECK (count > 0),
+    first_seen          TEXT,
+    last_seen           TEXT,
+    entry_frame         TEXT,            -- file:line, app frames only
+    stack_sample        TEXT,            -- JSON array of file:line frames, never locals or arguments
+    FOREIGN KEY (project_id, finding_fingerprint) REFERENCES sca_findings(project_id, fingerprint),
+    UNIQUE (session_id, finding_fingerprint, symbol, route)
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_evidence_finding ON runtime_evidence(project_id, finding_fingerprint);
+
+-- Packages loaded in a running process (#68's inventory), per session, so
+-- "Loaded" can be shown and version drift against the scanned lockfile
+-- detected.
+CREATE TABLE IF NOT EXISTS runtime_packages (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id),
+    session_id  INTEGER NOT NULL REFERENCES runtime_sessions(id),
+    ecosystem   TEXT NOT NULL,
+    package     TEXT NOT NULL,
+    version     TEXT NOT NULL,
+    path        TEXT,
+    first_seen  TEXT,
+    UNIQUE (session_id, ecosystem, package, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_packages_project ON runtime_packages(project_id, ecosystem, package);

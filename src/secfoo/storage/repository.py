@@ -363,6 +363,28 @@ class RunRepository:
         )
         self._conn.commit()
 
+    def resolve_project_ref(self, ref: str) -> int | None:
+        """A project id from what a user would type for `--project`: its
+        numeric id, its identifier (path / repository URL), or its display
+        name. None when nothing matches, or when a display name is shared
+        by several projects (the caller should ask for the id instead)."""
+        ref = ref.strip()
+        if ref.isdigit():
+            row = self._conn.execute("SELECT id FROM projects WHERE id = ?", (int(ref),)).fetchone()
+            if row:
+                return row["id"]
+        found = self.find_project_id(ref)
+        if found is not None:
+            return found
+        rows = self._conn.execute("SELECT id FROM projects WHERE display_name = ?", (ref,)).fetchall()
+        return rows[0]["id"] if len(rows) == 1 else None
+
+    @property
+    def connection(self) -> sqlite3.Connection:
+        """The underlying connection, for modules that own a table group's
+        writes end to end (runtime/evidence.py) and need one transaction."""
+        return self._conn
+
     def find_project_id(self, identifier: str) -> int | None:
         """The id of an existing project, without creating one (unlike
         upsert_project). Used to check for a repeat scan before running."""

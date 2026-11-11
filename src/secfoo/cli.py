@@ -45,6 +45,8 @@ findings_app = typer.Typer(name="findings", help="Query the structured findings 
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(memory_app, name="memory")
 app.add_typer(findings_app, name="findings")
+runtime_app = typer.Typer(name="runtime", help="Runtime evidence for SCA findings (opt-in; see docs/REFERENCE.md).")
+app.add_typer(runtime_app, name="runtime")
 app.add_typer(config_app, name="config")
 app.add_typer(assessment_app, name="assessment")
 app.add_typer(exception_app, name="exception")
@@ -1511,6 +1513,47 @@ def findings_export(
         return
     output.write_text(text, encoding="utf-8")
     err_console.print(f"Wrote {len(records)} finding(s) to {output}.")
+
+
+@runtime_app.command(name="ingest")
+def runtime_ingest(
+    events: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="NDJSON event file.")
+    ],
+    project: str = typer.Option(..., "--project", help="Project id, name, or path/URL it was scanned as."),
+) -> None:
+    """Store runtime evidence (session / load / hit lines) against a project's SCA findings.
+
+    Malformed lines and hits for unknown findings are skipped and listed;
+    the rest of the file is still stored. Ingesting the same file again
+    updates rows rather than double-counting. Exits 1 if any line was skipped.
+    """
+    from secfoo.runtime.evidence import ingest_file
+
+    with RunRepository() as repo:
+        project_id = repo.resolve_project_ref(project)
+        if project_id is None:
+            err_console.print(
+                f"[red]Error:[/] no single project matches {project!r}. "
+                "Use the project id from `secfoo list`, its name, or the path/URL it was scanned as."
+            )
+            raise typer.Exit(code=1)
+        report = ingest_file(repo.connection, project_id, events)
+    console.print(
+        f"Stored {report.sessions} session(s), {report.loads} package load(s), "
+        f"{report.hits} hit(s) from {events}."
+    )
+    if report.unknown_fingerprints:
+        err_console.print(
+            f"[yellow]Warning:[/] {len(report.unknown_fingerprints)} finding fingerprint(s) aren't SCA findings "
+            "of this project, so their hits were skipped. Was the watchlist built for another project?"
+        )
+    for number, reason in report.skipped[:20]:
+        err_console.print(f"  line {number}: {reason}")
+    if len(report.skipped) > 20:
+        err_console.print(f"  ... and {len(report.skipped) - 20} more skipped line(s)")
+    if report.skipped:
+        raise typer.Exit(code=1)
 
 
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
