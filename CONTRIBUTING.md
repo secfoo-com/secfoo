@@ -55,11 +55,11 @@ based on the difficulty of the issue they close:
 | `difficulty: medium` |      6 |
 | `difficulty: low`    |      3 |
 
-| Level   | Points needed |
-|---------|--------------:|
-| Level 1 |           100 |
-| Level 2 |            50 |
-| Level 3 |            25 |
+| Level  | Points needed |
+|--------|--------------:|
+| Gold   |           100 |
+| Silver |            50 |
+| Bronze |            25 |
 
 How it works:
 

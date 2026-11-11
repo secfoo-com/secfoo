@@ -38,13 +38,15 @@ jobs:
           gh label create "difficulty: medium" --force --color d93f0b --description "Leaderboard: 6 points when the PR closing this is merged"
           gh label create "difficulty: low"    --force --color 0e8a16 --description "Leaderboard: 3 points when the PR closing this is merged"
           gh label create "needs difficulty"   --force --color fbca04 --description "Maintainer: add difficulty: hard, medium or low so this can be scored"
+          gh label create "tracking"           --force --color c5def5 --description "Umbrella or announcement issue; not a task, not scored"
 
       - name: Flag or clear this issue
         if: github.event_name == 'issues'
         env:
           ISSUE: ${{ github.event.issue.number }}
         run: |
-          if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -qiE '^difficulty'; then
+          # Tracking/umbrella issues aren't tasks, so they don't need a difficulty.
+          if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -qiE '^(difficulty|tracking$)'; then
             gh issue edit "$ISSUE" --remove-label "needs difficulty" || true
           else
             gh issue edit "$ISSUE" --add-label "needs difficulty"
@@ -54,7 +56,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.backfill
         run: |
           gh issue list --state open --limit 500 --json number,labels \
-            --jq '.[] | select(([.labels[].name] | map(test("^difficulty"; "i")) | any) | not) | .number' \
+            --jq '.[] | select(([.labels[].name] | map(test("^(difficulty|tracking$)"; "i")) | any) | not) | .number' \
           | while read -r number; do
               echo "#$number needs a difficulty label"
               gh issue edit "$number" --add-label "needs difficulty"
