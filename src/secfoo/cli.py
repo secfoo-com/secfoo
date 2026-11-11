@@ -1568,6 +1568,49 @@ def runtime_ingest(
         raise typer.Exit(code=1)
 
 
+@runtime_app.command(name="watchlist")
+def runtime_watchlist(
+    project: Annotated[str, typer.Option("--project", help="Project id, name, or path/URL it was scanned as.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write the watchlist here instead of stdout.")
+    ] = None,
+    ghsa: Annotated[bool, typer.Option(
+        "--ghsa",
+        help="Also ask the GitHub advisory API for vulnerable functions when OSV has none "
+        "(unauthenticated, rate-limited; stops at the first limit).",
+    )] = False,
+) -> None:
+    """Build the vulnerable-function watchlist runtime probes use, from the project's open SCA findings.
+
+    Symbols come from the OSV records already cached by SCA runs (no network
+    by default). Findings with no known symbols are kept at package granularity.
+    """
+    from secfoo.runtime.watchlist import build_watchlist, fetch_github_advisory
+
+    with RunRepository() as repo:
+        project_id = repo.resolve_project_ref(project)
+        if project_id is None:
+            err_console.print(
+                f"[red]Error:[/] no single project matches {project!r}. "
+                "Use the project id from `secfoo list`, its name, or the path/URL it was scanned as."
+            )
+            raise typer.Exit(code=1)
+        document, notes = build_watchlist(repo, project_id, github_fetch=fetch_github_advisory if ghsa else None)
+    text = json.dumps(document, indent=2) + "\n"
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+    entries = document["entries"]
+    symbol_entries = sum(1 for e in entries if e["granularity"] == "symbol")
+    if output is None:
+        sys.stdout.write(text)
+    else:
+        output.write_text(text, encoding="utf-8")
+    err_console.print(
+        f"{len(entries)} watchlist entr{'y' if len(entries) == 1 else 'ies'}: {symbol_entries} with symbols, "
+        f"{len(entries) - symbol_entries} at package granularity" + (f". Wrote {output}." if output else ".")
+    )
+
+
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
 
 
