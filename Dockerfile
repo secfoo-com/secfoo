@@ -10,7 +10,7 @@
 # execute a skill. Without that, this image is still useful standalone for
 # `secfoo serve` / `secfoo list` / `secfoo show` against a mounted
 # ~/.secfoo store from a host-run assessment.
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 # git is required for --target <github-url> (secfoo shells out to
 # `git clone --depth 1`).

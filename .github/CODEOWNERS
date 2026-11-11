@@ -1,0 +1,4 @@
+# Reviewers automatically requested on every PR. Add a second owner here
+# before enabling "require code owner review" in the main ruleset, or the
+# owner's own PRs can never be approved.
+* @vsn411
