@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-11 21:38:26 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-11 21:41:36 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **25** | Bronze | 1 | 2 | 1 | 11 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **31** | Bronze | 1 | 3 | 1 | 12 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 
@@ -34,6 +34,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#91](https://github.com/secfoo-com/secfoo/pull/91) | [#79](https://github.com/secfoo-com/secfoo/issues/79) Custom skills: add your own skills without changing code | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#89](https://github.com/secfoo-com/secfoo/pull/89) | [#52](https://github.com/secfoo-com/secfoo/issues/52) Build a vulnerable-function watchlist from advisories | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#88](https://github.com/secfoo-com/secfoo/pull/88) | [#53](https://github.com/secfoo-com/secfoo/issues/53) Runtime evidence format, storage and `secfoo runtime ingest` | hard | +10 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#90](https://github.com/secfoo-com/secfoo/pull/90) | [#57](https://github.com/secfoo-com/secfoo/issues/57) Runtime evidence in the SCA dashboard | medium | +6 |

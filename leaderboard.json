@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T21:38:26Z",
+  "generated_at": "2026-11-11T21:41:36Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 25,
+      "points": 31,
       "counts": {
         "hard": 1,
-        "medium": 2,
+        "medium": 3,
         "low": 1
       },
-      "merged_prs": 11,
+      "merged_prs": 12,
       "awards": [
         {
           "pr": 86,
@@ -73,6 +73,17 @@
           "issue_title": "Build a vulnerable-function watchlist from advisories",
           "contributor": "karthickmk2001",
           "merged_at": "2026-11-11T21:33:57Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 91,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/91",
+          "issue": 79,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/79",
+          "issue_title": "Custom skills: add your own skills without changing code",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T21:41:26Z",
           "difficulty": "medium",
           "points": 6
         }
@@ -254,6 +265,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 91,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/91",
+      "issue": 79,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/79",
+      "issue_title": "Custom skills: add your own skills without changing code",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-11T21:41:26Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 89,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/89",
