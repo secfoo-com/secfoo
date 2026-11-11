@@ -21,10 +21,12 @@ from secfoo.report.sca import (
     extract_cve_by_dependency_id,
     extract_narrative_by_dependency_id,
     extract_risk_register_rows,
+    findings_with_fingerprints,
     inventory_lookup,
     resolve_ecosystem,
 )
 from secfoo.storage.repository import RunRepository
+from secfoo.web import sca_runtime
 from secfoo.web.dashboard_common import read_report
 
 _read = read_report
@@ -66,6 +68,10 @@ class ScaVulnerability:
     reachability_evidence: str | None = None
     recommendation: str | None = None
     affected_projects: list[dict] = field(default_factory=list)
+    # #57: strongest runtime state across affected projects (each project's
+    # own state is on its affected_projects entry as "runtime").
+    runtime: sca_runtime.RuntimeStatus = field(default_factory=sca_runtime.RuntimeStatus)
+    runtime_conflict: bool = False
 
 
 @dataclass
@@ -80,6 +86,12 @@ class ScaDashboard:
     vulnerabilities_by_key: dict[str, ScaVulnerability] = field(default_factory=dict)
     unmapped_ecosystem_count: int = 0
     osv_unreachable: bool = False
+    # #57: vulnerabilities runtime evidence confirmed, and any where it
+    # contradicts a static "Not reachable".
+    runtime_reached_count: int = 0
+    runtime_executed_count: int = 0
+    runtime_conflict_count: int = 0
+    has_runtime_data: bool = False
 
 
 def _is_worse_reachability(candidate: str, current: str) -> bool:
@@ -113,6 +125,9 @@ def build(repo: RunRepository) -> ScaDashboard:
             continue
 
         inventory_by_package_version = inventory_lookup(text)
+        # The persisted sca_findings fingerprint per Risk Register row, which
+        # runtime evidence (#53) attaches to.
+        fingerprint_by_id = {r["id"]: r["fingerprint"] for r in findings_with_fingerprints(text)}
         cve_by_id = extract_cve_by_dependency_id(text)
         narrative_by_id = extract_narrative_by_dependency_id(text)
 
@@ -130,6 +145,7 @@ def build(repo: RunRepository) -> ScaDashboard:
                     "project_id": project["project_id"],
                     "project_display_name": project["project_display_name"],
                     "dependency_id": row["id"],
+                    "fingerprint": fingerprint_by_id.get(row["id"]),
                     "package": package,
                     "version": version,
                     "issue": row["issue"].strip(),
@@ -210,6 +226,14 @@ def build(repo: RunRepository) -> ScaDashboard:
                 if _is_worse_reachability(finding["reachability"], vuln.reachability):
                     vuln.reachability = finding["reachability"]
 
+            runtime = sca_runtime.status_for(
+                repo.connection,
+                project_id=finding["project_id"],
+                fingerprint=finding["fingerprint"],
+                package=finding["package"],
+                ecosystem=finding["ecosystem_osv"],
+                scanned_version=finding["version"],
+            )
             vuln.affected_projects.append(
                 {
                     "project_id": finding["project_id"],
@@ -218,8 +242,14 @@ def build(repo: RunRepository) -> ScaDashboard:
                     "severity": finding["severity"],
                     "reachability": finding["reachability"],
                     "fixed_in": finding["fixed_in"],
+                    "runtime": runtime,
+                    "runtime_conflict": sca_runtime.is_conflict(finding["reachability"], runtime),
                 }
             )
+
+    for vuln in vulnerabilities.values():
+        vuln.runtime = sca_runtime.strongest([p["runtime"] for p in vuln.affected_projects])
+        vuln.runtime_conflict = any(p["runtime_conflict"] for p in vuln.affected_projects)
 
     dash.vulnerabilities = sorted(
         vulnerabilities.values(),
@@ -249,5 +279,10 @@ def build(repo: RunRepository) -> ScaDashboard:
         "not_reachable": reachability_counter.get("Not reachable", 0),
     }
     dash.ecosystem_counts = ecosystem_counter.most_common()
+
+    dash.runtime_reached_count = sum(1 for v in dash.vulnerabilities if v.runtime.state == "reached")
+    dash.runtime_executed_count = sum(1 for v in dash.vulnerabilities if v.runtime.state == "executed")
+    dash.runtime_conflict_count = sum(1 for v in dash.vulnerabilities if v.runtime_conflict)
+    dash.has_runtime_data = any(v.runtime.state != "none" for v in dash.vulnerabilities)
 
     return dash

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/secfoo-com/secfoo/blob/main/src/secfoo/runtime/evidence.schema.json",
+  "title": "Secfoo runtime evidence event (one NDJSON line)",
+  "description": "One line of a runtime evidence file (#53). secfoo/runtime/evidence.py:validate_event enforces the same rules; tests/test_runtime/test_evidence.py checks the two agree. Unknown fields are allowed for forward compatibility but are never stored.",
+  "oneOf": [
+    {"$ref": "#/$defs/session"},
+    {"$ref": "#/$defs/load"},
+    {"$ref": "#/$defs/hit"}
+  ],
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": "\\S"},
+    "timestamp": {"type": "string", "minLength": 1, "maxLength": 1024, "format": "date-time"},
+    "frame": {
+      "description": "file:line only, never local variables or arguments.",
+      "type": "string",
+      "pattern": "^\\S.*:\\d+$",
+      "maxLength": 1024
+    },
+    "session": {
+      "type": "object",
+      "required": ["type", "id", "language", "source", "started_at"],
+      "properties": {
+        "type": {"const": "session"},
+        "id": {"$ref": "#/$defs/text", "description": "The producer's own session id (a UUID). Re-ingesting the same id updates, never duplicates."},
+        "language": {"enum": ["python", "node", "jvm", "dotnet", "go", "rust", "ruby", "php", "native"]},
+        "runtime": {"$ref": "#/$defs/text", "description": "Runtime version, e.g. 3.12.4."},
+        "source": {"enum": ["sensor", "coverage"]},
+        "app": {"$ref": "#/$defs/text"},
+        "env": {"$ref": "#/$defs/text"},
+        "instance": {"$ref": "#/$defs/text", "description": "Host or pod name."},
+        "sensor_version": {"$ref": "#/$defs/text"},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "ended_at": {"$ref": "#/$defs/timestamp"},
+        "app_functions_total": {"type": "integer", "minimum": 0},
+        "app_functions_executed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "load": {
+      "type": "object",
+      "required": ["type", "session", "ecosystem", "package", "version"],
+      "properties": {
+        "type": {"const": "load"},
+        "session": {"$ref": "#/$defs/text"},
+        "ecosystem": {"$ref": "#/$defs/text", "description": "OSV ecosystem name: PyPI, npm, Maven, NuGet, Go, crates.io, RubyGems, Packagist."},
+        "package": {"$ref": "#/$defs/text"},
+        "version": {"$ref": "#/$defs/text"},
+        "path": {"$ref": "#/$defs/text"},
+        "first_seen": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "hit": {
+      "type": "object",
+      "required": ["type", "session", "finding_fingerprint", "symbol", "count"],
+      "properties": {
+        "type": {"const": "hit"},
+        "session": {"$ref": "#/$defs/text"},
+        "finding_fingerprint": {"$ref": "#/$defs/text", "description": "sca_findings.fingerprint of the project."},
+        "symbol": {"$ref": "#/$defs/text", "description": "Watched symbol in the #52 notation, or the package name for package-granularity entries."},
+        "route": {
+          "description": "Route template ('POST /upload'), job:<name>, startup or unknown. Never a concrete URL.",
+          "type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^[^?#]*$",
+          "not": {"pattern": "://"}
+        },
+        "auth": {"enum": ["anonymous", "authenticated"]},
+        "count": {"type": "integer", "minimum": 1, "description": "The session's running total for this (fingerprint, symbol, route)."},
+        "first_seen": {"$ref": "#/$defs/timestamp"},
+        "last_seen": {"$ref": "#/$defs/timestamp"},
+        "entry_frame": {"$ref": "#/$defs/frame"},
+        "stack_sample": {"type": "array", "maxItems": 50, "items": {"$ref": "#/$defs/frame"}}
+      }
+    }
+  }
+}

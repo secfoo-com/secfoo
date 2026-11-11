@@ -412,3 +412,9 @@ tr.run-row:hover { background-color: var(--color-primary-50); }
 .stride-key { display: inline-flex; align-items: center; gap: var(--space-1); }
 .stride-key__swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; }
 
+
+/* #57: an SCA row whose static verdict is "Not reachable" but whose code ran
+   at runtime -- the case runtime evidence exists to catch. Existing error
+   tokens only, no new colors. */
+.table tr.runtime-conflict > td { background-color: var(--color-error-bg); }
+.table tr.runtime-conflict > td:first-child { box-shadow: inset 3px 0 0 var(--color-error); }

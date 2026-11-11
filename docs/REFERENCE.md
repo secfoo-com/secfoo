@@ -350,6 +350,83 @@ score. CWE tags use `external/cwe/cwe-N`. Findings without a CWE still get a rul
 `--no-locations` removes the same structured location fields as JSONL and omits
 SARIF locations; free-text finding titles and descriptions are not redacted.
 
+### Runtime evidence
+
+Runtime evidence records what a running app actually did with a vulnerable
+dependency: whether it was loaded, whether a watched vulnerable function was
+called, and on which route. It is **opt-in**: nothing produces it unless you
+deploy a probe or sensor, or import a coverage file. Without it, SCA findings
+work exactly as before. Design rules and roadmap: issue #51.
+
+```bash
+secfoo runtime ingest events.ndjson --project payments   # project id, name, or scanned path/URL
+```
+
+`ingest` stores the events against the project's SCA findings. It skips
+malformed lines and hits for unknown findings, lists each one with its line
+number, and still stores the rest; it exits `1` if anything was skipped.
+Ingesting the same file twice updates rows instead of double-counting.
+
+**Event file:** NDJSON, one JSON object per line. A `session` line, then any
+number of `load` and `hit` lines that reference it by `session` id. A later
+file may add hits to a session stored earlier. The JSON Schema is
+[`src/secfoo/runtime/evidence.schema.json`](../src/secfoo/runtime/evidence.schema.json).
+
+```json
+{"type":"session","id":"<uuid>","language":"python","runtime":"3.12.4","source":"sensor","started_at":"2026-11-08T10:00:00Z","ended_at":"2026-11-08T16:00:00Z","app":"payments-api","env":"prod","instance":"pod-1","sensor_version":"0.4.0","app_functions_total":1840,"app_functions_executed":1362}
+{"type":"load","session":"<uuid>","ecosystem":"PyPI","package":"pyyaml","version":"5.3","path":"/app/.venv/lib/python3.12/site-packages/yaml","first_seen":"2026-11-08T10:00:01Z"}
+{"type":"hit","session":"<uuid>","finding_fingerprint":"<sca_findings.fingerprint>","symbol":"yaml.load","route":"POST /upload","auth":"anonymous","count":312,"first_seen":"2026-11-08T10:05:00Z","last_seen":"2026-11-08T15:59:00Z","entry_frame":"app/routes/upload.py:42","stack_sample":["app/routes/upload.py:42","app/services/parse.py:17"]}
+```
+
+| Line | Required | Optional |
+|---|---|---|
+| `session` | `id` (producer's own UUID), `language` (`python` `node` `jvm` `dotnet` `go` `rust` `ruby` `php` `native`), `source` (`sensor` or `coverage`), `started_at` | `runtime`, `ended_at`, `app`, `env`, `instance`, `sensor_version`, `app_functions_total`, `app_functions_executed` |
+| `load` | `session`, `ecosystem` (OSV name), `package`, `version` | `path`, `first_seen` |
+| `hit` | `session`, `finding_fingerprint`, `symbol`, `count` (≥ 1) | `route`, `auth` (`anonymous` or `authenticated`), `first_seen`, `last_seen`, `entry_frame`, `stack_sample` |
+
+- Timestamps are ISO 8601.
+- A hit's `count` is the session's **running total** for its (fingerprint,
+  symbol, route), so a producer can flush the same session repeatedly and
+  the stored value is replaced, never summed.
+- `route` is a template (`POST /upload`), `job:<name>`, `startup` or
+  `unknown`, never a concrete URL. Values with a scheme (`://`), query string
+  or fragment are rejected.
+- `entry_frame` and `stack_sample` (at most 50 frames) are `file:line` frames
+  only. Producers drop frames outside the app (site-packages, node_modules)
+  except the vulnerable function itself.
+- Only the fields above are stored. Anything else on a line is ignored and
+  never written, so argument values, request bodies and headers can't reach
+  the database even if a producer sends them.
+- `app_functions_total` / `app_functions_executed` record how much of the
+  app the observed traffic covered. "Not observed" is always shown with this
+  coverage, never as "not reachable".
+
+**Storage** (in `schema.sql`, added automatically to existing stores):
+`runtime_sessions` (one row per session), `runtime_evidence` (per session,
+finding, symbol and route, with a foreign key to `sca_findings`) and
+`runtime_packages` (loaded inventory per session). Validation and storage
+live in `secfoo/runtime/evidence.py` (`ingest_events`), which the live
+ingest API will reuse.
+
+**In the dashboard.** Once a project has runtime data, the SCA
+vulnerabilities list gets a **Runtime** column. Each finding shows the
+strongest state seen across the projects it affects:
+
+| State | Meaning |
+|---|---|
+| Reached from traffic | A watched symbol ran while handling a request route (shows route, auth state and hits). |
+| Executed | It ran, with no request context (startup, a job, or no route). |
+| Loaded | The package was in memory, but no watched symbol was called. Flags version drift when the loaded version differs from the scanned one. |
+| Not loaded / Not observed | Sessions exist, nothing was seen for this finding. Always shown with the coverage % and observation time. |
+| No runtime data | No sensor or coverage import for the project. |
+
+A finding the static scan rated **Not reachable** whose code was Executed or
+Reached is highlighted as a conflict. The vulnerability page shows sessions,
+routes, entry frames and stack samples. The SCA overview counts
+runtime-confirmed findings, but only once there is runtime data.
+
+![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.
