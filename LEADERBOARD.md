@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-11 20:02:13 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-11 20:02:24 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@dbdefault](https://github.com/dbdefault) | **6** | — | 0 | 1 | 0 | 3 |
+| 1 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **6** | — | 0 | 1 | 0 | 3 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@AmirNCI](https://github.com/AmirNCI), [@karthickmk2001](https://github.com/karthickmk2001), [@Varunpoojari](https://github.com/Varunpoojari), [@AdithKB](https://github.com/AdithKB), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20).
@@ -33,14 +33,11 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#65](https://github.com/secfoo-com/secfoo/pull/65) | [#50](https://github.com/secfoo-com/secfoo/issues/50) Docs: per-agent setup and troubleshooting guide | low | +3 |
+| 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#64](https://github.com/secfoo-com/secfoo/pull/64) | [#48](https://github.com/secfoo-com/secfoo/issues/48) Use a distinct exit code when a run stops at `--max-cost` | low | +3 |
 | 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#63](https://github.com/secfoo-com/secfoo/pull/63) | [#49](https://github.com/secfoo-com/secfoo/issues/49) New agent adapter: add support for another coding-agent CLI | medium | +6 |
 | 2026-11-08 | [@kushaldave002](https://github.com/kushaldave002) | [#59](https://github.com/secfoo-com/secfoo/pull/59) | [#46](https://github.com/secfoo-com/secfoo/issues/46) SARIF output for `secfoo findings export` | medium | +6 |
 
 ## Needs a difficulty label
 
-These merged PRs closed an issue that has no `difficulty:` label, so they haven't been scored. A maintainer adds the label and the next run credits them.
-
-| Merged | Contributor | PR | Issue |
-|---|---|---|---|
-| 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#65](https://github.com/secfoo-com/secfoo/pull/65) | [#50](https://github.com/secfoo-com/secfoo/issues/50) Docs: per-agent setup and troubleshooting guide |
-| 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#64](https://github.com/secfoo-com/secfoo/pull/64) | [#48](https://github.com/secfoo-com/secfoo/issues/48) Use a distinct exit code when a run stops at `--max-cost` |
+Every closed issue is labelled. Nothing to do.

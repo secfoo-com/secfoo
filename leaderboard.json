@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T20:02:13Z",
+  "generated_at": "2026-11-11T20:02:24Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,11 +24,11 @@
   "contributors": [
     {
       "login": "dbdefault",
-      "points": 6,
+      "points": 12,
       "counts": {
         "hard": 0,
         "medium": 1,
-        "low": 0
+        "low": 2
       },
       "merged_prs": 3,
       "awards": [
@@ -42,6 +42,28 @@
           "merged_at": "2026-11-10T16:57:25Z",
           "difficulty": "medium",
           "points": 6
+        },
+        {
+          "pr": 64,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
+          "issue": 48,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
+          "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
+          "contributor": "dbdefault",
+          "merged_at": "2026-11-10T16:59:26Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 65,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
+          "issue": 50,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
+          "issue_title": "Docs: per-agent setup and troubleshooting guide",
+          "contributor": "dbdefault",
+          "merged_at": "2026-11-10T17:11:30Z",
+          "difficulty": "low",
+          "points": 3
         }
       ],
       "rank": 1,
@@ -166,6 +188,28 @@
   ],
   "awards": [
     {
+      "pr": 65,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
+      "issue": 50,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
+      "issue_title": "Docs: per-agent setup and troubleshooting guide",
+      "contributor": "dbdefault",
+      "merged_at": "2026-11-10T17:11:30Z",
+      "difficulty": "low",
+      "points": 3
+    },
+    {
+      "pr": 64,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
+      "issue": 48,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
+      "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
+      "contributor": "dbdefault",
+      "merged_at": "2026-11-10T16:59:26Z",
+      "difficulty": "low",
+      "points": 3
+    },
+    {
       "pr": 63,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/63",
       "issue": 49,
@@ -188,24 +232,5 @@
       "points": 6
     }
   ],
-  "needs_difficulty": [
-    {
-      "pr": 65,
-      "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
-      "issue": 50,
-      "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
-      "issue_title": "Docs: per-agent setup and troubleshooting guide",
-      "contributor": "dbdefault",
-      "merged_at": "2026-11-10T17:11:30Z"
-    },
-    {
-      "pr": 64,
-      "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
-      "issue": 48,
-      "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
-      "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
-      "contributor": "dbdefault",
-      "merged_at": "2026-11-10T16:59:26Z"
-    }
-  ]
+  "needs_difficulty": []
 }
