@@ -56,11 +56,11 @@ def test_points_and_levels():
     assert leaderboard.POINTS == {"hard": 10, "medium": 6, "low": 3}
     assert leaderboard.level_for(0) is None
     assert leaderboard.level_for(24) is None
-    assert leaderboard.level_for(25) == "Level 3"
-    assert leaderboard.level_for(50) == "Level 2"
-    assert leaderboard.level_for(99) == "Level 2"
-    assert leaderboard.level_for(100) == "Level 1"
-    assert leaderboard.next_level_for(30) == {"name": "Level 2", "min_points": 50}
+    assert leaderboard.level_for(25) == "Bronze"
+    assert leaderboard.level_for(50) == "Silver"
+    assert leaderboard.level_for(99) == "Silver"
+    assert leaderboard.level_for(100) == "Gold"
+    assert leaderboard.next_level_for(30) == {"name": "Silver", "min_points": 50}
     assert leaderboard.next_level_for(150) is None
 
 
@@ -116,7 +116,7 @@ def test_levels_reached():
     issues = [issue(100 + i, "difficulty: hard") for i in range(10)]
     board = leaderboard.score([pr(1, "alice", "2026-11-08T10:00:00Z", issues)], REPO)
     assert board["contributors"][0]["points"] == 100
-    assert board["contributors"][0]["level"] == "Level 1"
+    assert board["contributors"][0]["level"] == "Gold"
 
 
 def test_markdown_badge_and_comment_render():
@@ -138,7 +138,7 @@ def test_markdown_badge_and_comment_render():
     comment = leaderboard.render_pr_comment(board, 1)
     assert "+10 points" in comment
     assert "alice now has **10 points** (rank #1)." in comment
-    assert "15 more to reach Level 3" in comment
+    assert "15 more to reach Bronze" in comment
 
     pending = leaderboard.render_pr_comment(board, 2)
     assert "no `difficulty:` label yet" in pending

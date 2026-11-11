@@ -6,7 +6,7 @@ Scoring rules (see CONTRIBUTING.md, "Hackathon points"):
   difficulty label: ``difficulty: hard`` = 10, ``difficulty: medium`` = 6,
   ``difficulty: low`` = 3.
 * Each issue is scored once, for the first merged PR that closed it.
-* Contributors reach Level 3 at 25 points, Level 2 at 50, Level 1 at 100.
+* Contributors reach Bronze at 25 points, Silver at 50, Gold at 100.
 * Merged PRs that close an issue without a difficulty label earn nothing yet;
   they're listed under "Needs a difficulty label" so a maintainer can add one.
   The board recomputes from scratch on every run, so late labels count.
@@ -41,9 +41,9 @@ DIFFICULTY_RE = re.compile(r"^difficulty\s*[:/-]\s*(hard|medium|low)$", re.IGNOR
 # Highest level first. A contributor holds the first level whose threshold
 # they meet; below the lowest threshold they have no level yet.
 LEVELS = [
-    {"name": "Level 1", "min_points": 100},
-    {"name": "Level 2", "min_points": 50},
-    {"name": "Level 3", "min_points": 25},
+    {"name": "Gold", "min_points": 100},
+    {"name": "Silver", "min_points": 50},
+    {"name": "Bronze", "min_points": 25},
 ]
 
 GRAPHQL_URL = "https://api.github.com/graphql"
