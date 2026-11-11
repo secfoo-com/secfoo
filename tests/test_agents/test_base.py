@@ -178,3 +178,14 @@ def test_describe_failure_is_not_consulted_on_success(fake_popen, tmp_path, monk
     monkeypatch.setattr(CodexAdapter, "describe_failure", _must_not_be_called)
     fake_popen(returncode=0, stdout="report", stderr="")
     assert CodexAdapter().run("hi", workdir=tmp_path).status == "success"
+
+
+def test_cli_agents_warn_and_ignore_max_input_tokens():
+    # #32: a CLI agent reads the target itself, so secfoo can't measure its
+    # prompt up front -- it must say so rather than silently pretend to cap it.
+    import pytest
+
+    adapter = ClaudeAdapter()
+    with pytest.warns(UserWarning, match="can't be checked"):
+        adapter.configure_max_input_tokens(1000)
+    assert adapter.max_input_tokens is None

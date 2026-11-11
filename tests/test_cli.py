@@ -609,6 +609,33 @@ def test_run_model_override_precedence(monkeypatch, override, expected):
     assert config.agent_models["codex"] == "config-model"
 
 
+@pytest.mark.parametrize("override,expected", [(None, 150000), ("2000", 2000)])
+def test_run_max_input_tokens_flag_overrides_config(monkeypatch, override, expected):
+    captured = {}
+    config = SecfooConfig(
+        defaults=Defaults(agent="api"), mcp_servers=[], agent_max_input_tokens={"api": 150000, "claude": 9}
+    )
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: config)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    args = ["run", "--skill", "sast"]
+    if override is not None:
+        args += ["--max-input-tokens", override]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert captured["max_input_tokens"] == expected
+
+
+def test_run_max_input_tokens_must_be_positive(monkeypatch):
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
+    result = runner.invoke(app, ["run", "--skill", "sast", "--max-input-tokens", "0"])
+    assert result.exit_code == 2  # typer usage error
+
+
+def test_run_help_documents_the_cost_exit_code_as_3():
+    result = runner.invoke(app, ["run", "--help"], env={"COLUMNS": "200"})
+    assert "Exit 3 if the summed reported AI spend" in result.output
+
+
 def test_run_empty_model_rejected(monkeypatch):
     monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
     result = runner.invoke(app, ["run", "--skill", "sast", "--model", "   "])

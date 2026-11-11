@@ -133,6 +133,20 @@ def test_per_agent_models(tmp_path):
     assert load_config(path).agent_models == {"claude": "claude-model", "agent": "cursor-model"}
 
 
+def test_per_agent_max_input_tokens(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("[agents.api]\nmax_input_tokens = 150000\n")
+    assert load_config(path).agent_max_input_tokens == {"api": 150000}
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "1.5", '"150000"', "true"])
+def test_invalid_max_input_tokens_is_rejected(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(f"[agents.api]\nmax_input_tokens = {value}\n")
+    with pytest.raises(ConfigError, match="positive integer"):
+        load_config(path)
+
+
 @pytest.mark.parametrize("value", ['""', '"   "', '42', 'false', '[]'])
 def test_invalid_agent_model_is_rejected(tmp_path, value):
     path = tmp_path / "config.toml"

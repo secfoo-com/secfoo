@@ -46,11 +46,30 @@ FIX_REQUEST = (
 )
 
 
+class PromptTooLargeError(RuntimeError):
+    """The assembled prompt is over the configured max_input_tokens."""
+
+
+def estimate_input_tokens(litellm, model: str, messages: list[dict]) -> int:
+    """Input tokens for `messages`, from LiteLLM's tokenizer for `model`.
+
+    Falls back to ~4 characters per token (a common rule of thumb for English
+    text and code) when LiteLLM can't count for this model, so the cap still
+    applies rather than silently switching off.
+    """
+    try:
+        return int(litellm.token_counter(model=model, messages=messages))
+    except Exception:  # noqa: BLE001 -- unknown model / missing tokenizer -> estimate
+        chars = sum(len(m.get("content") or "") for m in messages)
+        return -(-chars // 4)  # ceil
+
+
 class _State(TypedDict):
     prompt: str
     workdir: str
     model: str
     timeout: int
+    max_input_tokens: int | None  # #32: refuse before sending if the prompt is larger
     prev_commit: str | None  # Memory Bank: SHA of the last scanned commit; None = full scan.
     # Memory Bank: paths an incremental scan covered (files sent + files
     # deleted); None = full scan. The runner only closes findings in these.
@@ -198,7 +217,18 @@ def build_graph(litellm, StateGraph, START, END):
             f"## Source files\nYou cannot open files. "
             f"The complete target source is included below.\n{code}"
         )
-        return {"messages": [{"role": "user", "content": content}], "scan_scope": scan_scope}
+        messages = [{"role": "user", "content": content}]
+        limit = state.get("max_input_tokens")
+        if limit:
+            size = estimate_input_tokens(litellm, state["model"], messages)
+            if size > limit:
+                # Raised before litellm.completion(), so nothing is sent or billed.
+                raise PromptTooLargeError(
+                    f"Prompt is about {size:,} input tokens, over the max_input_tokens limit of {limit:,} "
+                    f"(--max-input-tokens or [agents.api].max_input_tokens). Nothing was sent to the model. "
+                    "Narrow the target with --exclude, or raise the limit."
+                )
+        return {"messages": messages, "scan_scope": scan_scope}
 
     def assess(state: _State) -> dict:
         response = litellm.completion(
@@ -250,6 +280,7 @@ class ApiAdapter(AgentAdapter):
         return []  # required by the base class; there is no program to launch
 
     supports_model = True
+    supports_max_input_tokens = True
 
     def run(self, prompt: str, *, workdir: Path, timeout: int | None = None, prev_commit: str | None = None) -> AgentResult:  # Memory Bank: prev_commit triggers incremental diff scan.
         started = time.monotonic()
@@ -272,6 +303,7 @@ class ApiAdapter(AgentAdapter):
                 "workdir": str(workdir),
                 "model": self.model or os.environ.get("SECFOO_API_MODEL", DEFAULT_MODEL),
                 "timeout": timeout or self.default_timeout_seconds,
+                "max_input_tokens": self.max_input_tokens,
                 "prev_commit": prev_commit,  # Memory Bank: None = full scan, SHA = incremental diff.
                 "scan_scope": None,
                 "messages": [],

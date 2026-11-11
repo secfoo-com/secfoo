@@ -31,6 +31,8 @@ depth = "quick"        # quick | standard
 # model = "sonnet"
 # [agents.agent]
 # model = "your-cursor-model-id"
+# [agents.api]
+# max_input_tokens = 150000   # refuse a larger prompt before it is sent (--max-input-tokens)
 
 [memory]
 # secfoo-memory: a hosted service of curated vulnerability patterns the

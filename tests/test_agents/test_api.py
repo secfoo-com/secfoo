@@ -105,6 +105,84 @@ def test_run_success_returns_report_and_usage(tmp_path, monkeypatch):
     assert "===== FILE: app.py =====" in content
 
 
+# ---------- #32: pre-flight prompt-size cap ----------
+
+
+def _api_target(tmp_path, monkeypatch, *, source_chars=40_000):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    (tmp_path / "big.py").write_text("x" * source_chars, encoding="utf-8")
+
+
+def test_prompt_over_max_input_tokens_fails_before_anything_is_sent(tmp_path, monkeypatch):
+    _api_target(tmp_path, monkeypatch)  # ~40k chars -> ~10k tokens by the char estimate
+    fake = _fake_litellm(monkeypatch)
+    adapter = ApiAdapter()
+    adapter.configure_max_input_tokens(1_000)
+
+    result = adapter.run("Review this.", workdir=tmp_path)
+
+    assert result.status == "failed"
+    assert fake.calls == []  # nothing sent, nothing billed
+    assert "over the max_input_tokens limit of 1,000" in result.stderr
+    assert "Prompt is about 10," in result.stderr  # says how large it was
+    assert "--max-input-tokens" in result.stderr  # and which knob applies
+    assert result.cost_usd is None and result.input_tokens is None
+
+
+def test_prompt_under_max_input_tokens_runs_normally(tmp_path, monkeypatch):
+    _api_target(tmp_path, monkeypatch, source_chars=400)
+    fake = _fake_litellm(monkeypatch)
+    adapter = ApiAdapter()
+    adapter.configure_max_input_tokens(100_000)
+
+    result = adapter.run("Review this.", workdir=tmp_path)
+
+    assert result.status == "success"
+    assert len(fake.calls) == 1
+
+
+def test_no_max_input_tokens_means_no_check(tmp_path, monkeypatch):
+    _api_target(tmp_path, monkeypatch)
+    fake = _fake_litellm(monkeypatch)
+    fake.token_counter = lambda **kw: pytest.fail("must not count without a limit")
+
+    assert ApiAdapter().run("Review this.", workdir=tmp_path).status == "success"
+
+
+def test_max_input_tokens_uses_litellms_tokenizer_for_the_model(tmp_path, monkeypatch):
+    _api_target(tmp_path, monkeypatch, source_chars=400)
+    monkeypatch.setenv("SECFOO_API_MODEL", "openai/test-model")
+    fake = _fake_litellm(monkeypatch)
+    seen = {}
+
+    def token_counter(model, messages):
+        seen["model"] = model
+        return 5_000  # tokenizer says far more than the char estimate would
+
+    fake.token_counter = token_counter
+    adapter = ApiAdapter()
+    adapter.configure_max_input_tokens(4_000)
+
+    result = adapter.run("Review this.", workdir=tmp_path)
+
+    assert result.status == "failed"
+    assert seen["model"] == "openai/test-model"
+    assert "about 5,000 input tokens" in result.stderr
+    assert fake.calls == []
+
+
+def test_estimate_falls_back_to_four_chars_per_token_when_the_tokenizer_fails():
+    broken = types.SimpleNamespace(token_counter=lambda **kw: (_ for _ in ()).throw(ValueError("unknown model")))
+    messages = [{"role": "user", "content": "a" * 401}]
+    assert api.estimate_input_tokens(broken, "x/unknown", messages) == 101  # ceil(401 / 4)
+
+
+@pytest.mark.parametrize("bad", [0, -5, True, 1.5, "10"])
+def test_configure_max_input_tokens_rejects_non_positive_integers(bad):
+    with pytest.raises(ValueError, match="positive integer"):
+        ApiAdapter().configure_max_input_tokens(bad)
+
+
 def test_run_success_with_unpriced_model_keeps_tokens_and_leaves_cost_unknown(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     _fake_litellm(monkeypatch, cost=RuntimeError("no price for model"))
