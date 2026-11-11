@@ -109,6 +109,24 @@ class AgentAdapter(ABC):
             model = None
         self.model = model
 
+    # Pre-flight cap on prompt size (#32). Only an adapter that builds the
+    # full prompt itself (the api agent) can measure it before sending; CLI
+    # agents read the target's files on their own, out of secfoo's sight.
+    max_input_tokens: int | None = None
+    supports_max_input_tokens: ClassVar[bool] = False
+
+    def configure_max_input_tokens(self, limit: int | None) -> None:
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+            raise ValueError("max_input_tokens must be a positive integer")
+        if limit is not None and not self.supports_max_input_tokens:
+            warnings.warn(
+                f"Agent {self.name!r} reads the target itself, so its prompt size can't be checked "
+                "before it runs; ignoring max_input_tokens",
+                stacklevel=2,
+            )
+            limit = None
+        self.max_input_tokens = limit
+
     def model_arguments(self) -> list[str]:
         return [self.model_flag, self.model] if self.model_flag and self.model is not None else []
 

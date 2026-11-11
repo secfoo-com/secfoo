@@ -417,6 +417,7 @@ secfoo run --skill sast --skill secret-scanning --agent api --target . \
 |---|---|
 | `--fail-on critical\|high\|medium\|low` | Exit `2` if any run reports a finding at that severity or worse. Counts come from the report contract's `### [SEVERITY] Fn:` headings, not from prose. |
 | `--max-cost <usd>` | Exit `3` if the summed agent-reported spend for this invocation exceeds the cap. Evaluated after the runs complete. |
+| `--max-input-tokens <n>` | `api` agent only. Checked **before** the model is called: if the assembled prompt (brief + target source) is larger than `n` input tokens, the run fails without sending anything, and the error says how large the prompt was and which limit applied. Token counts come from LiteLLM's tokenizer for the model, or ~4 characters per token when it has none. Falls back to `[agents.api].max_input_tokens`. Other agents read the target themselves, so they warn and ignore it. |
 | `--json` | Write one JSON document to stdout (per-skill status, severity counts, tokens, USD, gate verdicts, resolved exit code); progress and notes go to stderr. Also suppresses the interactive project-name prompt. |
 
 Exit codes: `0` clean, `1` a run failed or timed out (gate verdicts are
@@ -488,6 +489,10 @@ max_cost_usd = 2.00
 
 [agents.claude]
 model = "claude-sonnet-4-6"
+
+[agents.api]
+# Refuse to send a prompt larger than this (see --max-input-tokens).
+max_input_tokens = 150000
 
 [[mcp_servers]]
 name = "Atlassian-Rovo-MCP"

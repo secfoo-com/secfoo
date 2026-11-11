@@ -70,6 +70,8 @@ class SecfooConfig:
     # without a key there is nothing to wire in either way.
     memory_enabled: bool = True
     agent_models: dict[str, str] = field(default_factory=dict)
+    # [agents.<id>].max_input_tokens -- pre-flight prompt-size cap (#32).
+    agent_max_input_tokens: dict[str, int] = field(default_factory=dict)
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
@@ -124,6 +126,7 @@ def load_config(path: Path | None = None) -> SecfooConfig:
     if not isinstance(agents_raw, dict):
         raise ConfigError("[agents] must be a table")
     agent_models = {}
+    agent_max_input_tokens = {}
     for agent_id, options in agents_raw.items():
         if not isinstance(options, dict):
             raise ConfigError(f"agents.{agent_id} must be a table")
@@ -132,6 +135,11 @@ def load_config(path: Path | None = None) -> SecfooConfig:
             if not isinstance(model, str) or not model.strip():
                 raise ConfigError(f"agents.{agent_id}.model must be a non-empty string")
             agent_models[agent_id] = model
+        max_input_tokens = options.get("max_input_tokens")
+        if max_input_tokens is not None:
+            if isinstance(max_input_tokens, bool) or not isinstance(max_input_tokens, int) or max_input_tokens <= 0:
+                raise ConfigError(f"agents.{agent_id}.max_input_tokens must be a positive integer")
+            agent_max_input_tokens[agent_id] = max_input_tokens
 
     servers = []
     seen_names: set[str] = set()
@@ -151,4 +159,10 @@ def load_config(path: Path | None = None) -> SecfooConfig:
     if not isinstance(memory_enabled, bool):
         raise ConfigError("memory.enabled must be true or false")
 
-    return SecfooConfig(defaults=defaults, mcp_servers=servers, memory_enabled=memory_enabled, agent_models=agent_models)
+    return SecfooConfig(
+        defaults=defaults,
+        mcp_servers=servers,
+        memory_enabled=memory_enabled,
+        agent_models=agent_models,
+        agent_max_input_tokens=agent_max_input_tokens,
+    )

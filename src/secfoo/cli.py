@@ -259,9 +259,18 @@ def run(
         None,
         "--max-cost",
         min=0.0,
-        help="Exit 2 if the summed reported AI spend (USD) for this invocation "
+        help="Exit 3 if the summed reported AI spend (USD) for this invocation "
         "exceeds this amount. Checked after the runs finish (an agent CLI "
         "only reports cost on completion). Falls back to [defaults].max_cost_usd.",
+    ),
+    max_input_tokens: int | None = typer.Option(
+        None,
+        "--max-input-tokens",
+        min=1,
+        help="api agent only: refuse to send a prompt larger than this many input "
+        "tokens, checked BEFORE the model is called (unlike --max-cost). The run "
+        "fails and says how large the prompt was. Falls back to "
+        "[agents.api].max_input_tokens.",
     ),
     json_output: bool = typer.Option(
         False,
@@ -327,6 +336,8 @@ def run(
         raise typer.Exit(code=1)
     if model is None:
         model = file_config.agent_models.get(agent.value)
+    if max_input_tokens is None:
+        max_input_tokens = file_config.agent_max_input_tokens.get(agent.value)
     if depth is None:
         depth = DepthId(file_defaults.depth) if file_defaults.depth else DepthId.QUICK
     if timeout is None:
@@ -390,6 +401,7 @@ def run(
                 confluence_urls=confluence,
                 agent_id=agent.value,
                 model=model,
+                max_input_tokens=max_input_tokens,
                 depth=depth.value,
                 timeout=timeout,
                 on_skill_start=handle_start,
