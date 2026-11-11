@@ -401,6 +401,52 @@ file may add hits to a session stored earlier. The JSON Schema is
   app the observed traffic covered. "Not observed" is always shown with this
   coverage, never as "not reachable".
 
+**Watchlist.** Probes need to know which functions to watch. Build the list
+from a project's open SCA findings:
+
+```bash
+secfoo runtime watchlist --project payments -o watchlist.json
+secfoo runtime watchlist --project payments --ghsa -o watchlist.json   # also ask GitHub's advisory API
+```
+
+Symbols come from the OSV records SCA runs already cached, so there are no
+network calls by default:
+
+- Go advisories' `ecosystem_specific.imports[].symbols`, joined with the
+  import path (`golang.org/x/net/html.Parse`).
+- RustSec's `affects.functions`.
+
+`--ghsa` adds GitHub's `vulnerable_functions` when OSV has none. That API is
+unauthenticated and rate-limited, so the build stops asking at the first
+limit. A finding that names an advisory gets only that advisory; an
+`unverified` one gets every advisory OSV has for its package and version.
+When no symbols are known, the entry stays in the list at
+`"granularity": "package"` and the probe records whether the package was
+loaded. Entries are never dropped. Schema:
+[`src/secfoo/runtime/watchlist.schema.json`](../src/secfoo/runtime/watchlist.schema.json).
+
+```json
+{"version": 1, "generated_at": "2026-11-08T12:00:00Z", "entries": [
+  {"finding_fingerprint": "<sca_findings.fingerprint>", "advisory": "GHSA-vvpx-j8f3-3w6h", "ecosystem": "Go",
+   "package": "golang.org/x/net", "version": "0.6.0", "granularity": "symbol",
+   "symbols": ["golang.org/x/net/http2/hpack.Decoder.DecodeFull"], "source": "osv"}
+]}
+```
+
+Symbols use one notation per ecosystem, and probes in every runtime match
+these exact forms. A symbol that doesn't fit is left out, with a note.
+
+| Ecosystem | Notation | Example |
+|---|---|---|
+| PyPI | `module.qualname` | `yaml.load` |
+| npm | `package#export.path` | `lodash#template` |
+| Maven | `fully.qualified.Class#method` | `org.apache.logging.log4j.core.lookup.JndiLookup#lookup` |
+| NuGet | `Namespace.Type#Method` | `System.Text.Json.JsonSerializer#Deserialize` |
+| Go | `importpath.Func` / `importpath.Type.Method` | `golang.org/x/net/html.Parse` |
+| crates.io | `crate::path::fn` | `hyper::proto::h1::role::parse_headers` |
+| RubyGems | `Class#instance_method` / `Class.class_method` | `Nokogiri::XML::Document.parse` |
+| Packagist | `Namespace\Class::method` or `function` | `Symfony\Component\Yaml\Yaml::parse` |
+
 **Storage** (in `schema.sql`, added automatically to existing stores):
 `runtime_sessions` (one row per session), `runtime_evidence` (per session,
 finding, symbol and route, with a foreign key to `sca_findings`) and

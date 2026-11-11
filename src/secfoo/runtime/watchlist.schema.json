@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/secfoo-com/secfoo/blob/main/src/secfoo/runtime/watchlist.schema.json",
+  "title": "Secfoo vulnerable-function watchlist",
+  "description": "Written by `secfoo runtime watchlist` (#52) and read by runtime probes and the sensor. One entry per open SCA finding and advisory.",
+  "type": "object",
+  "required": ["version", "generated_at", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_fingerprint", "advisory", "ecosystem", "package", "version", "granularity", "symbols", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_fingerprint": {"type": "string", "minLength": 1, "description": "sca_findings.fingerprint; runtime evidence hits (#53) carry it back."},
+          "advisory": {"type": ["string", "null"], "description": "GHSA id when known, else the OSV id; null when the finding names none."},
+          "ecosystem": {"type": "string", "minLength": 1, "description": "OSV ecosystem: PyPI, npm, Maven, NuGet, Go, crates.io, RubyGems, Packagist."},
+          "package": {"type": "string", "minLength": 1},
+          "version": {"type": ["string", "null"]},
+          "granularity": {"enum": ["symbol", "package"]},
+          "symbols": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1},
+            "description": "In the ecosystem's notation (see secfoo/runtime/watchlist.py NOTATION). Empty for package granularity."
+          },
+          "source": {"enum": ["osv", "ghsa", "package"]}
+        },
+        "if": {"properties": {"granularity": {"const": "package"}}},
+        "then": {"properties": {"symbols": {"maxItems": 0}, "source": {"const": "package"}}},
+        "else": {"properties": {"symbols": {"minItems": 1}, "source": {"enum": ["osv", "ghsa"]}}}
+      }
+    }
+  }
+}
