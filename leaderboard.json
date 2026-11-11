@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T20:02:33Z",
+  "generated_at": "2026-11-11T20:44:42Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -9,19 +9,66 @@
   },
   "levels": [
     {
-      "name": "Level 1",
+      "name": "Gold",
       "min_points": 100
     },
     {
-      "name": "Level 2",
+      "name": "Silver",
       "min_points": 50
     },
     {
-      "name": "Level 3",
+      "name": "Bronze",
       "min_points": 25
     }
   ],
   "contributors": [
+    {
+      "login": "kushaldave002",
+      "points": 18,
+      "counts": {
+        "hard": 0,
+        "medium": 3,
+        "low": 0
+      },
+      "merged_prs": 3,
+      "awards": [
+        {
+          "pr": 59,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
+          "issue": 46,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
+          "issue_title": "SARIF output for `secfoo findings export`",
+          "contributor": "kushaldave002",
+          "merged_at": "2026-11-08T23:25:19Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 60,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/60",
+          "issue": 45,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/45",
+          "issue_title": "Let users choose the model for each agent",
+          "contributor": "kushaldave002",
+          "merged_at": "2026-11-08T23:29:40Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 61,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/61",
+          "issue": 47,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/47",
+          "issue_title": "Support GitLab and Bitbucket repository URLs as targets",
+          "contributor": "kushaldave002",
+          "merged_at": "2026-11-08T23:34:26Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 1,
+      "level": null
+    },
     {
       "login": "dbdefault",
       "points": 12,
@@ -66,31 +113,6 @@
           "points": 3
         }
       ],
-      "rank": 1,
-      "level": null
-    },
-    {
-      "login": "kushaldave002",
-      "points": 6,
-      "counts": {
-        "hard": 0,
-        "medium": 1,
-        "low": 0
-      },
-      "merged_prs": 3,
-      "awards": [
-        {
-          "pr": 59,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/59",
-          "issue": 46,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/46",
-          "issue_title": "SARIF output for `secfoo findings export`",
-          "contributor": "kushaldave002",
-          "merged_at": "2026-11-08T23:25:19Z",
-          "difficulty": "medium",
-          "points": 6
-        }
-      ],
       "rank": 2,
       "level": null
     },
@@ -102,7 +124,7 @@
         "medium": 0,
         "low": 0
       },
-      "merged_prs": 18,
+      "merged_prs": 19,
       "awards": [],
       "rank": 3,
       "level": null
@@ -217,6 +239,28 @@
       "issue_title": "New agent adapter: add support for another coding-agent CLI",
       "contributor": "dbdefault",
       "merged_at": "2026-11-10T16:57:25Z",
+      "difficulty": "medium",
+      "points": 6
+    },
+    {
+      "pr": 61,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/61",
+      "issue": 47,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/47",
+      "issue_title": "Support GitLab and Bitbucket repository URLs as targets",
+      "contributor": "kushaldave002",
+      "merged_at": "2026-11-08T23:34:26Z",
+      "difficulty": "medium",
+      "points": 6
+    },
+    {
+      "pr": 60,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/60",
+      "issue": 45,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/45",
+      "issue_title": "Let users choose the model for each agent",
+      "contributor": "kushaldave002",
+      "merged_at": "2026-11-08T23:29:40Z",
       "difficulty": "medium",
       "points": 6
     },
