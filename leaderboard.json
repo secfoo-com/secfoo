@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T21:27:05Z",
+  "generated_at": "2026-11-11T21:34:09Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 19,
+      "points": 25,
       "counts": {
         "hard": 1,
-        "medium": 1,
+        "medium": 2,
         "low": 1
       },
-      "merged_prs": 9,
+      "merged_prs": 10,
       "awards": [
         {
           "pr": 86,
@@ -64,10 +64,21 @@
           "merged_at": "2026-11-11T21:26:45Z",
           "difficulty": "hard",
           "points": 10
+        },
+        {
+          "pr": 89,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/89",
+          "issue": 52,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/52",
+          "issue_title": "Build a vulnerable-function watchlist from advisories",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-11T21:33:57Z",
+          "difficulty": "medium",
+          "points": 6
         }
       ],
       "rank": 1,
-      "level": null
+      "level": "Bronze"
     },
     {
       "login": "kushaldave002",
@@ -243,6 +254,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 89,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/89",
+      "issue": 52,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/52",
+      "issue_title": "Build a vulnerable-function watchlist from advisories",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-11T21:33:57Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 88,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/88",
