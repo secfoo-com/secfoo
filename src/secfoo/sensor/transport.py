@@ -79,6 +79,9 @@ class _StreamTransport:
     def _connect(self):
         raise NotImplementedError
 
+    def _after_hello(self) -> list[dict]:
+        return []
+
     def _write(self, data: bytes) -> None:
         raise NotImplementedError
 
@@ -86,7 +89,7 @@ class _StreamTransport:
         try:
             if self._conn is None:
                 self._connect()
-                self._write(_lines([hello()]))
+                self._write(_lines([hello(), *self._after_hello()]))
             self._write(_lines(events))
             return True
         except OSError:
@@ -122,6 +125,41 @@ class SocketTransport(_StreamTransport):
         else:
             self.target = parsed.path
 
+    def send(self, events: list[dict]) -> bool:
+        ok = super().send(events)
+        if ok:
+            self._read_control()
+        return ok
+
+    def _read_control(self) -> None:
+        """Non-blocking read of what the sensor said back (#73): `welcome`
+        sets the flush interval, `slow` asks for coarser flushing."""
+        conn = self._conn
+        if conn is None:
+            return
+        try:
+            conn.setblocking(False)
+            data = conn.recv(65536)
+        except (BlockingIOError, InterruptedError):
+            return
+        except OSError:
+            self.close()
+            return
+        finally:
+            if self._conn is not None:
+                self._conn.settimeout(SOCKET_TIMEOUT_SECONDS)
+        for raw in data.splitlines():
+            try:
+                message = json.loads(raw)
+            except ValueError:
+                continue
+            if message.get("type") == "welcome" and isinstance(message.get("flush_interval"), (int, float)):
+                self.flush_interval = max(float(message["flush_interval"]), 0.05)
+            elif message.get("type") == "slow":
+                self.slow = True
+
+    flush_interval: float | None = None
+
     def _connect(self):
         family = socket.AF_INET6 if self.scheme == "tcp" and ":" in self.target[0] else socket.AF_INET
         if self.scheme == "unix":
@@ -134,9 +172,12 @@ class SocketTransport(_StreamTransport):
             conn.close()
             raise
         self._conn = conn
+
+    def _after_hello(self) -> list[dict]:
+        # #73: on tcp://, other containers in the pod share loopback, so an
+        # optional shared key follows hello.
         key = os.environ.get("SECFOO_SENSOR_KEY")
-        if key and self.scheme == "tcp":
-            self._write(_lines([{"type": "auth", "key": key}]))
+        return [{"type": "auth", "key": key}] if key and self.scheme == "tcp" else []
 
     def _write(self, data: bytes) -> None:
         self._conn.sendall(data)
