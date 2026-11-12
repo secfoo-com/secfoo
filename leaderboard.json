@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-11T22:04:06Z",
+  "generated_at": "2026-11-12T03:30:23Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 31,
+      "points": 41,
       "counts": {
-        "hard": 1,
+        "hard": 2,
         "medium": 3,
         "low": 1
       },
-      "merged_prs": 12,
+      "merged_prs": 13,
       "awards": [
         {
           "pr": 86,
@@ -86,6 +86,17 @@
           "merged_at": "2026-11-11T21:41:26Z",
           "difficulty": "medium",
           "points": 6
+        },
+        {
+          "pr": 98,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/98",
+          "issue": 66,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/66",
+          "issue_title": "Runtime ingest API: sensors use your Secfoo API key",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T03:30:14Z",
+          "difficulty": "hard",
+          "points": 10
         }
       ],
       "rank": 1,
@@ -265,6 +276,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 98,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/98",
+      "issue": 66,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/66",
+      "issue_title": "Runtime ingest API: sensors use your Secfoo API key",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T03:30:14Z",
+      "difficulty": "hard",
+      "points": 10
+    },
     {
       "pr": 91,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/91",
