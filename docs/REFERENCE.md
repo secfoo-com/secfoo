@@ -473,6 +473,39 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Runtime package inventory
+
+Probes report which packages a process actually **loaded**, and at which
+version (`load` lines). `secfoo runtime inventory` compares that with the
+latest SCA scan:
+
+```bash
+secfoo runtime inventory --project payments                          # table
+secfoo runtime inventory --project payments --app payments-api --env prod --format cyclonedx -o runtime-sbom.json
+secfoo runtime recheck                                               # OSV querybatch for every running version
+```
+
+| Case | Result |
+|---|---|
+| A vulnerable package is loaded at the scanned version | The SCA finding shows **Loaded**. |
+| A package is loaded at a *different* version than scanned | **Drift.** That version is checked against OSV, and an advisory raises a runtime finding. |
+| A package is loaded but no scanned manifest lists it | **Unscanned dependency.** OSV is checked, and an advisory raises a runtime finding. |
+| A vulnerable package is never loaded | **Not loaded**, shown with the observation window (it is not proof of unreachability). |
+
+- **New in production.** A package first seen more than `--baseline-hours`
+  (default 24) after its app's first session is marked **new**, even with no
+  known advisory.
+- **Real-time advisories.** `secfoo runtime recheck` asks OSV
+  (`/v1/querybatch`) about every package version that is running now. An
+  advisory the scans don't already account for raises a `new_advisory`
+  runtime finding, with no new scan. `secfoo serve` runs the same recheck in
+  the background every `--runtime-recheck-hours` (default 6; `0` disables
+  it). It only queries when runtime data exists.
+- **Storage.** Runtime findings live in `runtime_findings` (kind, package,
+  version, advisory, and the app/env running it).
+- **SBOM.** `--format cyclonedx` writes a CycloneDX 1.5 SBOM of what is
+  actually loaded, with purls and each package's runtime status.
+
 ### Coverage files as runtime evidence
 
 The easiest evidence needs no sensor: coverage from your test suite or a

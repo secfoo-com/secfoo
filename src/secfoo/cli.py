@@ -669,6 +669,10 @@ def serve(
         "--allow-insecure-runtime",
         help="Accept runtime API keys over plain HTTP on a non-loopback --host. Prefer TLS in front instead.",
     )] = False,
+    runtime_recheck_hours: Annotated[float, typer.Option(
+        "--runtime-recheck-hours",
+        help="Re-check running package versions against OSV this often (#68). 0 disables.",
+    )] = 6.0,
 ) -> None:
     """Launch the local web dashboard."""
     if ctx.invoked_subcommand is not None:
@@ -677,8 +681,29 @@ def serve(
 
     from secfoo.web.app import create_app
 
+    if runtime_recheck_hours > 0:
+        _start_runtime_recheck(runtime_recheck_hours)
     console.print(f"Serving dashboard at [bold]http://{host}:{port}[/]")
     uvicorn.run(create_app(bind_host=host, allow_insecure_runtime=allow_insecure_runtime), host=host, port=port)
+
+
+def _start_runtime_recheck(hours: float) -> None:
+    """Background OSV re-check of running versions (#68). Only does anything
+    once runtime data exists; never stops the server."""
+    import threading
+
+    def loop() -> None:
+        from secfoo.runtime.inventory import recheck
+
+        stop = threading.Event()
+        while not stop.wait(hours * 3600):
+            try:
+                with RunRepository() as repo:
+                    recheck(repo)
+            except Exception:  # noqa: BLE001, S112 -- OSV down or a bad row: try again next interval
+                continue
+
+    threading.Thread(target=loop, name="secfoo-runtime-recheck", daemon=True).start()
 
 
 @serve_key_app.command(name="create")
@@ -1856,6 +1881,95 @@ def runtime_import_coverage(
         err_console.print(f"[yellow]Note:[/] {note}")
     hits = sum(1 for e in events if e["type"] == "hit")
     err_console.print(f"{cov.language} coverage: {hits} watched symbol(s) executed" + (f". Wrote {output}." if output else "."))
+
+
+class InventoryFormat(str, Enum):
+    TABLE = "table"
+    JSON = "json"
+    CYCLONEDX = "cyclonedx"
+
+
+@runtime_app.command(name="inventory")
+def runtime_inventory(
+    project: Annotated[str, typer.Option("--project", help="Project id, name, or path/URL it was scanned as.")],
+    app_name: Annotated[str | None, typer.Option("--app", help="Only this app (SECFOO_APP).")] = None,
+    env: Annotated[str | None, typer.Option("--env", help="Only this environment (SECFOO_ENV).")] = None,
+    format: Annotated[InventoryFormat, typer.Option("--format")] = InventoryFormat.TABLE,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    baseline_hours: Annotated[float, typer.Option(
+        "--baseline-hours", help="Packages first seen after this long into an app's observation are flagged new.",
+    )] = 24.0,
+) -> None:
+    """What production actually loads, compared with the scan: version drift,
+    unscanned dependencies, packages new in production, and vulnerable packages
+    never loaded. --format cyclonedx writes a runtime SBOM."""
+    from secfoo.runtime.inventory import analyze, cyclonedx
+
+    with RunRepository() as repo:
+        project_id = repo.resolve_project_ref(project)
+        if project_id is None:
+            err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+            raise typer.Exit(code=1)
+        identifier = repo.get_project(project_id).identifier
+        report = analyze(repo, project_id, app=app_name, env=env, baseline_hours=baseline_hours)
+    if format is InventoryFormat.CYCLONEDX:
+        text = json.dumps(cyclonedx(report, project=identifier, app=app_name, env=env), indent=2) + "\n"
+    elif format is InventoryFormat.JSON:
+        text = json.dumps({
+            "packages": [{"ecosystem": p.ecosystem, "package": p.package, "version": p.version, "status": p.status,
+                          "scanned_versions": p.scanned_versions, "advisories": p.advisories, "new": p.new,
+                          "apps": sorted(p.apps), "first_seen": p.first_seen} for p in report.packages],
+            "not_loaded": report.not_loaded, "observed_hours": round(report.observed_hours, 2),
+            "raised": report.raised,
+        }, indent=2) + "\n"
+    else:
+        table = Table(show_header=True, header_style="bold")
+        for column in ("package", "version", "status", "advisories", "apps"):
+            table.add_column(column, overflow="fold")
+        for p in report.packages:
+            status = p.status + (" (scanned " + ", ".join(p.scanned_versions) + ")" if p.status == "drift" else "")
+            table.add_row(p.package, p.version, status + (" · new" if p.new else ""), ", ".join(p.advisories) or "-",
+                          ", ".join(sorted(p.apps)))
+        console.print(table)
+        if report.not_loaded:
+            console.print(f"Not loaded in {report.observed_hours:.1f}h of observation (not proof of unreachability): "
+                          + ", ".join(f"{f['package']}@{f['version']}" for f in report.not_loaded))
+        if report.raised:
+            console.print(f"[bold]{len(report.raised)} runtime finding(s):[/] "
+                          + ", ".join(f"{r['kind']} {r['package']}@{r['version']} {r['advisory']}" for r in report.raised))
+        return
+    if output is None:
+        sys.stdout.write(text)
+    else:
+        output.write_text(text, encoding="utf-8")
+        err_console.print(f"Wrote {output}.")
+
+
+@runtime_app.command(name="recheck")
+def runtime_recheck(
+    project: Annotated[str | None, typer.Option("--project", help="One project (default: all with runtime data).")] = None,
+) -> None:
+    """Ask OSV about every package version running right now; a new advisory raises a finding with no new scan."""
+    from secfoo.osv import OsvError
+    from secfoo.runtime.inventory import recheck
+
+    with RunRepository() as repo:
+        project_id = None
+        if project is not None:
+            project_id = repo.resolve_project_ref(project)
+            if project_id is None:
+                err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+                raise typer.Exit(code=1)
+        try:
+            raised = recheck(repo, project_id=project_id)
+        except OsvError as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+    if not raised:
+        console.print("No advisories against running versions beyond what the scans already report.")
+        return
+    for r in raised:
+        console.print(f"[red]{r['kind']}[/] {r['package']}@{r['version']} {r['advisory']}  running in {', '.join(r['apps'])}")
 
 
 @runtime_app.command(name="watchlist")
