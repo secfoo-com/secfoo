@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-12T04:25:51Z",
+  "generated_at": "2026-11-12T04:35:33Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 67,
+      "points": 70,
       "counts": {
         "hard": 4,
         "medium": 4,
-        "low": 1
+        "low": 2
       },
-      "merged_prs": 16,
+      "merged_prs": 17,
       "awards": [
         {
           "pr": 86,
@@ -130,6 +130,17 @@
           "merged_at": "2026-11-12T04:25:42Z",
           "difficulty": "medium",
           "points": 6
+        },
+        {
+          "pr": 102,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/102",
+          "issue": 54,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/54",
+          "issue_title": "Import coverage files as runtime evidence",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T04:35:23Z",
+          "difficulty": "low",
+          "points": 3
         }
       ],
       "rank": 1,
@@ -309,6 +320,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 102,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/102",
+      "issue": 54,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/54",
+      "issue_title": "Import coverage files as runtime evidence",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T04:35:23Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 101,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/101",
