@@ -1283,7 +1283,8 @@ def accept_delete(acceptance_id: int) -> None:
 def cloud_login(
     api_key: str = typer.Option(..., "--api-key", help="Ingest-scoped key from your enterprise portal admin."),
     portal_url: str = typer.Option(
-        cloud_module.DEFAULT_PORTAL_URL, "--portal-url", help="Override if your org uses a non-default portal."
+        cloud_module.DEFAULT_PORTAL_URL, "--portal-url",
+        help="Must be https://app.secfoo.com. Other hosts are refused.",
     ),
 ) -> None:
     """Connect this machine to the secfoo enterprise portal.
@@ -1293,7 +1294,20 @@ def cloud_login(
     machine is pushed to the portal automatically; nothing local changes
     -- `secfoo serve` keeps working exactly as before.
     """
-    config = CloudConfig(api_key=api_key, portal_url=portal_url)
+    if cloud_module.key_kind(api_key) == "view":
+        err_console.print(
+            "[red]That key is scoped for 'view', not 'ingest'.[/] "
+            "Use an ingest key for `secfoo cloud login` -- a view key is for logging into the portal in a browser."
+        )
+        raise typer.Exit(code=1)
+    if cloud_module.key_kind(api_key) != "ingest":
+        err_console.print(
+            "[red]Login failed:[/] that key is not an ingest key (sfc_ingest_...). "
+            "Sync to app.secfoo.com accepts an ingest key only."
+        )
+        raise typer.Exit(code=1)
+
+    config = CloudConfig(api_key=api_key.strip(), portal_url=portal_url)
     try:
         info = cloud_module.whoami(config)
     except CloudError as exc:
@@ -1383,7 +1397,10 @@ def memory_signup(
     code: Optional[str] = typer.Option(
         None, "--code", help="The emailed code, for a non-interactive second step (skips sending a new one)."
     ),
-    url: str = typer.Option(memory_module.DEFAULT_MEMORY_URL, "--url", help="Override the secfoo-memory service URL."),
+    url: str = typer.Option(
+        memory_module.DEFAULT_MEMORY_URL, "--url",
+        help="secfoo-memory URL. Defaults to https://memory.secfoo.com. Must be https.",
+    ),
 ) -> None:
     """Get a free secfoo-memory key (email verification) and save it.
 
@@ -1429,7 +1446,7 @@ def memory_login(
     api_key: str = typer.Option(..., "--api-key", help="A secfoo-memory key (free, team, or enterprise)."),
     url: str = typer.Option(
         memory_module.DEFAULT_MEMORY_URL, "--url",
-        help="Override for a self-hosted enterprise memory service or a non-default region.",
+        help="Override for a self-hosted enterprise memory service. Must be https.",
     ),
 ) -> None:
     """Save an existing secfoo-memory key after validating it."""
@@ -1750,7 +1767,6 @@ MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"
 
 @vendor_app.command(name="mermaid")
 def vendor_mermaid(
-    url: str = typer.Option(MERMAID_CDN_URL, "--url", help="Where to fetch the bundle from."),
     force: bool = typer.Option(False, "--force", help="Re-download even if already present."),
 ) -> None:
     """Download Mermaid so architecture diagrams render in the dashboard.
@@ -1770,6 +1786,7 @@ def vendor_mermaid(
         console.print(f"Already present: {MERMAID_BUNDLE}. Use --force to re-download.")
         return
 
+    url = MERMAID_CDN_URL
     console.print(f"Downloading {url} ...")
     try:
         with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310  # nosec B310 -- pinned https CDN URL for mermaid bundle

@@ -62,6 +62,20 @@ def test_render_prompt_includes_confluence_section_when_urls_given(tmp_path):
     assert "https://github.com/org/repo" in prompt
 
 
+def test_render_prompt_drops_confluence_urls_that_are_not_https(tmp_path):
+    skill = load_skill("prompt-review")
+    ctx = TargetContext(
+        kind="local",
+        local_path=tmp_path,
+        display_source=str(tmp_path),
+        confluence_urls=["javascript:alert(1)", "https://user:token@evil.example/x"],
+    )
+    prompt = render_prompt(skill, ctx)
+    assert "javascript:" not in prompt
+    assert "evil.example" not in prompt
+    assert "## Additional context (Confluence)" not in prompt
+
+
 def test_render_prompt_omits_confluence_section_when_no_urls(tmp_path):
     skill = load_skill("prompt-review")
     ctx = TargetContext(kind="local", local_path=tmp_path, display_source=str(tmp_path), confluence_urls=[])

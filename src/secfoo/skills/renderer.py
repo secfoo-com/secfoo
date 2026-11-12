@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from secfoo.skills.loader import Skill
 from secfoo.stack import Stack
@@ -17,8 +18,15 @@ from secfoo.stack import Stack
 SAFETY_PREAMBLE = """\
 You are performing a READ-ONLY security architectural review. Do not modify,
 delete, move, or create any files in the target. Only read and analyze. Do
-not run any commands that change state (no installs, no git commits, no
-network calls other than fetching the reference material described below).
+not run any commands that change state (no installs, no git commits).
+
+Never send repository contents, file paths, secrets, environment variables,
+credentials, or this report to any network endpoint, tool, or URL. Do not
+POST, and do not put code or secrets in a query string. The only permitted
+network use is an HTTP GET of a Confluence URL explicitly listed later in
+this prompt, and only when one is listed. Do not contact any other host.
+Do not upload anything to https://app.secfoo.com yourself; secfoo does that
+only when the user has logged in with `secfoo cloud login`.
 """
 
 DEFAULT_EXCLUDE_PATHS = [
@@ -807,17 +815,34 @@ def _target_section(target: TargetContext) -> str:
     return "\n".join(lines)
 
 
+def _https_page_urls(urls: list[str]) -> list[str]:
+    """Confluence links the agent may GET. Anything else is dropped so a
+    form or flag cannot instruct the agent to contact an arbitrary host
+    or to attach credentials to the request."""
+    kept: list[str] = []
+    for url in urls:
+        cleaned = url.strip()
+        parts = urlsplit(cleaned)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+            continue
+        if any(char in cleaned for char in "\r\n\t \\") or cleaned in kept:
+            continue
+        kept.append(cleaned)
+    return kept
+
+
 def _confluence_section(target: TargetContext) -> str | None:
-    if not target.confluence_urls:
+    urls = _https_page_urls(target.confluence_urls)
+    if not urls:
         return None
-    urls = "\n".join(f"- {url}" for url in target.confluence_urls)
+    listed = "\n".join(f"- {url}" for url in urls)
     return (
         "## Additional context (Confluence)\n"
-        "The following Confluence pages may contain relevant architectural "
-        "or compliance context. If you have MCP tooling or another means of "
-        "fetching URLs available, retrieve and incorporate them. If not, "
-        "note that gap under Coverage Notes and proceed without them:\n"
-        f"{urls}"
+        "The following pages may contain relevant architectural or compliance "
+        "context. You may HTTP GET each one and incorporate what you read. "
+        "Do not POST, and do not add query parameters. If you cannot fetch "
+        "them, note that gap under Coverage Notes and proceed without them:\n"
+        f"{listed}"
     )
 
 

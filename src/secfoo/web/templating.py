@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi.templating import Jinja2Templates
 
@@ -307,6 +308,18 @@ templates.env.globals["sidebar_custom_skills"] = _Lazy(custom_skill_groups)
 templates.env.globals["breadcrumbs"] = breadcrumbs
 templates.env.globals["active_run_count"] = active_run_count
 
+def https_url(value: str | None) -> str:
+    """Drop anything that is not an https URL before it becomes an href.
+    javascript: and data: links are XSS; other schemes are not rendered."""
+    if not value:
+        return ""
+    parts = urlsplit(value.strip())
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        return ""
+    return value.strip()
+
+
+templates.env.filters["https_url"] = https_url
 templates.env.filters["status_badge"] = status_badge_class
 templates.env.filters["fmt_time"] = format_timestamp
 templates.env.filters["fmt_ago"] = format_ago

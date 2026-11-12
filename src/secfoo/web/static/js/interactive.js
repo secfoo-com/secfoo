@@ -36,12 +36,23 @@ document.addEventListener("change", function (event) {
   }
 });
 
+// Only same-origin path navigations. A javascript: or https:// value in
+// data-href / data-delete-url would leave the dashboard or POST elsewhere.
+function sameOriginPath(value) {
+  if (typeof value !== "string" || value.charAt(0) !== "/" || value.charAt(1) === "/" || value.charAt(1) === "\\") {
+    return null;
+  }
+  if (value.indexOf("\\") !== -1 || value.indexOf("://") !== -1) return null;
+  return value;
+}
+
 document.addEventListener("click", function (event) {
   const deleteButton = event.target.closest("[data-delete-url]");
   if (deleteButton) {
     const message = deleteButton.dataset.confirm || "Are you sure?";
-    if (!window.confirm(message)) return;
-    fetch(deleteButton.dataset.deleteUrl, { method: "POST" }).then(function () {
+    const target = sameOriginPath(deleteButton.dataset.deleteUrl);
+    if (!target || !window.confirm(message)) return;
+    fetch(target, { method: "POST" }).then(function () {
       window.location.reload();
     });
     return;
@@ -60,8 +71,9 @@ document.addEventListener("click", function (event) {
   if (event.target.closest("a, button, input, select, label")) return;
 
   const row = event.target.closest(".run-row[data-href]");
-  if (row) {
-    window.location.href = row.dataset.href;
+  const href = row && sameOriginPath(row.dataset.href);
+  if (href) {
+    window.location.href = href;
   }
 });
 
@@ -79,8 +91,9 @@ document.addEventListener("keydown", function (event) {
   // Only when the row itself is focused -- Enter on a link or button
   // inside the row keeps that element's own behavior.
   const row = event.target;
-  if (row.matches && row.matches(".run-row[data-href]")) {
-    window.location.href = row.dataset.href;
+  const href = row.matches && row.matches(".run-row[data-href]") && sameOriginPath(row.dataset.href);
+  if (href) {
+    window.location.href = href;
   }
 });
 

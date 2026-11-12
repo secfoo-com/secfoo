@@ -43,6 +43,8 @@ def _mock_urlopen(monkeypatch, *, response: dict | None = None, raises: Exceptio
     def _fake_urlopen(request, timeout=None):
         if raises is not None:
             raise raises
+        if request.full_url.endswith("/whoami") and not (response or {}).get("scope"):
+            return _FakeResponse({"tenant_slug": "acme", "scope": "ingest"})
         return _FakeResponse(response or {})
 
     monkeypatch.setattr("secfoo.cloud.urllib.request.urlopen", _fake_urlopen)
