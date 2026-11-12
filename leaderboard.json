@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-12T04:15:52Z",
+  "generated_at": "2026-11-12T04:25:51Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 61,
+      "points": 67,
       "counts": {
         "hard": 4,
-        "medium": 3,
+        "medium": 4,
         "low": 1
       },
-      "merged_prs": 15,
+      "merged_prs": 16,
       "awards": [
         {
           "pr": 86,
@@ -119,6 +119,17 @@
           "merged_at": "2026-11-12T04:15:41Z",
           "difficulty": "hard",
           "points": 10
+        },
+        {
+          "pr": 101,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/101",
+          "issue": 80,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/80",
+          "issue_title": "Runtime evidence at the developer stage: CLI, SARIF and CI gate",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T04:25:42Z",
+          "difficulty": "medium",
+          "points": 6
         }
       ],
       "rank": 1,
@@ -298,6 +309,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 101,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/101",
+      "issue": 80,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/80",
+      "issue_title": "Runtime evidence at the developer stage: CLI, SARIF and CI gate",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T04:25:42Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 100,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/100",
