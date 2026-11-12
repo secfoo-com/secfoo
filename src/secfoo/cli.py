@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from datetime import date, datetime, timezone
@@ -1813,6 +1814,67 @@ def skills_show(
     workdir = (target or Path.cwd()).resolve()
     context = TargetContext(kind="local", local_path=workdir, display_source=str(workdir))
     sys.stdout.write(render_prompt(skill, context, depth=depth.value) + "\n")
+
+
+_SITECUSTOMIZE = """\
+# Written by `secfoo instrument` (#55): starts the secfoo runtime probe in
+# every Python process of the wrapped command. Inert unless SECFOO_SENSOR=1.
+try:
+    import secfoo.sensor as _secfoo_sensor
+    _secfoo_sensor.start_from_env()
+except Exception:  # never break the app's interpreter start-up
+    pass
+"""
+
+
+@app.command(
+    name="instrument",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def instrument(
+    ctx: typer.Context,
+    watchlist: Annotated[Path | None, typer.Option(
+        "--watchlist", exists=True, dir_okay=False, help="Watchlist from `secfoo runtime watchlist`.",
+    )] = None,
+    output: Annotated[Path | None, typer.Option(
+        "--output", "-o",
+        help="Write events here ({pid} is replaced per process). Ignored when SECFOO_SENSOR_ADDR is set.",
+    )] = None,
+    flush_interval: Annotated[float, typer.Option("--flush-interval", min=0.05)] = 10.0,
+) -> None:
+    """Run a Python command with the secfoo runtime probe: secfoo instrument -o events.ndjson -- python app.py
+
+    The probe starts in every Python process the command launches (workers
+    included), records which watched vulnerable functions run, and writes
+    #53 events. Then: `secfoo runtime ingest events.ndjson --project <p>`.
+    """
+    import subprocess  # nosec B404 -- runs the user's own command, as given
+    import tempfile
+
+    import secfoo
+
+    command = list(ctx.args)
+    if command[:1] == ["--"]:
+        command = command[1:]
+    if not command:
+        err_console.print("[red]Error:[/] give the command to run after --, e.g. -- python app.py")
+        raise typer.Exit(code=2)
+    env = dict(os.environ)
+    if output is None and not env.get("SECFOO_SENSOR_ADDR") and not env.get("SECFOO_EVENTS_OUT"):
+        err_console.print("[red]Error:[/] pass -o events.ndjson (or set SECFOO_SENSOR_ADDR) so events go somewhere.")
+        raise typer.Exit(code=2)
+    with tempfile.TemporaryDirectory(prefix="secfoo-instrument-") as hook_dir:
+        Path(hook_dir, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
+        package_root = str(Path(secfoo.__file__).resolve().parent.parent)
+        env["PYTHONPATH"] = os.pathsep.join(p for p in (hook_dir, package_root, env.get("PYTHONPATH", "")) if p)
+        env["SECFOO_SENSOR"] = "1"
+        env["SECFOO_FLUSH_INTERVAL"] = str(flush_interval)
+        if watchlist is not None:
+            env["SECFOO_WATCHLIST"] = str(watchlist.resolve())
+        if output is not None:
+            env["SECFOO_EVENTS_OUT"] = str(output.resolve())
+        result = subprocess.run(command, env=env, check=False)  # nosec B603 -- the user's command
+    raise typer.Exit(code=result.returncode)
 
 
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"

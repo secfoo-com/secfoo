@@ -473,6 +473,73 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Python probe
+
+The probe runs inside a Python app and records which watched vulnerable
+functions actually run. It writes the event format above.
+
+```bash
+secfoo runtime watchlist --project payments -o watchlist.json
+secfoo instrument --watchlist watchlist.json -o events.ndjson -- python app.py   # or gunicorn ..., uvicorn ...
+secfoo runtime ingest events.ndjson --project payments
+```
+
+`secfoo instrument` starts the probe in every Python process the command
+launches, workers included, without changing the app's start command. It
+does this through a temporary `sitecustomize` on `PYTHONPATH`. When you can't
+wrap the command, set the variables yourself:
+
+```bash
+SECFOO_SENSOR=1 SECFOO_WATCHLIST=watchlist.json SECFOO_EVENTS_OUT=events-{pid}.ndjson python -m secfoo.sensor app.py
+```
+
+| Variable | Meaning |
+|---|---|
+| `SECFOO_SENSOR=1` | Required. Without it the probe installs nothing: no hooks, threads or connections. |
+| `SECFOO_WATCHLIST` | The watchlist file. It is re-read when its mtime changes (checked at most every 30 s). |
+| `SECFOO_EVENTS_OUT` | The events file. `{pid}` gives each process its own file; otherwise processes append to one file safely. |
+| `SECFOO_SENSOR_ADDR` | Send to a sensor instead: `unix://…`, `tcp://127.0.0.1:port` (loopback only), `npipe://…`, `https://…` (direct mode, using the runtime ingest API with `SECFOO_API_KEY_FILE` / `SECFOO_PROJECT`), or `file://…`. |
+| `SECFOO_FLUSH_INTERVAL` | Seconds between flushes (default 10). It also flushes at exit. |
+| `SECFOO_APP_ROOT` | The app's own code, for coverage and stack frames (default: the working directory). |
+
+**How it works.**
+
+- **Backends.** On Python 3.12+ it uses `sys.monitoring` (PEP 669), with
+  `PY_START` events only on the watched functions' code objects, so unwatched
+  code costs nothing. On 3.10/3.11 it falls back to `sys.setprofile` and
+  `threading.setprofile`.
+- **Symbols** are resolved as their modules are imported.
+- **Coverage.** Each app function is counted the first time it runs, for
+  `app_functions_executed`. On 3.12+ that event is then disabled for the
+  function.
+- **Inventory.** It emits `load` lines for installed distributions whose
+  top-level module was imported.
+- **Workers.** Each process, including forked or spawned workers (gunicorn,
+  uvicorn, multiprocessing), is its own session. With gunicorn `--preload`,
+  the probe starts in the master and each forked worker starts a new session
+  automatically.
+
+**Guarantees.**
+
+- It never reads `frame.f_locals`, arguments or return values. It records
+  only function identity, counts, timestamps and `file:line` app frames.
+- An internal error disables the probe, with one stderr line, and never
+  reaches the app.
+- Transports run on a background thread and drop data rather than block
+  when the destination is gone.
+- It opens no connection other than `SECFOO_SENSOR_ADDR`.
+
+**Overhead** (`python benchmarks/sensor_overhead.py`, CPython 3.14, a ~7 µs
+request-like handler):
+
+| Mode | Unwatched code | Watched function called on every request |
+|---|---|---|
+| `sys.monitoring` (3.12+) | ≈ 0% | ~20% (≈ 1.4 µs per watched call) |
+| `setprofile` fallback (3.10/3.11) | ~10× slower | ~10× slower |
+
+The fallback fires on every Python call, so prefer 3.12+ in production or
+keep the fallback to staging.
+
 ### Runtime ingest API
 
 Live sensors send evidence to the same server your CLI results go to. They
