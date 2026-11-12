@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-12T04:01:09Z",
+  "generated_at": "2026-11-12T04:15:52Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 51,
+      "points": 61,
       "counts": {
-        "hard": 3,
+        "hard": 4,
         "medium": 3,
         "low": 1
       },
-      "merged_prs": 14,
+      "merged_prs": 15,
       "awards": [
         {
           "pr": 86,
@@ -106,6 +106,17 @@
           "issue_title": "Python live sensor (`sys.monitoring`)",
           "contributor": "karthickmk2001",
           "merged_at": "2026-11-12T04:00:56Z",
+          "difficulty": "hard",
+          "points": 10
+        },
+        {
+          "pr": 100,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/100",
+          "issue": 73,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/73",
+          "issue_title": "Probe \u2194 sensor protocol and conformance kit (one contract for every runtime)",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T04:15:41Z",
           "difficulty": "hard",
           "points": 10
         }
@@ -287,6 +298,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 100,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/100",
+      "issue": 73,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/73",
+      "issue_title": "Probe \u2194 sensor protocol and conformance kit (one contract for every runtime)",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T04:15:41Z",
+      "difficulty": "hard",
+      "points": 10
+    },
     {
       "pr": 99,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/99",

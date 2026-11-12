@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-12 04:01:09 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-12 04:15:52 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **51** | Silver | 3 | 3 | 1 | 14 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **61** | Silver | 4 | 3 | 1 | 15 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 
@@ -34,6 +34,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#100](https://github.com/secfoo-com/secfoo/pull/100) | [#73](https://github.com/secfoo-com/secfoo/issues/73) Probe ↔ sensor protocol and conformance kit (one contract for every runtime) | hard | +10 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#99](https://github.com/secfoo-com/secfoo/pull/99) | [#55](https://github.com/secfoo-com/secfoo/issues/55) Python live sensor (`sys.monitoring`) | hard | +10 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#98](https://github.com/secfoo-com/secfoo/pull/98) | [#66](https://github.com/secfoo-com/secfoo/issues/66) Runtime ingest API: sensors use your Secfoo API key | hard | +10 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#91](https://github.com/secfoo-com/secfoo/pull/91) | [#79](https://github.com/secfoo-com/secfoo/issues/79) Custom skills: add your own skills without changing code | medium | +6 |
