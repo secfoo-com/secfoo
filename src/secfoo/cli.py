@@ -1816,6 +1816,52 @@ def skills_show(
     sys.stdout.write(render_prompt(skill, context, depth=depth.value) + "\n")
 
 
+sensor_app = typer.Typer(name="sensor", help="Runtime sensor tools: the probe conformance kit (#73).")
+app.add_typer(sensor_app, name="sensor")
+
+
+@sensor_app.command(
+    name="conformance",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def sensor_conformance(
+    ctx: typer.Context,
+    symbol: Annotated[str, typer.Option(
+        "--symbol", help="Watched symbol the sample app calls, in the #52 notation for its ecosystem.",
+    )] = "secfoo.runtime.conformance.vulnerable.parse",
+    ecosystem: Annotated[str, typer.Option("--ecosystem", help="OSV ecosystem of --symbol.")] = "PyPI",
+    max_call_overhead_us: Annotated[float, typer.Option(
+        "--max-call-overhead-us", help="Allowed extra microseconds per watched call (#51 budget: 1 ms p99 per request).",
+    )] = 50.0,
+    max_startup_seconds: Annotated[float, typer.Option(
+        "--max-startup-seconds", help="Allowed one-time probe start-up plus exit work.",
+    )] = 5.0,
+) -> None:
+    """Check a runtime probe against the #73 contract: secfoo sensor conformance -- <command that starts the sample app>
+
+    The command must start the sample app with the probe loaded (see
+    docs/RUNTIME_PROTOCOL.md). For the reference Python probe:
+    secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
+    """
+    from secfoo.runtime.conformance.kit import run_kit
+
+    command = list(ctx.args)
+    if command[:1] == ["--"]:
+        command = command[1:]
+    if not command:
+        err_console.print("[red]Error:[/] give the sample app's start command after --")
+        raise typer.Exit(code=2)
+    results = run_kit(command, symbol=symbol, ecosystem=ecosystem, max_call_overhead_us=max_call_overhead_us,
+                      max_startup_seconds=max_startup_seconds)
+    for result in results:
+        mark = "[green]PASS[/]" if result.passed else "[red]FAIL[/]"
+        console.print(f"{mark} {result.name:<10} {result.detail}")
+    failed = [r.name for r in results if not r.passed]
+    console.print(f"{len(results) - len(failed)}/{len(results)} checks passed.")
+    if failed:
+        raise typer.Exit(code=1)
+
+
 _SITECUSTOMIZE = """\
 # Written by `secfoo instrument` (#55): starts the secfoo runtime probe in
 # every Python process of the wrapped command. Inert unless SECFOO_SENSOR=1.

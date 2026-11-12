@@ -74,6 +74,7 @@ class Probe:
         self._watched: dict = {}            # code object -> (symbol, [fingerprints])
         self._pending_symbols: dict = {}    # symbol -> [fingerprints], not resolved yet
         self._seen_app_code: set = set()
+        self._app_code_cache: dict = {}  # code object -> is app code
         self._tool_id: int | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -212,10 +213,10 @@ class Probe:
             watched = self._watched.get(code)
             if watched is not None:
                 self._record_hit(code, watched)
-                if code not in self._seen_app_code and self._is_app_code(code.co_filename):
+                if code not in self._seen_app_code and self._is_app_code_obj(code):
                     self._seen_app_code.add(code)
                 return None  # keep counting watched functions
-            if code.co_name != "<module>" and self._is_app_code(code.co_filename):
+            if code.co_name != "<module>" and self._is_app_code_obj(code):
                 self._seen_app_code.add(code)
             return sys.monitoring.DISABLE
         except Exception as exc:  # noqa: BLE001 -- never raise into the app
@@ -232,7 +233,7 @@ class Probe:
                 if watched is not None:
                     self._record_hit(code, watched)
                 if (code not in self._seen_app_code and code.co_name != "<module>"
-                        and self._is_app_code(code.co_filename)):
+                        and self._is_app_code_obj(code)):
                     self._seen_app_code.add(code)
             except Exception as exc:  # noqa: BLE001
                 self._disable(exc)
@@ -241,6 +242,14 @@ class Probe:
         threading.setprofile(profiler)
 
     # ---------- recording ----------
+
+    def _is_app_code_obj(self, code) -> bool:
+        """_is_app_code for a code object, cached: path normalisation is far
+        too slow for the per-call path."""
+        known = self._app_code_cache.get(code)
+        if known is None:
+            known = self._app_code_cache[code] = self._is_app_code(code.co_filename)
+        return known
 
     def _is_app_code(self, filename: str) -> bool:
         if not filename or filename.startswith("<"):
@@ -313,10 +322,15 @@ class Probe:
             from importlib.metadata import packages_distributions, version
         except ImportError:
             return []
+        global _DISTRIBUTIONS
+        if _DISTRIBUTIONS is None:
+            # Installed packages don't change while the app runs: scan their
+            # metadata once, not on every flush (it's the slowest part).
+            _DISTRIBUTIONS = {top: list(dists) for top, dists in packages_distributions().items()}
         imported = {name.split(".")[0] for name in list(sys.modules)}
         seen: set[str] = set()
         loads = []
-        for top, dists in packages_distributions().items():
+        for top, dists in _DISTRIBUTIONS.items():
             if top not in imported:
                 continue
             for dist in dists:
@@ -324,8 +338,10 @@ class Probe:
                     continue
                 seen.add(dist.lower())
                 try:
+                    if dist not in _VERSIONS:
+                        _VERSIONS[dist] = version(dist)
                     loads.append({"type": "load", "session": self.session_id, "ecosystem": "PyPI",
-                                  "package": dist, "version": version(dist), "first_seen": self.started_at})
+                                  "package": dist, "version": _VERSIONS[dist], "first_seen": self.started_at})
                 except Exception:  # noqa: BLE001, S112 -- broken package metadata: skip it
                     continue
         return loads
@@ -341,9 +357,15 @@ class Probe:
         except Exception as exc:  # noqa: BLE001
             self._disable(exc)
 
+    def _interval(self) -> float:
+        """The sensor's `welcome` interval if it sent one, doubled while it
+        says `slow` (#73 backpressure); otherwise SECFOO_FLUSH_INTERVAL."""
+        interval = getattr(self.transport, "flush_interval", None) or self.flush_seconds
+        return interval * 2 if getattr(self.transport, "slow", False) else interval
+
     def _start_flusher(self) -> None:
         def loop():
-            while not self._stop.wait(self.flush_seconds):
+            while not self._stop.wait(self._interval()):
                 self.flush()
 
         self._thread = threading.Thread(target=loop, name="secfoo-sensor-flush", daemon=True)
@@ -381,20 +403,36 @@ def _count_app_functions(probe: Probe) -> int:
     if sys.argv and sys.argv[0]:
         files.add(os.path.abspath(sys.argv[0]))
     for filename in {os.path.normcase(os.path.abspath(f)) for f in files if f}:
-        if not os.path.isfile(filename) or not probe._is_app_code(filename):
+        if not probe._is_app_code(filename):
+            continue
+        try:
+            mtime = os.path.getmtime(filename)
+        except OSError:
+            continue
+        cached = _FUNCTION_COUNTS.get(filename)
+        if cached is not None and cached[0] == mtime:  # compile each file once, not every flush
+            total += cached[1]
             continue
         try:
             source = Path(filename).read_text(encoding="utf-8")
             stack = [compile(source, filename, "exec")]
         except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
             continue
+        file_total = 0
         while stack:
             code = stack.pop()
             for const in code.co_consts:
                 if hasattr(const, "co_code"):
-                    total += 1
+                    file_total += 1
                     stack.append(const)
+        _FUNCTION_COUNTS[filename] = (mtime, file_total)
+        total += file_total
     return total
+
+
+_FUNCTION_COUNTS: dict[str, tuple[float, int]] = {}  # app file -> (mtime, function count)
+_DISTRIBUTIONS: dict[str, list[str]] | None = None   # top-level module -> distributions
+_VERSIONS: dict[str, str] = {}
 
 
 class _ImportWatcher(importlib.abc.MetaPathFinder):
@@ -412,7 +450,9 @@ class _ImportWatcher(importlib.abc.MetaPathFinder):
             return None
         self._busy.on = True
         try:
-            spec = importlib.util.find_spec(fullname) if path is None else None
+            # Submodules (pkg.mod) arrive with the package's __path__.
+            spec = (importlib.util.find_spec(fullname) if path is None
+                    else importlib.machinery.PathFinder.find_spec(fullname, path))
         except (ImportError, ValueError):
             spec = None
         finally:
@@ -433,4 +473,5 @@ class _ImportWatcher(importlib.abc.MetaPathFinder):
         return spec
 
 
+import importlib.machinery
 import importlib.util

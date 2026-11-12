@@ -49,6 +49,9 @@ jobs:
       - name: Test (secfoo core)
         run: pytest tests
 
+      - name: Runtime probe conformance (reference Python probe, #73)
+        run: secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
+
       - name: Validate example custom skills
         # Same check a team's own skills repo would run (docs/SKILLS.md).
         run: secfoo skills validate examples/skills

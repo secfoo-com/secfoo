@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/secfoo-com/secfoo/blob/main/src/secfoo/runtime/protocol.schema.json",
+  "title": "Secfoo probe <-> sensor protocol message (one newline-framed line)",
+  "description": "#73. Control messages are defined here; every other line is a #53 event (evidence.schema.json). secfoo/runtime/protocol.py:validate_message enforces the same rules.",
+  "oneOf": [
+    {"$ref": "#/$defs/hello"},
+    {"$ref": "#/$defs/welcome"},
+    {"$ref": "#/$defs/slow"},
+    {"$ref": "#/$defs/auth"},
+    {"$ref": "evidence.schema.json"}
+  ],
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S"},
+    "hello": {
+      "description": "Probe -> sensor, first line on every connection.",
+      "type": "object",
+      "required": ["type", "protocol", "runtime", "runtime_version", "probe_version", "pid", "host"],
+      "properties": {
+        "type": {"const": "hello"},
+        "protocol": {"const": 1},
+        "runtime": {"enum": ["python", "node", "jvm", "dotnet", "go", "rust", "ruby", "php", "native"]},
+        "runtime_version": {"$ref": "#/$defs/text"},
+        "probe_version": {"$ref": "#/$defs/text"},
+        "pid": {"type": "integer", "minimum": 1},
+        "host": {"$ref": "#/$defs/text", "description": "Host or pod name."}
+      }
+    },
+    "welcome": {
+      "description": "Sensor -> probe, the answer to hello. Probes honour flush_interval.",
+      "type": "object",
+      "required": ["type", "protocol", "flush_interval"],
+      "properties": {
+        "type": {"const": "welcome"},
+        "protocol": {"const": 1},
+        "flush_interval": {"type": "number", "exclusiveMinimum": 0, "description": "Seconds between flushes."},
+        "watchlist_version": {"$ref": "#/$defs/text"},
+        "watchlist_path": {"$ref": "#/$defs/text"}
+      }
+    },
+    "slow": {
+      "description": "Sensor -> probe backpressure: flush less often / sample more coarsely until further notice.",
+      "type": "object",
+      "required": ["type", "sample_every"],
+      "properties": {
+        "type": {"const": "slow"},
+        "sample_every": {"type": "integer", "minimum": 1}
+      }
+    },
+    "auth": {
+      "description": "Probe -> sensor, right after hello on tcp:// when SECFOO_SENSOR_KEY is set (other containers in a pod share loopback).",
+      "type": "object",
+      "required": ["type", "key"],
+      "properties": {
+        "type": {"const": "auth"},
+        "key": {"$ref": "#/$defs/text"}
+      }
+    }
+  }
+}
