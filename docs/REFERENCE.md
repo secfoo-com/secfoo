@@ -540,6 +540,44 @@ request-like handler):
 The fallback fires on every Python call, so prefer 3.12+ in production or
 keep the fallback to staging.
 
+### Runtime evidence in the CLI and CI
+
+Runtime evidence is most useful where fixes are chosen: in the branch, the PR
+and CI. The CLI attaches it to findings automatically.
+
+```bash
+secfoo findings list                           # Runtime column; sorted by severity, then by what production saw
+secfoo findings show 3f2a9c                    # one finding, its routes and a "Fix first" hint
+secfoo findings export --format sarif --runtime-priority -o findings.sarif
+secfoo findings check --fail-on reached:high   # CI gate: exit 4 if an open High+ finding is reached in production
+```
+
+Evidence comes from two places, and the stronger state wins:
+
+- **The local store**, for anything ingested here or by a self-hosted
+  `secfoo serve` that shares the store.
+- **The server your `secfoo cloud login` key belongs to**, via
+  `GET /api/runtime/v1/evidence`. The answer is cached under
+  `$SECFOO_HOME/runtime-cache/`, so offline runs reuse the last one.
+
+With no key, no network call is made. **No runtime data** is the normal state
+when no sensor is deployed, not an error. `--no-runtime` skips all of it.
+
+- **Ordering** within each severity: Reached, Executed, Loaded, No runtime
+  data, Not observed / Not loaded. Not-observed findings are never hidden, and
+  always show their coverage.
+- **SARIF.** Each SCA result carries `properties.secfoo.runtime` (state,
+  summary, routes, hits, last seen, version drift). A reached finding's
+  message says "Reached in production via …". `--runtime-priority` raises
+  reached findings to `error`.
+- **Gate.** `--fail-on reached[:<severity>]` counts findings reached on a
+  request route. `executed[:<severity>]` also counts code that ran with no
+  request context. The gate exits **`4`** (distinct from `1`, `2` and `3` of
+  `secfoo run`) and is off unless you run it.
+- **After `secfoo run`**, when runtime data exists for the project, the
+  summary adds one line, e.g. *"2 of 12 findings are reached in production:
+  D2 (POST /upload, anonymous), …"*.
+
 ### Runtime ingest API
 
 Live sensors send evidence to the same server your CLI results go to. They
