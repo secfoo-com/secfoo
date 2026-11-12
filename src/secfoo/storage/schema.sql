@@ -408,3 +408,23 @@ CREATE TABLE IF NOT EXISTS runtime_sensors (
     last_heartbeat_at TEXT NOT NULL,
     UNIQUE (project_id, sensor_id)
 );
+
+-- #68: findings raised from what production actually loaded, not from a
+-- scan: an advisory against a version that differs from the scanned one
+-- (drift), against a package no scanned manifest listed (unscanned), or a
+-- new advisory published against a version that is running now. Not in
+-- sca_findings because no scan run produced them.
+CREATE TABLE IF NOT EXISTS runtime_findings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id     INTEGER NOT NULL REFERENCES projects(id),
+    kind           TEXT NOT NULL CHECK (kind IN ('drift','unscanned','new_advisory')),
+    ecosystem      TEXT NOT NULL,
+    package        TEXT NOT NULL,
+    version        TEXT NOT NULL,
+    advisory       TEXT NOT NULL,
+    scanned_versions TEXT,           -- JSON list; empty for unscanned
+    apps           TEXT,             -- JSON list of "app/env" running it
+    first_seen_at  TEXT NOT NULL,
+    last_seen_at   TEXT NOT NULL,
+    UNIQUE (project_id, kind, ecosystem, package, version, advisory)
+);

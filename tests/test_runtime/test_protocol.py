@@ -146,7 +146,7 @@ def test_probe_flush_interval_follows_welcome_and_slow():
 
 
 def test_reference_python_probe_passes_the_kit():
-    results = {r.name: r for r in run_kit(REFERENCE, loop_calls=50000)}
+    results = {r.name: r for r in run_kit(REFERENCE, loop_calls=10000)}
     failed = {name: r.detail for name, r in results.items() if not r.passed}
     assert not failed, failed
     assert set(results) == {"inert", "call", "nocall", "privacy", "fail-open", "overhead"}

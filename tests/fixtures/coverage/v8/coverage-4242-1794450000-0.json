@@ -1,0 +1,117 @@
+{
+ "result": [
+  {
+   "scriptId": "1",
+   "url": "file:///srv/app/node_modules/lodash/lodash.js",
+   "functions": [
+    {
+     "functionName": "",
+     "ranges": [
+      {
+       "startOffset": 0,
+       "endOffset": 900,
+       "count": 1
+      }
+     ],
+     "isBlockCoverage": true
+    },
+    {
+     "functionName": "template",
+     "ranges": [
+      {
+       "startOffset": 10,
+       "endOffset": 200,
+       "count": 4
+      }
+     ],
+     "isBlockCoverage": true
+    },
+    {
+     "functionName": "escape",
+     "ranges": [
+      {
+       "startOffset": 210,
+       "endOffset": 300,
+       "count": 0
+      }
+     ],
+     "isBlockCoverage": false
+    }
+   ]
+  },
+  {
+   "scriptId": "2",
+   "url": "file:///srv/app/node_modules/@babel/core/lib/index.js",
+   "functions": [
+    {
+     "functionName": "transform",
+     "ranges": [
+      {
+       "startOffset": 0,
+       "endOffset": 80,
+       "count": 0
+      }
+     ],
+     "isBlockCoverage": false
+    }
+   ]
+  },
+  {
+   "scriptId": "3",
+   "url": "file:///srv/app/src/server.js",
+   "functions": [
+    {
+     "functionName": "",
+     "ranges": [
+      {
+       "startOffset": 0,
+       "endOffset": 500,
+       "count": 1
+      }
+     ],
+     "isBlockCoverage": true
+    },
+    {
+     "functionName": "handle",
+     "ranges": [
+      {
+       "startOffset": 20,
+       "endOffset": 120,
+       "count": 4
+      }
+     ],
+     "isBlockCoverage": true
+    },
+    {
+     "functionName": "unused",
+     "ranges": [
+      {
+       "startOffset": 130,
+       "endOffset": 160,
+       "count": 0
+      }
+     ],
+     "isBlockCoverage": false
+    }
+   ]
+  },
+  {
+   "scriptId": "4",
+   "url": "node:internal/main/run_main_module",
+   "functions": [
+    {
+     "functionName": "",
+     "ranges": [
+      {
+       "startOffset": 0,
+       "endOffset": 10,
+       "count": 1
+      }
+     ],
+     "isBlockCoverage": false
+    }
+   ]
+  }
+ ],
+ "timestamp": 1794450000.123
+}

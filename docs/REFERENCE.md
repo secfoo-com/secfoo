@@ -473,6 +473,64 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Runtime package inventory
+
+Probes report which packages a process actually **loaded**, and at which
+version (`load` lines). `secfoo runtime inventory` compares that with the
+latest SCA scan:
+
+```bash
+secfoo runtime inventory --project payments                          # table
+secfoo runtime inventory --project payments --app payments-api --env prod --format cyclonedx -o runtime-sbom.json
+secfoo runtime recheck                                               # OSV querybatch for every running version
+```
+
+| Case | Result |
+|---|---|
+| A vulnerable package is loaded at the scanned version | The SCA finding shows **Loaded**. |
+| A package is loaded at a *different* version than scanned | **Drift.** That version is checked against OSV, and an advisory raises a runtime finding. |
+| A package is loaded but no scanned manifest lists it | **Unscanned dependency.** OSV is checked, and an advisory raises a runtime finding. |
+| A vulnerable package is never loaded | **Not loaded**, shown with the observation window (it is not proof of unreachability). |
+
+- **New in production.** A package first seen more than `--baseline-hours`
+  (default 24) after its app's first session is marked **new**, even with no
+  known advisory.
+- **Real-time advisories.** `secfoo runtime recheck` asks OSV
+  (`/v1/querybatch`) about every package version that is running now. An
+  advisory the scans don't already account for raises a `new_advisory`
+  runtime finding, with no new scan. `secfoo serve` runs the same recheck in
+  the background every `--runtime-recheck-hours` (default 6; `0` disables
+  it). It only queries when runtime data exists.
+- **Storage.** Runtime findings live in `runtime_findings` (kind, package,
+  version, advisory, and the app/env running it).
+- **SBOM.** `--format cyclonedx` writes a CycloneDX 1.5 SBOM of what is
+  actually loaded, with purls and each package's runtime status.
+
+### Coverage files as runtime evidence
+
+The easiest evidence needs no sensor: coverage from your test suite or a
+staging run.
+
+```bash
+coverage run --source=app,yaml,jinja2 -m pytest && coverage json         # include the dependencies you watch
+secfoo runtime import-coverage coverage.json --watchlist watchlist.json -o events.ndjson
+NODE_V8_COVERAGE=./v8-cov node app.js
+secfoo runtime import-coverage ./v8-cov --watchlist watchlist.json -o events.ndjson
+secfoo runtime ingest events.ndjson --project payments
+```
+
+- **Python:** a coverage.py JSON report from coverage 7.5 or later, which has
+  per-function data. coverage.py **omits site-packages by default**, so
+  measure the watched packages with `--source` or `[run] include`; the command
+  says so when no dependency files are in the report.
+- **Node:** a V8 coverage folder, or one of its files. Its function ranges
+  already include `node_modules`.
+
+A watched symbol counts as **Executed** when its function ran. Coverage has no
+routes or stack traces. The session line gets the app's own function
+coverage. The session id comes from the file contents, so re-importing the
+same coverage never double-counts.
+
 ### Python probe
 
 The probe runs inside a Python app and records which watched vulnerable
@@ -539,6 +597,44 @@ request-like handler):
 
 The fallback fires on every Python call, so prefer 3.12+ in production or
 keep the fallback to staging.
+
+### Runtime evidence in the CLI and CI
+
+Runtime evidence is most useful where fixes are chosen: in the branch, the PR
+and CI. The CLI attaches it to findings automatically.
+
+```bash
+secfoo findings list                           # Runtime column; sorted by severity, then by what production saw
+secfoo findings show 3f2a9c                    # one finding, its routes and a "Fix first" hint
+secfoo findings export --format sarif --runtime-priority -o findings.sarif
+secfoo findings check --fail-on reached:high   # CI gate: exit 4 if an open High+ finding is reached in production
+```
+
+Evidence comes from two places, and the stronger state wins:
+
+- **The local store**, for anything ingested here or by a self-hosted
+  `secfoo serve` that shares the store.
+- **The server your `secfoo cloud login` key belongs to**, via
+  `GET /api/runtime/v1/evidence`. The answer is cached under
+  `$SECFOO_HOME/runtime-cache/`, so offline runs reuse the last one.
+
+With no key, no network call is made. **No runtime data** is the normal state
+when no sensor is deployed, not an error. `--no-runtime` skips all of it.
+
+- **Ordering** within each severity: Reached, Executed, Loaded, No runtime
+  data, Not observed / Not loaded. Not-observed findings are never hidden, and
+  always show their coverage.
+- **SARIF.** Each SCA result carries `properties.secfoo.runtime` (state,
+  summary, routes, hits, last seen, version drift). A reached finding's
+  message says "Reached in production via …". `--runtime-priority` raises
+  reached findings to `error`.
+- **Gate.** `--fail-on reached[:<severity>]` counts findings reached on a
+  request route. `executed[:<severity>]` also counts code that ran with no
+  request context. The gate exits **`4`** (distinct from `1`, `2` and `3` of
+  `secfoo run`) and is off unless you run it.
+- **After `secfoo run`**, when runtime data exists for the project, the
+  summary adds one line, e.g. *"2 of 12 findings are reached in production:
+  D2 (POST /upload, anonymous), …"*.
 
 ### Runtime ingest API
 

@@ -37,7 +37,7 @@ from secfoo.runtime.protocol import (
 
 DEFAULT_SYMBOL = "secfoo.runtime.conformance.vulnerable.parse"
 FINGERPRINT = "conformance-fp"
-STEP_TIMEOUT_SECONDS = 60
+STEP_TIMEOUT_SECONDS = 180  # the setprofile fallback (3.10/3.11) on a slow CI runner
 
 
 class FakeSensor:

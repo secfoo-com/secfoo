@@ -38,13 +38,18 @@ def _location(record: dict) -> dict | None:
     return {"physicalLocation": physical}
 
 
-def findings_to_sarif(records: list[dict]) -> dict:
+def findings_to_sarif(records: list[dict], *, runtime_priority: bool = False) -> dict:
     """Build one run; group rules by skill, CWE and severity.
 
     Severity is part of the rule identity because GitHub reads security-severity
     from the rule, while findings with the same CWE can have different levels.
     Only explicit result fields are copied: internal IDs and secret evidence
     are not needed by code scanning.
+
+    A record carrying "runtime" (#80) gets it as properties.secfoo.runtime,
+    so PR annotations can say "reached in production via POST /upload";
+    with runtime_priority, a finding reached in production is raised to
+    level "error".
     """
     rules = []
     rule_indices = {}
@@ -71,12 +76,18 @@ def findings_to_sarif(records: list[dict]) -> dict:
         title = record.get("title") or record.get("issue") or record.get("secret_type") or f"{skill} finding"
         description = record.get("description") or record.get("construct")
         message = str(title) + (f"\n\n{description}" if description else "")
+        runtime = record.get("runtime")
+        if runtime and runtime.get("state") == "reached":
+            routes = ", ".join(r["route"] for r in runtime.get("routes", [])[:3])
+            message += f"\n\nReached in production via {routes}." if routes else "\n\nReached in production."
         result = {
             "ruleId": rule_id,
             "ruleIndex": rule_indices[rule_id],
-            "level": level,
+            "level": "error" if runtime_priority and runtime and runtime.get("state") == "reached" else level,
             "message": {"text": message},
         }
+        if runtime:
+            result["properties"] = {"secfoo": {"runtime": runtime}}
         location = _location(record)
         if location is not None:
             result["locations"] = [location]
