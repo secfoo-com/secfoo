@@ -617,18 +617,88 @@ def show(
         console.print("[yellow]No report content available for this run.[/]")
 
 
-@app.command()
+serve_app = typer.Typer(
+    name="serve", invoke_without_command=True,
+    help="Launch the local web dashboard (and runtime ingest API). `secfoo serve key` manages its API keys.",
+)
+serve_key_app = typer.Typer(name="key", help="API keys for runtime sensors and the CLI on this server (#66).")
+serve_app.add_typer(serve_key_app, name="key")
+app.add_typer(serve_app, name="serve")
+
+
+@serve_app.callback()
 def serve(
-    host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(8787, "--port"),
+    ctx: typer.Context,
+    host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port")] = 8787,
+    allow_insecure_runtime: Annotated[bool, typer.Option(
+        "--allow-insecure-runtime",
+        help="Accept runtime API keys over plain HTTP on a non-loopback --host. Prefer TLS in front instead.",
+    )] = False,
 ) -> None:
     """Launch the local web dashboard."""
+    if ctx.invoked_subcommand is not None:
+        return
     import uvicorn
 
     from secfoo.web.app import create_app
 
     console.print(f"Serving dashboard at [bold]http://{host}:{port}[/]")
-    uvicorn.run(create_app(), host=host, port=port)
+    uvicorn.run(create_app(bind_host=host, allow_insecure_runtime=allow_insecure_runtime), host=host, port=port)
+
+
+@serve_key_app.command(name="create")
+def serve_key_create(
+    name: Annotated[str, typer.Option("--name", help="A label, e.g. payments-prod-sensor.")],
+    project: Annotated[str | None, typer.Option(
+        "--project", help="Limit the key to one project (id, name or path/URL). Default: every project.",
+    )] = None,
+    runtime_only: Annotated[bool, typer.Option(
+        "--runtime-only", help="Only allow the runtime endpoints (recommended for production clusters).",
+    )] = False,
+) -> None:
+    """Issue an API key. It is shown once: store it in a secret, never in an image."""
+    from secfoo.runtime import keys as keys_module
+
+    with RunRepository() as repo:
+        project_id = None
+        if project is not None:
+            project_id = repo.resolve_project_ref(project)
+            if project_id is None:
+                err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+                raise typer.Exit(code=1)
+        key, record = keys_module.create_key(
+            repo.connection, name=name, scope="runtime" if runtime_only else "all", project_id=project_id
+        )
+    err_console.print(f"Created key {record.id} ({record.name}, scope {record.scope}). It won't be shown again:")
+    print(key)  # stdout, so `KEY=$(secfoo serve key create ...)` captures only the key
+
+
+@serve_key_app.command(name="list")
+def serve_key_list() -> None:
+    """Keys on this server (never the keys themselves)."""
+    from secfoo.runtime import keys as keys_module
+
+    table = Table(show_header=True, header_style="bold")
+    for column in ("id", "name", "prefix", "scope", "project", "created", "last used", "status"):
+        table.add_column(column)
+    with RunRepository() as repo:
+        for k in keys_module.list_keys(repo.connection):
+            table.add_row(str(k.id), k.name, k.key_prefix + "…", k.scope, str(k.project_id or "all"),
+                          k.created_at[:19], (k.last_used_at or "-")[:19], "active" if k.active else "revoked")
+    console.print(table)
+
+
+@serve_key_app.command(name="revoke")
+def serve_key_revoke(key_id: Annotated[int, typer.Argument(help="Key id from `secfoo serve key list`.")]) -> None:
+    """Revoke a key. Sensors and CLIs using it are rejected from the next request."""
+    from secfoo.runtime import keys as keys_module
+
+    with RunRepository() as repo:
+        if not keys_module.revoke_key(repo.connection, key_id):
+            err_console.print(f"[red]Error:[/] no active key with id {key_id}.")
+            raise typer.Exit(code=1)
+    console.print(f"Revoked key {key_id}.")
 
 
 @app.command()

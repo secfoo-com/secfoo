@@ -473,6 +473,62 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Runtime ingest API
+
+Live sensors send evidence to the same server your CLI results go to. They
+authenticate with **the same Secfoo API key**, so one key gives one view of
+static findings and runtime evidence. `secfoo serve` implements this API; the
+hosted service implements the same contract.
+
+**On a self-hosted `secfoo serve`, issue a key:**
+
+```bash
+secfoo serve key create --name payments-prod-sensor --project payments-api --runtime-only
+secfoo serve key list
+secfoo serve key revoke 3
+secfoo cloud login --api-key <key> --portal-url https://secfoo.internal   # the CLI shares the same key
+```
+
+The key is printed once. Only a SHA-256 of it is stored. `--project` limits a
+key to one project, and `--runtime-only` limits it to these endpoints; both
+are recommended for production clusters.
+
+**Sensor configuration**, set explicitly at deploy time:
+
+```bash
+SECFOO_API_KEY_FILE=/var/run/secrets/secfoo/api-key   # or SECFOO_API_KEY; mount it from a secret, never bake it into an image
+SECFOO_SERVER=https://secfoo.internal                 # default: the portal URL `secfoo cloud login` saved
+SECFOO_PROJECT=https://github.com/acme/payments-api   # the identifier exactly as `secfoo run` recorded it
+SECFOO_APP=payments-api
+SECFOO_ENV=prod
+```
+
+A missing key, server or project is an error. There is no fallback account.
+`SECFOO_SERVER` must be `https://`, or a loopback `http://` address.
+
+**Endpoints** (`Authorization: Bearer <key>`; `project` is required on each):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/runtime/v1/watchlist?project=` | The watchlist above, with an `ETag`. Send `If-None-Match` to get a cheap `304`. |
+| `POST /api/runtime/v1/events?project=&app=&env=` | An NDJSON batch in the evidence format (gzip allowed, `Content-Encoding: gzip`). It uses the same validation and idempotent upsert as `secfoo runtime ingest`, so a retried batch never double-counts. `app` / `env` fill session lines that don't set them. Returns the counts stored and any skipped lines. |
+| `POST /api/runtime/v1/heartbeat?project=` | JSON `{sensor_id, version, app, env, instances, dropped}`. Registers the sensor and sums dropped events. |
+| `GET /api/runtime/v1/evidence?project=` | The runtime state of each open SCA finding (state, routes, coverage, conflict), for the CLI and CI. |
+
+- **Errors:** `401` for a missing, unknown or revoked key; `403` for a key
+  without access to the project; `404` for an unknown project (it is not
+  auto-created; run `secfoo run` first); `413` for oversized batches; `429`
+  when rate-limited.
+- **Limits:** 5 MiB request body, 20 MiB decompressed, 50,000 lines per
+  batch, and 120 requests per minute per key.
+- **Logging:** keys and event payloads are never logged or echoed in errors.
+
+**TLS.** `secfoo serve` binds `127.0.0.1` by default. On any other `--host`,
+it refuses API keys over plain HTTP. Put a TLS-terminating proxy in front
+(e.g. Caddy, nginx, or a cloud load balancer forwarding `X-Forwarded-Proto`)
+and run uvicorn behind it. `--allow-insecure-runtime` disables the check, for
+a trusted private network only.
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.

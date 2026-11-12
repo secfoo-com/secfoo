@@ -376,3 +376,35 @@ CREATE TABLE IF NOT EXISTS runtime_packages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_runtime_packages_project ON runtime_packages(project_id, ecosystem, package);
+
+-- #66: API keys a self-hosted `secfoo serve` issues for runtime sensors and
+-- the CLI (`secfoo serve key create`). Only a SHA-256 of the key is stored;
+-- the key itself is shown once, at creation. `project_id` NULL = every
+-- project on this server; `scope` 'runtime' = runtime endpoints only.
+CREATE TABLE IF NOT EXISTS runtime_api_keys (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    key_prefix    TEXT NOT NULL,            -- first characters, for `key list` only
+    key_hash      TEXT NOT NULL UNIQUE,
+    scope         TEXT NOT NULL CHECK (scope IN ('all','runtime')),
+    project_id    INTEGER REFERENCES projects(id),
+    created_at    TEXT NOT NULL,
+    last_used_at  TEXT,
+    revoked_at    TEXT
+);
+
+-- #66: sensors register on their first heartbeat; the runtime page (#72)
+-- lists them. `dropped_total` sums the events sensors reported dropping.
+CREATE TABLE IF NOT EXISTS runtime_sensors (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id        INTEGER NOT NULL REFERENCES projects(id),
+    sensor_id         TEXT NOT NULL,
+    version           TEXT,
+    app               TEXT,
+    env               TEXT,
+    instances         INTEGER,
+    dropped_total     INTEGER NOT NULL DEFAULT 0,
+    first_seen_at     TEXT NOT NULL,
+    last_heartbeat_at TEXT NOT NULL,
+    UNIQUE (project_id, sensor_id)
+);
