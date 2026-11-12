@@ -540,10 +540,43 @@ def run(
                 f"-- reported spend {format_cost(total_cost)}"
                 + (f", {unpriced_runs} run(s) unpriced" if unpriced_runs else "")
             )
+        line = _runtime_summary_line(outcomes)
+        if line:
+            console.print(line)
         console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
 
     if exit_code:
         raise typer.Exit(code=exit_code)
+
+
+def _runtime_summary_line(outcomes) -> str | None:
+    """#80: '3 of 12 findings are reached in production: D2 (POST /upload, anonymous), ...'
+    -- only when runtime data exists for the scanned project. Never fails a run."""
+    try:
+        from secfoo.runtime.developer import RuntimeLookup
+
+        with RunRepository() as repo:
+            project_ids = {run.project_id for o in outcomes if (run := repo.get_run(o.run_uuid)) is not None}
+            lookup = RuntimeLookup(repo)
+            rows = [row for pid in project_ids
+                    for _, row in repo.list_structured_findings(skill_ids=["sca-reachability"], project_id=pid,
+                                                                status="open")]
+            states = [(row, lookup.for_finding("sca-reachability", row)) for row in rows]
+    except Exception:  # noqa: BLE001 -- a summary line must never break `secfoo run`
+        return None
+    if not any(runtime.state != "none" for _, runtime in states):
+        return None
+    reached = [(row, runtime) for row, runtime in states if runtime.is_reached]
+    if not reached:
+        return f"Runtime: none of {len(states)} open SCA finding(s) are reached in production yet."
+    examples = []
+    for row, runtime in reached[:3]:
+        top = runtime.routes[0] if runtime.routes else {}
+        where = ", ".join(x for x in (top.get("route"), top.get("auth")) if x)
+        examples.append(f"{row.get('current_ref') or row['fingerprint'][:8]} ({where})" if where else row.get("current_ref", ""))
+    more = ", ..." if len(reached) > 3 else ""
+    return (f"[bold red]{len(reached)} of {len(states)} findings are reached in production:[/] "
+            f"{', '.join(examples)}{more}")
 
 
 @app.command(name="list")
@@ -1582,29 +1615,44 @@ def findings_export(
         False, "--no-locations",
         help="Drop file paths, line numbers, code-region hashes and reachability evidence.",
     ),
+    no_runtime: Annotated[bool, typer.Option(
+        "--no-runtime", help="Don't attach runtime evidence (and don't fetch it from the server).",
+    )] = False,
+    runtime_priority: Annotated[bool, typer.Option(
+        "--runtime-priority", help="SARIF: raise findings reached in production to level 'error'.",
+    )] = False,
 ) -> None:
     """Export structured findings (SAST, SCA, secret scanning) as JSONL or SARIF.
 
     One record per finding, with its skill, severity, stack (language/
     framework) and code-free construct description -- the same shape for
-    every skill, for feeding other tools.
+    every skill, for feeding other tools. SCA findings carry their runtime
+    evidence ("runtime"; in SARIF, properties.secfoo.runtime).
     """
+    from secfoo.runtime.developer import RuntimeLookup
+
+    records = []
     with RunRepository() as repo:
         rows = repo.list_structured_findings(
             skill_ids=[s.value for s in skill] or None,
             project_id=project,
             status=None if status is FindingsStatus.ALL else status.value,
         )
-    records = []
-    for skill_id, row in rows:
-        record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
-        for column, value in row.items():
-            if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
-                continue
-            record[column] = value
-        records.append(record)
+        lookup = RuntimeLookup(repo, enabled=not no_runtime)
+        for skill_id, row in rows:
+            runtime = lookup.for_finding(skill_id, row)
+            record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
+            for column, value in row.items():
+                if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
+                    continue
+                record[column] = value
+            if skill_id == "sca-reachability" and not no_runtime:
+                record["runtime"] = runtime.as_sarif()
+            records.append(record)
+    for note in lookup.notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
     if format is FindingsFormat.SARIF:
-        text = json.dumps(findings_to_sarif(records), indent=2, sort_keys=True) + "\n"
+        text = json.dumps(findings_to_sarif(records, runtime_priority=runtime_priority), indent=2, sort_keys=True) + "\n"
     else:
         lines = [json.dumps(record, sort_keys=True) for record in records]
         text = "\n".join(lines) + ("\n" if lines else "")
@@ -1613,6 +1661,123 @@ def findings_export(
         return
     output.write_text(text, encoding="utf-8")
     err_console.print(f"Wrote {len(records)} finding(s) to {output}.")
+
+
+EXIT_RUNTIME_REACHED = 4
+
+
+def _finding_title(skill_id: str, row: dict) -> str:
+    if skill_id == "sca-reachability":
+        return f"{row.get('package')}@{row.get('version') or '?'}: {row.get('issue') or row.get('cve') or ''}".strip()
+    return row.get("title") or row.get("secret_type") or skill_id
+
+
+def _finding_rows(repo, *, skill, project, status, no_runtime):
+    from secfoo.runtime.developer import RuntimeLookup, sort_key
+
+    rows = repo.list_structured_findings(
+        skill_ids=[s.value for s in skill] or None, project_id=project,
+        status=None if status is FindingsStatus.ALL else status.value,
+    )
+    lookup = RuntimeLookup(repo, enabled=not no_runtime)
+    items = [(skill_id, row, lookup.for_finding(skill_id, row)) for skill_id, row in rows]
+    items.sort(key=lambda item: sort_key(item[1], item[2]))
+    return items, lookup.notes
+
+
+@findings_app.command(name="list")
+def findings_list(
+    skill: Annotated[list[FindingsSkill] | None, typer.Option("--skill", "-s", help="Limit to these skills.")] = None,
+    project: Annotated[int | None, typer.Option("--project", help="Limit to one project id.")] = None,
+    status: Annotated[FindingsStatus, typer.Option("--status", help="open, closed, or all.")] = FindingsStatus.OPEN,
+    no_runtime: Annotated[bool, typer.Option("--no-runtime", help="Skip runtime evidence (no fetch).")] = False,
+) -> None:
+    """Findings with their runtime evidence, sorted by severity and then by what production saw.
+
+    Runtime: Reached (route, hits) > Executed > Loaded > No runtime data >
+    Not observed (always shown with its coverage). Fetched from the server
+    your `secfoo cloud login` key belongs to, and cached for offline use.
+    """
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=skill or [], project=project, status=status, no_runtime=no_runtime)
+    table = Table(show_header=True, header_style="bold")
+    for column in ("fingerprint", "skill", "project", "severity", "finding", "runtime"):
+        table.add_column(column, overflow="fold")
+    for skill_id, row, runtime in items:
+        table.add_row(row["fingerprint"][:10], skill_id, row.get("display_name") or "", row.get("severity") or "",
+                      _finding_title(skill_id, row), "-" if no_runtime else runtime.summary)
+    console.print(table)
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+
+
+@findings_app.command(name="show")
+def findings_show(
+    fingerprint: Annotated[str, typer.Argument(help="Fingerprint (or its first characters) from `findings list`.")],
+    no_runtime: Annotated[bool, typer.Option("--no-runtime", help="Skip runtime evidence (no fetch).")] = False,
+) -> None:
+    """One finding in full, with its runtime evidence and a remediation hint."""
+    from secfoo.runtime.developer import remediation_hint
+
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=[], project=None, status=FindingsStatus.ALL, no_runtime=no_runtime)
+    matches = [item for item in items if item[1]["fingerprint"].startswith(fingerprint)]
+    if len(matches) != 1:
+        err_console.print(f"[red]Error:[/] {len(matches)} findings match {fingerprint!r}; give more characters.")
+        raise typer.Exit(code=1)
+    skill_id, row, runtime = matches[0]
+    console.print(f"[bold]{_finding_title(skill_id, row)}[/]  ({skill_id}, {row.get('severity')}, {row.get('status')})")
+    console.print(f"Project: {row.get('display_name')}   Fingerprint: {row['fingerprint']}")
+    for label, key in (("Location", "location_file"), ("Reachability", "reachability"), ("Fixed in", "fixed_in"),
+                       ("Recommendation", "recommendation")):
+        if row.get(key):
+            console.print(f"{label}: {row[key]}")
+    if not no_runtime:
+        console.print(f"Runtime: {runtime.summary}" + (f"  [dim](from {runtime.source})[/]" if runtime.source != "none" else ""))
+        for route in runtime.routes:
+            console.print(f"  {route['route']}  {route.get('auth') or ''}  {route['count']:,} hit(s)")
+        if runtime.loaded_versions:
+            console.print(f"  loaded: {', '.join(runtime.loaded_versions)}" + ("  (version drift)" if runtime.version_drift else ""))
+        hint = remediation_hint(row, runtime)
+        if hint:
+            console.print(f"[bold]Fix first:[/] {hint}")
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+
+
+@findings_app.command(name="check")
+def findings_check(
+    fail_on: Annotated[str, typer.Option(
+        "--fail-on", help="reached[:<severity>] or executed[:<severity>], e.g. reached:high.",
+    )],
+    project: Annotated[int | None, typer.Option("--project", help="Limit to one project id.")] = None,
+) -> None:
+    """CI gate: exit 4 when an open finding at that severity or worse is reached in production.
+
+    Off unless you run it. With no runtime data (no sensor, no key, offline
+    without a cache) nothing is reached and the gate passes.
+    """
+    from secfoo.runtime.developer import parse_gate, trips_gate
+
+    try:
+        gate = parse_gate(fail_on)
+    except ValueError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=2) from None
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=[FindingsSkill.SCA], project=project, status=FindingsStatus.OPEN,
+                                     no_runtime=False)
+    tripped = [(row, runtime) for skill_id, row, runtime in items if trips_gate(gate, row, runtime)]
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+    if not tripped:
+        console.print(f"Runtime gate ({fail_on}): pass, no open finding matches.")
+        return
+    console.print(f"[red]Runtime gate ({fail_on}): {len(tripped)} open finding(s) reached in production:[/]")
+    for row, runtime in tripped:
+        console.print(f"  {row['fingerprint'][:10]}  {row.get('severity')}  {_finding_title('sca-reachability', row)}"
+                      f"  -- {runtime.summary}")
+    raise typer.Exit(code=EXIT_RUNTIME_REACHED)
 
 
 @runtime_app.command(name="ingest")
