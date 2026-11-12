@@ -473,6 +473,31 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Coverage files as runtime evidence
+
+The easiest evidence needs no sensor: coverage from your test suite or a
+staging run.
+
+```bash
+coverage run --source=app,yaml,jinja2 -m pytest && coverage json         # include the dependencies you watch
+secfoo runtime import-coverage coverage.json --watchlist watchlist.json -o events.ndjson
+NODE_V8_COVERAGE=./v8-cov node app.js
+secfoo runtime import-coverage ./v8-cov --watchlist watchlist.json -o events.ndjson
+secfoo runtime ingest events.ndjson --project payments
+```
+
+- **Python:** a coverage.py JSON report from coverage 7.5 or later, which has
+  per-function data. coverage.py **omits site-packages by default**, so
+  measure the watched packages with `--source` or `[run] include`; the command
+  says so when no dependency files are in the report.
+- **Node:** a V8 coverage folder, or one of its files. Its function ranges
+  already include `node_modules`.
+
+A watched symbol counts as **Executed** when its function ran. Coverage has no
+routes or stack traces. The session line gets the app's own function
+coverage. The session id comes from the file contents, so re-importing the
+same coverage never double-counts.
+
 ### Python probe
 
 The probe runs inside a Python app and records which watched vulnerable

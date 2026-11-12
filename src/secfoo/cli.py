@@ -1821,6 +1821,43 @@ def runtime_ingest(
         raise typer.Exit(code=1)
 
 
+@runtime_app.command(name="import-coverage")
+def runtime_import_coverage(
+    coverage: Annotated[Path, typer.Argument(
+        exists=True, help="coverage.py JSON report, or a V8 coverage folder/file (NODE_V8_COVERAGE).",
+    )],
+    watchlist: Annotated[Path, typer.Option(
+        "--watchlist", exists=True, dir_okay=False, help="From `secfoo runtime watchlist`.",
+    )],
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Write events here instead of stdout.")] = None,
+) -> None:
+    """Turn coverage from tests or staging into runtime evidence (no sensor needed).
+
+    Then: secfoo runtime ingest events.ndjson --project <name>
+    """
+    from secfoo.runtime.coverage_import import (
+        CoverageImportError,
+        load_coverage,
+        to_events,
+    )
+
+    try:
+        cov = load_coverage(coverage)
+        events, notes = to_events(cov, json.loads(watchlist.read_text(encoding="utf-8")))
+    except (CoverageImportError, OSError, json.JSONDecodeError) as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    text = "".join(json.dumps(e) + "\n" for e in events)
+    if output is None:
+        sys.stdout.write(text)
+    else:
+        output.write_text(text, encoding="utf-8")
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+    hits = sum(1 for e in events if e["type"] == "hit")
+    err_console.print(f"{cov.language} coverage: {hits} watched symbol(s) executed" + (f". Wrote {output}." if output else "."))
+
+
 @runtime_app.command(name="watchlist")
 def runtime_watchlist(
     project: Annotated[str, typer.Option("--project", help="Project id, name, or path/URL it was scanned as.")],
