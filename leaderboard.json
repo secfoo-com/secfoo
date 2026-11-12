@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-12T07:07:10Z",
+  "generated_at": "2026-11-12T14:58:16Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 70,
+      "points": 76,
       "counts": {
         "hard": 4,
-        "medium": 4,
+        "medium": 5,
         "low": 2
       },
-      "merged_prs": 17,
+      "merged_prs": 18,
       "awards": [
         {
           "pr": 86,
@@ -141,6 +141,17 @@
           "merged_at": "2026-11-12T04:35:23Z",
           "difficulty": "low",
           "points": 3
+        },
+        {
+          "pr": 103,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/103",
+          "issue": 68,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/68",
+          "issue_title": "Runtime package inventory: loaded versions, drift and live advisories",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T14:58:06Z",
+          "difficulty": "medium",
+          "points": 6
         }
       ],
       "rank": 1,
@@ -320,6 +331,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 103,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/103",
+      "issue": 68,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/68",
+      "issue_title": "Runtime package inventory: loaded versions, drift and live advisories",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T14:58:06Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 102,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/102",

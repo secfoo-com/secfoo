@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-12 07:07:10 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-12 14:58:16 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **70** | Silver | 4 | 4 | 2 | 17 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **76** | Silver | 4 | 5 | 2 | 18 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 
@@ -34,6 +34,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#103](https://github.com/secfoo-com/secfoo/pull/103) | [#68](https://github.com/secfoo-com/secfoo/issues/68) Runtime package inventory: loaded versions, drift and live advisories | medium | +6 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#102](https://github.com/secfoo-com/secfoo/pull/102) | [#54](https://github.com/secfoo-com/secfoo/issues/54) Import coverage files as runtime evidence | low | +3 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#101](https://github.com/secfoo-com/secfoo/pull/101) | [#80](https://github.com/secfoo-com/secfoo/issues/80) Runtime evidence at the developer stage: CLI, SARIF and CI gate | medium | +6 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#100](https://github.com/secfoo-com/secfoo/pull/100) | [#73](https://github.com/secfoo-com/secfoo/issues/73) Probe ↔ sensor protocol and conformance kit (one contract for every runtime) | hard | +10 |
