@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from secfoo.config import STORE_DIR
+from secfoo.runtime import api as runtime_api
 from secfoo.web.routes import (
     activities,
     agents,
@@ -33,8 +34,12 @@ def mermaid_bundle_available() -> bool:
     return MERMAID_BUNDLE.is_file()
 
 
-def create_app() -> FastAPI:
+def create_app(*, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = False) -> FastAPI:
     app = FastAPI(title="secfoo dashboard")
+    # Read by the runtime ingest API (#66): on a non-loopback bind it refuses
+    # API keys over plain HTTP unless the operator opted in.
+    app.state.bind_host = bind_host
+    app.state.allow_insecure_runtime = allow_insecure_runtime
 
     @app.middleware("http")
     async def revalidate_static(request, call_next):
@@ -59,4 +64,5 @@ def create_app() -> FastAPI:
     app.include_router(responsible_ai.router)
     app.include_router(projects.router)
     app.include_router(runs.router)
+    app.include_router(runtime_api.router)
     return app
