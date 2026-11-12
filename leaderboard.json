@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-12T03:30:23Z",
+  "generated_at": "2026-11-12T04:01:09Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 41,
+      "points": 51,
       "counts": {
-        "hard": 2,
+        "hard": 3,
         "medium": 3,
         "low": 1
       },
-      "merged_prs": 13,
+      "merged_prs": 14,
       "awards": [
         {
           "pr": 86,
@@ -97,10 +97,21 @@
           "merged_at": "2026-11-12T03:30:14Z",
           "difficulty": "hard",
           "points": 10
+        },
+        {
+          "pr": 99,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/99",
+          "issue": 55,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/55",
+          "issue_title": "Python live sensor (`sys.monitoring`)",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-12T04:00:56Z",
+          "difficulty": "hard",
+          "points": 10
         }
       ],
       "rank": 1,
-      "level": "Bronze"
+      "level": "Silver"
     },
     {
       "login": "kushaldave002",
@@ -276,6 +287,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 99,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/99",
+      "issue": 55,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/55",
+      "issue_title": "Python live sensor (`sys.monitoring`)",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-12T04:00:56Z",
+      "difficulty": "hard",
+      "points": 10
+    },
     {
       "pr": 98,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/98",
