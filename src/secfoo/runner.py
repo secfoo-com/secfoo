@@ -452,7 +452,7 @@ def _run_single_skill(
             assessment_id=assessment_id,
             model=model,
             skill_version=skill.version,
-            skill_source="builtin" if skill.is_builtin else "user",
+            skill_source=skill.source_label,
             skill_sha256=skill.sha256 or None,
         )
         started = time.monotonic()

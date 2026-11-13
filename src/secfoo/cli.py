@@ -27,7 +27,7 @@ from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
-from secfoo.skills.loader import SkillLoadError, load_all_skills, register_skill_file
+from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill, register_skill_file
 from secfoo.skills.renderer import merge_excludes as _merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
@@ -172,6 +172,34 @@ def _is_interactive() -> bool:
     return sys.stdin.isatty()
 
 
+def _confirm_untrusted_skills(skill_ids: list[str], *, yes: bool, json_output: bool) -> None:
+    """#93: a skill's text becomes agent instructions, so the first time a
+    run would use one secfoo didn't author -- anything but a built-in or a
+    file under ~/.secfoo/skills/ -- print what it is and ask. --yes, --json
+    and a non-interactive terminal all skip it (never block a CI run)."""
+    if yes or json_output or not _is_interactive():
+        return
+    confirmed: set[str] = set()
+    for skill_id in skill_ids:
+        if skill_id in confirmed:
+            continue
+        confirmed.add(skill_id)
+        skill = load_skill(skill_id)
+        if skill.is_trusted_source:
+            continue
+        where = skill.origin or str(skill.path)
+        console.print(
+            f"[yellow]Untrusted skill:[/] {skill.id} ({skill.name})\n"
+            f"  source: {where}\n"
+            f"  sha256: {skill.sha256}"
+        )
+        if not Confirm.ask(
+            "This skill's text becomes agent instructions. Run it?", default=False, console=console
+        ):
+            err_console.print(f"[red]Aborted:[/] {skill.id} was not confirmed. Pass --yes to skip this prompt.")
+            raise typer.Exit(code=1)
+
+
 def _resolve_project_id(repo: RunRepository, target: str | None) -> int:
     resolved = resolve_target(target)
     return repo.upsert_project(
@@ -196,10 +224,20 @@ def run(
     skill: list[SkillId] = typer.Option(
         [], "--skill", "-s", help="Security skill to run. Repeatable. Includes custom skills (`secfoo skills list`)."
     ),
-    skill_file: Annotated[list[Path] | None, typer.Option(
+    skill_file: Annotated[list[str] | None, typer.Option(
         "--skill-file",
-        help="Run a skill straight from a Markdown definition file, without installing it. Repeatable.",
+        help="Run a skill straight from a Markdown file or an https:// URL, without installing it. Repeatable.",
     )] = None,
+    skill_sha256: Annotated[list[str] | None, typer.Option(
+        "--skill-sha256",
+        help="Pin a --skill-file entry to this sha256 (lowercase hex) before it runs; matched by position "
+        "against --skill-file. Only valid for a URL entry. Repeatable.",
+    )] = None,
+    yes: Annotated[bool, typer.Option(
+        "--yes", "-y",
+        help="Skip the confirmation before running a skill that isn't a built-in or a file under "
+        "~/.secfoo/skills/ (a non-interactive run, e.g. --json or CI, always skips it).",
+    )] = False,
     target: Optional[str] = typer.Option(
         None, "--target", "-t", help="GitHub URL or local directory. Defaults to the current directory."
     ),
@@ -314,16 +352,25 @@ def run(
                 f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway."
             )
 
+    skill_file_entries = skill_file or []
+    skill_sha256_entries = skill_sha256 or []
+    if len(skill_sha256_entries) > len(skill_file_entries):
+        err_console.print("[red]Error:[/] more --skill-sha256 values than --skill-file entries.")
+        raise typer.Exit(code=2)
+
     skill_ids = [s.value for s in skill]
-    for path in skill_file or []:
+    for index, entry in enumerate(skill_file_entries):
+        expected_sha256 = skill_sha256_entries[index] if index < len(skill_sha256_entries) else None
         try:
-            skill_ids.append(register_skill_file(path).id)
+            skill_ids.append(register_skill_file(entry, expected_sha256=expected_sha256).id)
         except (SkillLoadError, OSError, UnicodeDecodeError) as exc:
             err_console.print(f"[red]Error:[/] {exc}")
             raise typer.Exit(code=1) from None
     if not skill_ids:
         err_console.print("[red]Error:[/] pass at least one --skill or --skill-file.")
         raise typer.Exit(code=2)
+
+    _confirm_untrusted_skills(skill_ids, yes=yes, json_output=json_output)
 
     # No --assessment means execute_runs() will auto-create one for this run.
     # On a real terminal, ask for the two fields that make that case file
@@ -2038,6 +2085,10 @@ report format around these instructions, so don't restate them here.
 
 
 def _skill_source_label(skill) -> str:
+    if skill.source == "pack":
+        return skill.origin or "pack"
+    if skill.source == "url":
+        return f"url: {skill.origin}"
     return {"builtin": "built-in", "user": "user", "path": "path", "file": "file"}.get(skill.source, skill.source)
 
 
@@ -2130,6 +2181,86 @@ def skills_show(
     workdir = (target or Path.cwd()).resolve()
     context = TargetContext(kind="local", local_path=workdir, display_source=str(workdir))
     sys.stdout.write(render_prompt(skill, context, depth=depth.value) + "\n")
+
+
+@skills_app.command(name="install")
+def skills_install(
+    url: Annotated[str | None, typer.Argument(help="Git URL of the skill pack. Omit with --from-lock.")] = None,
+    ref: Annotated[str | None, typer.Option(
+        "--ref", help="Tag, branch or commit to check out. Defaults to the repo's default branch.",
+    )] = None,
+    name: Annotated[str | None, typer.Option(
+        "--name", help="Name to install under (~/.secfoo/skills/packs/<name>). Defaults to a name derived from the URL.",
+    )] = None,
+    from_lock: Annotated[bool, typer.Option(
+        "--from-lock",
+        help="Install every pack recorded in packs.lock at its pinned commit, reproducing the set -- for CI.",
+    )] = False,
+) -> None:
+    """Install a shared skill pack (a git repo of *.md skills) so everyone -- and CI -- can run the same ones.
+
+    \b
+    secfoo skills install https://github.com/acme/appsec-skills
+    secfoo skills install https://github.com/acme/appsec-skills --ref v3
+    secfoo skills install --from-lock
+    """
+    from secfoo.skills.packs import PackError, install_from_lock, install_pack
+
+    if from_lock:
+        if url is not None:
+            err_console.print("[red]Error:[/] --from-lock installs every pack already in packs.lock; pass no URL.")
+            raise typer.Exit(code=1)
+        try:
+            packs = install_from_lock()
+        except PackError as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+        for pack in packs:
+            console.print(f"[green]ok[/]  {pack.name} @ {pack.commit[:12]}  ({pack.path})")
+        console.print(f"{len(packs)} pack(s) installed from packs.lock.")
+        return
+    if url is None:
+        err_console.print("[red]Error:[/] pass a git URL to install, or --from-lock to reproduce packs.lock.")
+        raise typer.Exit(code=1)
+    try:
+        pack = install_pack(url, ref=ref, name=name)
+    except PackError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    console.print(f"Installed {pack.name} @ {pack.commit[:12]} -> {pack.path}")
+    console.print(f"Run `secfoo skills list` to see its skills, or `secfoo skills update {pack.name}` later.")
+
+
+@skills_app.command(name="update")
+def skills_update_pack(
+    name: Annotated[str | None, typer.Argument(help="Pack to update. Omit to update every installed pack.")] = None,
+) -> None:
+    """Fetch and move an installed pack to the newest commit on its pinned ref."""
+    from secfoo.skills.packs import PackError, update_all_packs, update_pack
+
+    try:
+        updated = update_all_packs() if name is None else [update_pack(name)]
+    except PackError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    if not updated:
+        console.print("No packs installed.")
+        return
+    for pack in updated:
+        console.print(f"[green]ok[/]  {pack.name} @ {pack.commit[:12]}")
+
+
+@skills_app.command(name="remove")
+def skills_remove_pack(name: Annotated[str, typer.Argument(help="Pack to remove.")]) -> None:
+    """Remove an installed skill pack."""
+    from secfoo.skills.packs import PackError, remove_pack
+
+    try:
+        remove_pack(name)
+    except PackError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    console.print(f"Removed {name}.")
 
 
 sensor_app = typer.Typer(name="sensor", help="Runtime sensor tools: the probe conformance kit (#73).")

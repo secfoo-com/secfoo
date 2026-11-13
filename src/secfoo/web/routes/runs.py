@@ -17,8 +17,14 @@ router = APIRouter()
 def run_detail(request: Request, run_uuid: str):
     with RunRepository() as repo:
         record = repo.get_run(run_uuid)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Run not found")
+        if record is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        definition_changed = False
+        if record.skill_sha256:
+            previous_sha256 = repo.previous_skill_sha256(
+                skill_id=record.skill_id, before_started_at=record.started_at, exclude_run_uuid=record.run_uuid,
+            )
+            definition_changed = previous_sha256 is not None and previous_sha256 != record.skill_sha256
 
     report_html = ""
     if record.report_path and Path(record.report_path).exists():
@@ -38,6 +44,7 @@ def run_detail(request: Request, run_uuid: str):
             "elapsed": elapsed_seconds(record),
             "is_active": record.status in ACTIVE_STATUSES,
             "report_html": report_html,
+            "definition_changed": definition_changed,
             "mermaid_available": mermaid_bundle_available(),
         },
     )

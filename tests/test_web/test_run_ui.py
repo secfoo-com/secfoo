@@ -77,6 +77,44 @@ def test_successful_run_has_no_blocked_hint(client):
     assert run_status.blocked_hint(_run(status="success")) is None
 
 
+# ---------- skill traceability (#93): pack/url source, "definition changed" ----------
+
+
+def _run_with_skill(*, skill_id="graphql-review", skill_source=None, skill_sha256=None, skill_version=1):
+    repo = RunRepository()
+    project_id = repo.upsert_project("p", "Payments API", "local")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id=skill_id, skill_name=skill_id, agent_id="claude",
+        confluence_urls=[], assessment_id=assessment_id,
+        skill_version=skill_version, skill_source=skill_source, skill_sha256=skill_sha256,
+    )
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=2.0,
+        report_path=None, prompt_path=None, stderr_excerpt=None,
+    )
+    record = repo.get_run(run_uuid)
+    repo.close()
+    return record
+
+
+def test_run_detail_shows_a_pack_source(client):
+    run = _run_with_skill(skill_source="pack:acme-pack@abcdef0123456789", skill_sha256="a" * 64)
+    assert "pack:acme-pack@abcdef0123456789" in client.get(f"/runs/{run.run_uuid}").text
+
+
+def test_run_detail_shows_a_url_source_as_a_link(client):
+    run = _run_with_skill(skill_source="https://example.test/review.md", skill_sha256="b" * 64)
+    assert 'href="https://example.test/review.md"' in client.get(f"/runs/{run.run_uuid}").text
+
+
+def test_run_detail_flags_a_changed_skill_definition(client):
+    first = _run_with_skill(skill_source="user", skill_sha256="a" * 64)
+    second = _run_with_skill(skill_source="user", skill_sha256="b" * 64)
+    assert "definition changed" not in client.get(f"/runs/{first.run_uuid}").text
+    assert "definition changed" in client.get(f"/runs/{second.run_uuid}").text
+
+
 def test_agents_page_lists_every_adapter(client):
     resp = client.get("/agents")
     assert resp.status_code == 200
