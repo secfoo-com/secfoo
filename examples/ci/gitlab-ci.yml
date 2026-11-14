@@ -1,0 +1,43 @@
+# Merge into your .gitlab-ci.yml
+#
+# AI security review as a GitLab CI job. Set OPENAI_API_KEY (or
+# ANTHROPIC_API_KEY / GEMINI_API_KEY) as a masked CI/CD variable under
+# Settings -> CI/CD -> Variables.
+secfoo:
+  stage: test
+  image: python:3.12-slim
+  variables:
+    GIT_DEPTH: "50"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null
+    - pip install --quiet secfoo
+  script:
+    # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+    - |
+      secfoo run --agent api --target . --depth quick --json --rescan \
+        --project-name "$CI_PROJECT_PATH" \
+        --skill sast --skill secret-scanning \
+        --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+    - secfoo findings export --format sarif -o secfoo.sarif
+    - secfoo findings export -o secfoo-findings.jsonl
+    - exit ${code:-0}
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - secfoo-result.json
+      - secfoo.sarif
+      - secfoo-findings.jsonl
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Same job from the published container image instead of pip:
+#
+# secfoo-docker:
+#   stage: test
+#   image:
+#     name: ghcr.io/rakfortltd/secfoo:latest
+#     entrypoint: [""]
+#   script:
+#     - secfoo run --agent api --target . --depth quick --json --rescan --skill sast --fail-on high > secfoo-result.json

@@ -1,0 +1,19 @@
+$ secfoo run --skill sast --skill secret-scanning --agent claude --depth quick \
+    --target https://github.com/OWASP/NodeGoat --project-name NodeGoat --fail-on high
+  success — Secret Scanning — Code, Confluence & Docs
+  success — SAST — Static Code Analysis
+                                         Assessment results
+┏━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Skill                  ┃ Status  ┃ Duration ┃ Findings (C/H/M/L) ┃  Cost ┃ Run ID                ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
+│ SAST — Static Code     │ success │ 251.9s   │ 0/6/5/1            │ $2.34 │ a0224a94-64d9-4966-9… │
+│ Analysis               │         │          │                    │       │                       │
+│ Secret Scanning —      │ success │ 135.3s   │ 0/3/2/1            │ $1.39 │ de9487a2-3843-4674-a… │
+│ Code, Confluence &     │         │          │                    │       │                       │
+│ Docs                   │         │          │                    │       │                       │
+└────────────────────────┴─────────┴──────────┴────────────────────┴───────┴───────────────────────┘
+AI spend for this run: $3.73
+Findings gate (--fail-on high): FAILED -- 9 finding(s) at or above threshold
+Run secfoo serve to view full reports in your browser.
+$ echo $?
+2

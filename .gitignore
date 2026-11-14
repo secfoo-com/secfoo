@@ -33,3 +33,7 @@ node_modules/
 # packaging exclusion filter, so ignoring it here silently drops the
 # dashboard's CSS from every built wheel/sdist. Re-run the sync script
 # after editing design-system/ and commit the result.
+
+# uv writes a lockfile when you `uv run` inside the checkout; the project
+# does not pin dependencies that way.
+uv.lock

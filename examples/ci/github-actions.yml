@@ -1,0 +1,44 @@
+# Copy to .github/workflows/secfoo.yml
+#
+# AI security review on every PR, findings in the Security tab.
+# Add OPENAI_API_KEY (or ANTHROPIC_API_KEY / GEMINI_API_KEY) under
+# Settings -> Secrets and variables -> Actions.
+name: secfoo security review
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"   # weekly full pass, Monday 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write   # SARIF upload to code scanning
+
+jobs:
+  secfoo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: secfoo-com/secfoo@main
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        with:
+          skills: sast,secret-scanning
+          fail-on: high          # exit 2 -> red check when a High+ finding appears
+          max-cost: "2.00"       # exit 3 if the agent reports more than $2 of spend
+          exclude: vendor,fixtures
+
+      # Prefer Claude Code / Codex / Gemini as the reviewer? Install the CLI
+      # on the runner and point the action at it instead of `api`:
+      #
+      # - uses: secfoo-com/secfoo@main
+      #   env:
+      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      #   with:
+      #     install-agent-cli: claude
+      #     agent: claude
+      #     skills: sast,secret-scanning,sca-reachability
+      #     fail-on: high

@@ -1,0 +1,571 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.js%3A78-102%2C%20app/routes/session.js%3A116%2C%20app/routes/error.js%3A10-12"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Session cookie lacks `httpOnly`/`secure`; no regeneration on login; error page echoes raw error\n\nThe session is served over plain HTTP with default cookie options (no `httpOnly`, no `secure`, default `connect.sid` name) and `saveUninitialized: true`. Login sets `req.session.userId` without `regenerate()`, so a pre-login session ID fixed by an attacker becomes authenticated. The global error handler renders the error object directly into an unescaped template, exposing internal messages (for example Mongo `$where` evaluation errors containing the injected payload). The login failure path also logs the raw `userName`, allowing CRLF log forging. These amplify F6 (cookie theft via XSS) rather than being independently exploitable."
+          },
+          "ruleId": "sast/CWE-1004/low",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/profile.js%3A59-61"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "ReDoS via nested quantifier on bank routing validator\n\nThe pattern `/([0-9]+)+\\#/` has a nested unbounded quantifier. A `bankRouting` value of thirty or more digits followed by a non-`#` character causes exponential backtracking in V8's regex engine and blocks the single Node event loop, denying service to all users."
+          },
+          "ruleId": "sast/CWE-1333/medium",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.js%3A104-113%2C%20app/views/profile.html%3A73"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "CSRF protection disabled on all state-changing POST handlers\n\nThe `csurf` middleware is commented out, so `res.locals.csrftoken` is never set and every form's hidden `_csrf` field renders empty. POST `/profile`, `/contributions`, `/benefits`, and `/memos` accept cross-origin form submissions from a logged-in victim's browser, letting an attacker change their bank account number or (via F1) execute code as the victim's session."
+          },
+          "ruleId": "sast/CWE-352/medium",
+          "ruleIndex": 2
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/env/all.js%3A8-9%2C%20artifacts/db-reset.js%3A15-18"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Hardcoded session secret, crypto key, and seeded admin credentials\n\nThe express-session signing secret and the AES key are literal strings in a public repository, and `production.js` overrides nothing. The seed script creates `admin / Admin_123`, `user1 / User1_123`, `user2 / User2_123`. Anyone who knows the project can log in as admin on a seeded deployment with no prior access. A private TLS key is also committed under `artifacts/cert/`."
+          },
+          "ruleId": "sast/CWE-798/medium",
+          "ruleIndex": 3
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/index.js%3A70-73"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Open redirect on `/learn?url=`\n\nThe handler redirects to whatever the `url` query parameter contains. A phishing link such as `/learn?url=https://evil.example/login` carries the trusted origin and lands a logged-in victim on an attacker page."
+          },
+          "ruleId": "sast/CWE-601/medium",
+          "ruleIndex": 4
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/data/user-dao.js%3A25%2C%20%3A61"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Passwords stored and compared in plaintext\n\n`addUser` persists the raw password, and `validateLogin` compares with `===`. `bcrypt-nodejs` is imported but unused. Combined with F3 (dump via `$where`) or F5 (full user docs to template), the plaintext passwords are directly retrievable by any authenticated user; this is the stated precondition for the AC:H rating."
+          },
+          "ruleId": "sast/CWE-256/medium",
+          "ruleIndex": 5
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.js%3A135-137%2C%20app/views/layout.html%3A75"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Global template autoescape disabled; stored and reflected XSS\n\nSwig autoescaping is turned off globally, so every `{{ }}` in every template emits raw HTML. Stored XSS: a user sets `firstName` to `<script>...</script>` via `/profile`; it is rendered unescaped in their own navbar, in every other user's view via `/allocations/{{id}}` (F4), and in the admin's `/benefits` table. Reflected XSS: on login failure, `userName` is echoed into the login form value attribute; on profile validation failure, raw `firstName` is placed into an `href` (`javascript:` URI). The `encodeForHTML` on `website` is the only encoding and is the wrong context for the `href` where `firstNameSafeString` is used."
+          },
+          "ruleId": "sast/CWE-79/high",
+          "ruleIndex": 6
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/index.js%3A55-56"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Missing admin check on `/benefits` (function-level access control)\n\nBoth benefits routes are protected only by `isLoggedIn`; the `isAdmin` middleware exists but is commented out. Any user can GET `/benefits` to list all non-admin users, and POST `/benefits` with an arbitrary `userId` to change any other user's `benefitStartDate`. The DAO returns the complete user documents (including plaintext `password`, `ssn`, `bankAcc`) into the template context."
+          },
+          "ruleId": "sast/CWE-862/high",
+          "ruleIndex": 7
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/allocations.js%3A16-23"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "IDOR: allocations looked up by URL `userId`, not session\n\nThe handler reads `userId` from `req.params` rather than `req.session` and never checks it matches the caller. Any logged-in user can request `/allocations/1`, `/allocations/2`, and so on to enumerate every user's name and asset allocation, and user IDs are sequential integers."
+          },
+          "ruleId": "sast/CWE-639/high",
+          "ruleIndex": 8
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/data/allocations-dao.js%3A77-79"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "NoSQL injection via `$where` string interpolation\n\nThe `threshold` query parameter from `/allocations/:userId?threshold=` is interpolated unquoted into a MongoDB `$where` JavaScript expression. `threshold=0'; return true; '` returns every allocation document for every user, and `threshold=0'; while(true){}'` pins the database CPU. The `$where` operator executes server-side JavaScript in MongoDB."
+          },
+          "ruleId": "sast/CWE-943/high",
+          "ruleIndex": 9
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/research.js%3A15-26"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SSRF with raw response body reflected as HTML\n\n`/research?symbol=X&url=Y` concatenates two query parameters into a URL and fetches it server-side with `needle.get`. The attacker fully controls the scheme, host, and path, so they can reach cloud metadata endpoints, internal services, or `localhost:27017`. The fetched body is written into the response as `text/html` without encoding, so this is also a reflected XSS and internal-content disclosure channel."
+          },
+          "ruleId": "sast/CWE-918/high",
+          "ruleIndex": 10
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/contributions.js%3A32-34"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Server-side JS injection via `eval()` on POST body\n\nThe contributions update handler passes three fields from `req.body` straight into `eval()`. Any authenticated user (self-registration is open at `/signup`) can POST `preTax=require('child_process').execSync('id').toString()` or `preTax=process.exit()` to `/contributions` and execute arbitrary code in the Node process, or crash the server. The `isNaN` validation runs after the eval, so it does not constrain the payload."
+          },
+          "ruleId": "sast/CWE-95/high",
+          "ruleIndex": 11
+        },
+        {
+          "level": "note",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/views/tutorial/a2.html%3A153%2C%20app/views/tutorial/a3.html%3A176"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Tutorial example cookie secret\n\nShort illustrative secret string embedded in an HTML tutorial code sample rather than in executable configuration."
+          },
+          "ruleId": "secret-scanning/low",
+          "ruleIndex": 12
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "artifacts/db-reset.js%3A18%2C27%2C35%3B%20test/e2e/fixtures/users/%2A.json%3B%20test/security/profile-test.js%3A37"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Seeded admin & user passwords\n\nDefault administrator and user passwords written in plaintext inside the database seed script that runs automatically on deploy."
+          },
+          "ruleId": "secret-scanning/medium",
+          "ruleIndex": 13
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/env/development.js%3A6%2C%20config/env/test.js%3A6"
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "OWASP ZAP API key\n\nHigh-entropy security-scanner API key hard-coded in development and test configuration files alongside the scanner's internal network address."
+          },
+          "ruleId": "secret-scanning/medium",
+          "ruleIndex": 13
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/env/all.js"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Symmetric encryption key (AES-256)\n\nFixed symmetric encryption key hard-coded in the shared default configuration module and used directly to encrypt sensitive user profile fields."
+          },
+          "ruleId": "secret-scanning/high",
+          "ruleIndex": 14
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/env/all.js"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Session cookie signing secret\n\nFixed session-signing secret hard-coded in the shared default configuration module, with no environment-variable override and no production-specific value."
+          },
+          "ruleId": "secret-scanning/high",
+          "ruleIndex": 14
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "artifacts/cert/server.key"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "RSA private key (TLS)\n\nUnencrypted PEM private key committed to the repository next to its certificate and read from disk by the web server at startup to serve HTTPS."
+          },
+          "ruleId": "secret-scanning/high",
+          "ruleIndex": 14
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/secfoo-com/secfoo",
+          "name": "secfoo",
+          "rules": [
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "id": "sast/CWE-1004/low",
+              "properties": {
+                "security-severity": "1.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-1004"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-1004, low)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "sast/CWE-1333/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-1333"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-1333, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "sast/CWE-352/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-352"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-352, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "sast/CWE-798/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-798"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-798, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "sast/CWE-601/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-601"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-601, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "sast/CWE-256/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-256"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-256, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-79/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-79"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-79, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-862/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-862"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-862, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-639/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-639"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-639, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-943/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-943"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-943, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-918/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-918"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-918, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "sast/CWE-95/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security",
+                  "external/cwe/cwe-95"
+                ]
+              },
+              "shortDescription": {
+                "text": "sast finding (CWE-95, high)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "id": "secret-scanning/low",
+              "properties": {
+                "security-severity": "1.0",
+                "tags": [
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "secret-scanning finding (unclassified, low)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "id": "secret-scanning/medium",
+              "properties": {
+                "security-severity": "4.0",
+                "tags": [
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "secret-scanning finding (unclassified, medium)"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "id": "secret-scanning/high",
+              "properties": {
+                "security-severity": "7.0",
+                "tags": [
+                  "security"
+                ]
+              },
+              "shortDescription": {
+                "text": "secret-scanning finding (unclassified, high)"
+              }
+            }
+          ],
+          "version": "0.3.0"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}

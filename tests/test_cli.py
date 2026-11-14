@@ -641,3 +641,52 @@ def test_run_empty_model_rejected(monkeypatch):
     result = runner.invoke(app, ["run", "--skill", "sast", "--model", "   "])
     assert result.exit_code == 1
     assert "non-empty string" in result.output
+
+
+def _no_agents_on_path(monkeypatch):
+    monkeypatch.setattr("secfoo.agents.base.shutil.which", lambda name: None)
+    for var in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _run_with_empty_config(monkeypatch):
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=[]))
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast"])
+    assert result.exit_code == 0, result.output
+    return captured, result
+
+
+def test_run_without_agent_uses_the_installed_cli(monkeypatch):
+    _no_agents_on_path(monkeypatch)
+    monkeypatch.setattr("secfoo.agents.base.shutil.which", lambda name: "/usr/bin/gemini" if name == "gemini" else None)
+    captured, result = _run_with_empty_config(monkeypatch)
+    assert captured["agent_id"] == "gemini"
+    assert "Using agent gemini" in result.output
+
+
+def test_run_without_agent_uses_api_when_only_a_key_is_present(monkeypatch):
+    _no_agents_on_path(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    captured, result = _run_with_empty_config(monkeypatch)
+    assert captured["agent_id"] == "api"
+    assert "an API key is set" in result.output
+
+
+def test_run_without_agent_falls_back_to_claude(monkeypatch):
+    _no_agents_on_path(monkeypatch)
+    captured, _ = _run_with_empty_config(monkeypatch)
+    assert captured["agent_id"] == "claude"
+
+
+def test_run_configured_agent_wins_over_detection(monkeypatch):
+    _no_agents_on_path(monkeypatch)
+    monkeypatch.setattr("secfoo.agents.base.shutil.which", lambda name: "/usr/bin/gemini" if name == "gemini" else None)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(agent="codex"), mcp_servers=[]))
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast"])
+    assert result.exit_code == 0, result.output
+    assert captured["agent_id"] == "codex"
+    assert "Using agent" not in result.output

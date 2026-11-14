@@ -697,8 +697,12 @@ a trusted private network only.
 Pick whichever fits how you work — they're all the same tool underneath.
 
 ```bash
-# PyPI (needs Python 3.10+)
+# Try it without installing anything permanent (uv)
+uvx secfoo run --skill sast --target .
+
+# PyPI (needs Python 3.10+); pipx keeps it in its own environment
 pip install secfoo
+pipx install secfoo
 
 # npm (no Python needed -- installs a real standalone binary, not a
 # Python wrapper; see the "Distribution" section below for why)
@@ -718,6 +722,9 @@ docker run --rm ghcr.io/rakfortltd/secfoo --help
 ```
 
 Developing on this repo instead? `pip install -e ".[dev]"`.
+
+Running it in a pipeline (GitHub Action, pre-commit, GitLab CI, Docker,
+SARIF upload) is covered in [CI.md](CI.md).
 
 ## Usage
 
@@ -960,6 +967,12 @@ along with a `SHA256SUMS` file.
   docker run --rm -p 8787:8787 -v ~/.secfoo:/root/.secfoo \
     ghcr.io/rakfortltd/secfoo serve --host 0.0.0.0 --port 8787
   ```
+
+- **GitHub Action**: `uses: secfoo-com/secfoo@main` (composite action in
+  `action.yml` at the repo root) installs from PyPI, runs the skills,
+  exports SARIF and uploads it to code scanning. **pre-commit**:
+  `.pre-commit-hooks.yaml` exposes `secfoo` and `secfoo-secrets`. Both
+  are documented in [CI.md](CI.md).
 
 Homebrew is a planned follow-up (a tap formula in a separate
 `rakfortltd/homebrew-tap` repo) — not built yet.

@@ -219,6 +219,16 @@ _STATUS_STYLE = {
 }
 
 
+def _detect_agent() -> AgentId:
+    """The first adapter, in registry order, whose CLI is on PATH (or, for
+    `api`, whose provider key is set). Falls back to claude when nothing is
+    found so the resulting error names the most common install."""
+    for agent_id in ADAPTERS:
+        if get_adapter(agent_id).is_available():
+            return AgentId(agent_id)
+    return AgentId.CLAUDE
+
+
 @app.command()
 def run(
     skill: list[SkillId] = typer.Option(
@@ -397,7 +407,18 @@ def run(
         memory_module.disable_for_this_process()
 
     if agent is None:
-        agent = AgentId(file_defaults.agent) if file_defaults.agent else AgentId.CLAUDE
+        if file_defaults.agent:
+            agent = AgentId(file_defaults.agent)
+        else:
+            # First run, no config: use whatever the user already has instead
+            # of insisting on claude -- an installed agent CLI, or the `api`
+            # agent when a provider key is already in the environment.
+            agent = _detect_agent()
+            how = "an API key is set" if agent is AgentId.API else "found on PATH"
+            (err_console if json_output else console).print(
+                f"Using agent [bold]{agent.value}[/] ({how}); pass --agent or set "
+                "[defaults].agent in ~/.secfoo/config.toml to choose another."
+            )
     if model is not None and not model.strip():
         err_console.print("[red]Error:[/] --model must be a non-empty string")
         raise typer.Exit(code=1)

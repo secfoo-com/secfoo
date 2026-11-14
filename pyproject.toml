@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "secfoo"
 dynamic = ["version"]
-description = "Context-based security architectural assessment orchestrator: pick skills, targets, and an agent CLI to run them."
+description = "AI security review CLI: SAST, secret scanning, SCA, threat modeling and architecture review with Claude Code, Copilot, Codex, Gemini, Cursor or an API key. SARIF output for CI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -13,15 +13,30 @@ license-files = ["LICENSE"]
 authors = [
   { name = "RakFort", email = "info@rakfort.com" },
 ]
-keywords = ["security", "threat-modeling", "owasp", "stride", "llm-agent", "compliance"]
+keywords = [
+  "security", "appsec", "devsecops", "sast", "static-analysis", "secret-scanning", "sca",
+  "threat-modeling", "security-architecture", "owasp", "stride", "sarif", "code-review",
+  "ai-security", "llm", "llm-agent", "claude-code", "copilot", "codex", "gemini", "cursor",
+  "security-scanner", "ci", "compliance",
+]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Environment :: Console",
   "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Security",
   "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
   # typer>=0.12 alone still resolves/keeps typer 0.12.3 on an environment
@@ -58,6 +73,14 @@ build = ["pyinstaller>=6.0"]
 # through LiteLLM with an API key instead of driving an installed agent CLI.
 # (dev includes langgraph so the real graph runs in tests; litellm is faked.)
 api = ["litellm>=1.40", "langgraph>=0.2"]
+
+[project.urls]
+Homepage = "https://secfoo.com"
+Documentation = "https://secfoo.com/docs/index.html"
+Source = "https://github.com/secfoo-com/secfoo"
+Changelog = "https://github.com/secfoo-com/secfoo/releases"
+Issues = "https://github.com/secfoo-com/secfoo/issues"
+"CI integration" = "https://github.com/secfoo-com/secfoo/blob/main/docs/CI.md"
 
 [project.scripts]
 secfoo = "secfoo.cli:main"
