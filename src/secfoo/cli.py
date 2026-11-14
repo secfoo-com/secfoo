@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from datetime import date, datetime, timezone
@@ -539,10 +540,43 @@ def run(
                 f"-- reported spend {format_cost(total_cost)}"
                 + (f", {unpriced_runs} run(s) unpriced" if unpriced_runs else "")
             )
+        line = _runtime_summary_line(outcomes)
+        if line:
+            console.print(line)
         console.print("Run [bold]secfoo serve[/] to view full reports in your browser.")
 
     if exit_code:
         raise typer.Exit(code=exit_code)
+
+
+def _runtime_summary_line(outcomes) -> str | None:
+    """#80: '3 of 12 findings are reached in production: D2 (POST /upload, anonymous), ...'
+    -- only when runtime data exists for the scanned project. Never fails a run."""
+    try:
+        from secfoo.runtime.developer import RuntimeLookup
+
+        with RunRepository() as repo:
+            project_ids = {run.project_id for o in outcomes if (run := repo.get_run(o.run_uuid)) is not None}
+            lookup = RuntimeLookup(repo)
+            rows = [row for pid in project_ids
+                    for _, row in repo.list_structured_findings(skill_ids=["sca-reachability"], project_id=pid,
+                                                                status="open")]
+            states = [(row, lookup.for_finding("sca-reachability", row)) for row in rows]
+    except Exception:  # noqa: BLE001 -- a summary line must never break `secfoo run`
+        return None
+    if not any(runtime.state != "none" for _, runtime in states):
+        return None
+    reached = [(row, runtime) for row, runtime in states if runtime.is_reached]
+    if not reached:
+        return f"Runtime: none of {len(states)} open SCA finding(s) are reached in production yet."
+    examples = []
+    for row, runtime in reached[:3]:
+        top = runtime.routes[0] if runtime.routes else {}
+        where = ", ".join(x for x in (top.get("route"), top.get("auth")) if x)
+        examples.append(f"{row.get('current_ref') or row['fingerprint'][:8]} ({where})" if where else row.get("current_ref", ""))
+    more = ", ..." if len(reached) > 3 else ""
+    return (f"[bold red]{len(reached)} of {len(states)} findings are reached in production:[/] "
+            f"{', '.join(examples)}{more}")
 
 
 @app.command(name="list")
@@ -617,18 +651,113 @@ def show(
         console.print("[yellow]No report content available for this run.[/]")
 
 
-@app.command()
+serve_app = typer.Typer(
+    name="serve", invoke_without_command=True,
+    help="Launch the local web dashboard (and runtime ingest API). `secfoo serve key` manages its API keys.",
+)
+serve_key_app = typer.Typer(name="key", help="API keys for runtime sensors and the CLI on this server (#66).")
+serve_app.add_typer(serve_key_app, name="key")
+app.add_typer(serve_app, name="serve")
+
+
+@serve_app.callback()
 def serve(
-    host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(8787, "--port"),
+    ctx: typer.Context,
+    host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port")] = 8787,
+    allow_insecure_runtime: Annotated[bool, typer.Option(
+        "--allow-insecure-runtime",
+        help="Accept runtime API keys over plain HTTP on a non-loopback --host. Prefer TLS in front instead.",
+    )] = False,
+    runtime_recheck_hours: Annotated[float, typer.Option(
+        "--runtime-recheck-hours",
+        help="Re-check running package versions against OSV this often (#68). 0 disables.",
+    )] = 6.0,
 ) -> None:
     """Launch the local web dashboard."""
+    if ctx.invoked_subcommand is not None:
+        return
     import uvicorn
 
     from secfoo.web.app import create_app
 
+    if runtime_recheck_hours > 0:
+        _start_runtime_recheck(runtime_recheck_hours)
     console.print(f"Serving dashboard at [bold]http://{host}:{port}[/]")
-    uvicorn.run(create_app(), host=host, port=port)
+    uvicorn.run(create_app(bind_host=host, allow_insecure_runtime=allow_insecure_runtime), host=host, port=port)
+
+
+def _start_runtime_recheck(hours: float) -> None:
+    """Background OSV re-check of running versions (#68). Only does anything
+    once runtime data exists; never stops the server."""
+    import threading
+
+    def loop() -> None:
+        from secfoo.runtime.inventory import recheck
+
+        stop = threading.Event()
+        while not stop.wait(hours * 3600):
+            try:
+                with RunRepository() as repo:
+                    recheck(repo)
+            except Exception:  # noqa: BLE001, S112 -- OSV down or a bad row: try again next interval
+                continue
+
+    threading.Thread(target=loop, name="secfoo-runtime-recheck", daemon=True).start()
+
+
+@serve_key_app.command(name="create")
+def serve_key_create(
+    name: Annotated[str, typer.Option("--name", help="A label, e.g. payments-prod-sensor.")],
+    project: Annotated[str | None, typer.Option(
+        "--project", help="Limit the key to one project (id, name or path/URL). Default: every project.",
+    )] = None,
+    runtime_only: Annotated[bool, typer.Option(
+        "--runtime-only", help="Only allow the runtime endpoints (recommended for production clusters).",
+    )] = False,
+) -> None:
+    """Issue an API key. It is shown once: store it in a secret, never in an image."""
+    from secfoo.runtime import keys as keys_module
+
+    with RunRepository() as repo:
+        project_id = None
+        if project is not None:
+            project_id = repo.resolve_project_ref(project)
+            if project_id is None:
+                err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+                raise typer.Exit(code=1)
+        key, record = keys_module.create_key(
+            repo.connection, name=name, scope="runtime" if runtime_only else "all", project_id=project_id
+        )
+    err_console.print(f"Created key {record.id} ({record.name}, scope {record.scope}). It won't be shown again:")
+    print(key)  # stdout, so `KEY=$(secfoo serve key create ...)` captures only the key
+
+
+@serve_key_app.command(name="list")
+def serve_key_list() -> None:
+    """Keys on this server (never the keys themselves)."""
+    from secfoo.runtime import keys as keys_module
+
+    table = Table(show_header=True, header_style="bold")
+    for column in ("id", "name", "prefix", "scope", "project", "created", "last used", "status"):
+        table.add_column(column)
+    with RunRepository() as repo:
+        for k in keys_module.list_keys(repo.connection):
+            table.add_row(str(k.id), k.name, k.key_prefix + "…", k.scope, str(k.project_id or "all"),
+                          k.created_at[:19], (k.last_used_at or "-")[:19], "active" if k.active else "revoked")
+    console.print(table)
+
+
+@serve_key_app.command(name="revoke")
+def serve_key_revoke(key_id: Annotated[int, typer.Argument(help="Key id from `secfoo serve key list`.")]) -> None:
+    """Revoke a key. Sensors and CLIs using it are rejected from the next request."""
+    from secfoo.runtime import keys as keys_module
+
+    with RunRepository() as repo:
+        if not keys_module.revoke_key(repo.connection, key_id):
+            err_console.print(f"[red]Error:[/] no active key with id {key_id}.")
+            raise typer.Exit(code=1)
+    console.print(f"Revoked key {key_id}.")
 
 
 @app.command()
@@ -1528,29 +1657,44 @@ def findings_export(
         False, "--no-locations",
         help="Drop file paths, line numbers, code-region hashes and reachability evidence.",
     ),
+    no_runtime: Annotated[bool, typer.Option(
+        "--no-runtime", help="Don't attach runtime evidence (and don't fetch it from the server).",
+    )] = False,
+    runtime_priority: Annotated[bool, typer.Option(
+        "--runtime-priority", help="SARIF: raise findings reached in production to level 'error'.",
+    )] = False,
 ) -> None:
     """Export structured findings (SAST, SCA, secret scanning) as JSONL or SARIF.
 
     One record per finding, with its skill, severity, stack (language/
     framework) and code-free construct description -- the same shape for
-    every skill, for feeding other tools.
+    every skill, for feeding other tools. SCA findings carry their runtime
+    evidence ("runtime"; in SARIF, properties.secfoo.runtime).
     """
+    from secfoo.runtime.developer import RuntimeLookup
+
+    records = []
     with RunRepository() as repo:
         rows = repo.list_structured_findings(
             skill_ids=[s.value for s in skill] or None,
             project_id=project,
             status=None if status is FindingsStatus.ALL else status.value,
         )
-    records = []
-    for skill_id, row in rows:
-        record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
-        for column, value in row.items():
-            if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
-                continue
-            record[column] = value
-        records.append(record)
+        lookup = RuntimeLookup(repo, enabled=not no_runtime)
+        for skill_id, row in rows:
+            runtime = lookup.for_finding(skill_id, row)
+            record = {"skill_id": skill_id, "project": row.pop("display_name", None)}
+            for column, value in row.items():
+                if column in _EXPORT_DROP_COLUMNS or (no_locations and column in _EXPORT_LOCATION_COLUMNS):
+                    continue
+                record[column] = value
+            if skill_id == "sca-reachability" and not no_runtime:
+                record["runtime"] = runtime.as_sarif()
+            records.append(record)
+    for note in lookup.notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
     if format is FindingsFormat.SARIF:
-        text = json.dumps(findings_to_sarif(records), indent=2, sort_keys=True) + "\n"
+        text = json.dumps(findings_to_sarif(records, runtime_priority=runtime_priority), indent=2, sort_keys=True) + "\n"
     else:
         lines = [json.dumps(record, sort_keys=True) for record in records]
         text = "\n".join(lines) + ("\n" if lines else "")
@@ -1559,6 +1703,123 @@ def findings_export(
         return
     output.write_text(text, encoding="utf-8")
     err_console.print(f"Wrote {len(records)} finding(s) to {output}.")
+
+
+EXIT_RUNTIME_REACHED = 4
+
+
+def _finding_title(skill_id: str, row: dict) -> str:
+    if skill_id == "sca-reachability":
+        return f"{row.get('package')}@{row.get('version') or '?'}: {row.get('issue') or row.get('cve') or ''}".strip()
+    return row.get("title") or row.get("secret_type") or skill_id
+
+
+def _finding_rows(repo, *, skill, project, status, no_runtime):
+    from secfoo.runtime.developer import RuntimeLookup, sort_key
+
+    rows = repo.list_structured_findings(
+        skill_ids=[s.value for s in skill] or None, project_id=project,
+        status=None if status is FindingsStatus.ALL else status.value,
+    )
+    lookup = RuntimeLookup(repo, enabled=not no_runtime)
+    items = [(skill_id, row, lookup.for_finding(skill_id, row)) for skill_id, row in rows]
+    items.sort(key=lambda item: sort_key(item[1], item[2]))
+    return items, lookup.notes
+
+
+@findings_app.command(name="list")
+def findings_list(
+    skill: Annotated[list[FindingsSkill] | None, typer.Option("--skill", "-s", help="Limit to these skills.")] = None,
+    project: Annotated[int | None, typer.Option("--project", help="Limit to one project id.")] = None,
+    status: Annotated[FindingsStatus, typer.Option("--status", help="open, closed, or all.")] = FindingsStatus.OPEN,
+    no_runtime: Annotated[bool, typer.Option("--no-runtime", help="Skip runtime evidence (no fetch).")] = False,
+) -> None:
+    """Findings with their runtime evidence, sorted by severity and then by what production saw.
+
+    Runtime: Reached (route, hits) > Executed > Loaded > No runtime data >
+    Not observed (always shown with its coverage). Fetched from the server
+    your `secfoo cloud login` key belongs to, and cached for offline use.
+    """
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=skill or [], project=project, status=status, no_runtime=no_runtime)
+    table = Table(show_header=True, header_style="bold")
+    for column in ("fingerprint", "skill", "project", "severity", "finding", "runtime"):
+        table.add_column(column, overflow="fold")
+    for skill_id, row, runtime in items:
+        table.add_row(row["fingerprint"][:10], skill_id, row.get("display_name") or "", row.get("severity") or "",
+                      _finding_title(skill_id, row), "-" if no_runtime else runtime.summary)
+    console.print(table)
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+
+
+@findings_app.command(name="show")
+def findings_show(
+    fingerprint: Annotated[str, typer.Argument(help="Fingerprint (or its first characters) from `findings list`.")],
+    no_runtime: Annotated[bool, typer.Option("--no-runtime", help="Skip runtime evidence (no fetch).")] = False,
+) -> None:
+    """One finding in full, with its runtime evidence and a remediation hint."""
+    from secfoo.runtime.developer import remediation_hint
+
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=[], project=None, status=FindingsStatus.ALL, no_runtime=no_runtime)
+    matches = [item for item in items if item[1]["fingerprint"].startswith(fingerprint)]
+    if len(matches) != 1:
+        err_console.print(f"[red]Error:[/] {len(matches)} findings match {fingerprint!r}; give more characters.")
+        raise typer.Exit(code=1)
+    skill_id, row, runtime = matches[0]
+    console.print(f"[bold]{_finding_title(skill_id, row)}[/]  ({skill_id}, {row.get('severity')}, {row.get('status')})")
+    console.print(f"Project: {row.get('display_name')}   Fingerprint: {row['fingerprint']}")
+    for label, key in (("Location", "location_file"), ("Reachability", "reachability"), ("Fixed in", "fixed_in"),
+                       ("Recommendation", "recommendation")):
+        if row.get(key):
+            console.print(f"{label}: {row[key]}")
+    if not no_runtime:
+        console.print(f"Runtime: {runtime.summary}" + (f"  [dim](from {runtime.source})[/]" if runtime.source != "none" else ""))
+        for route in runtime.routes:
+            console.print(f"  {route['route']}  {route.get('auth') or ''}  {route['count']:,} hit(s)")
+        if runtime.loaded_versions:
+            console.print(f"  loaded: {', '.join(runtime.loaded_versions)}" + ("  (version drift)" if runtime.version_drift else ""))
+        hint = remediation_hint(row, runtime)
+        if hint:
+            console.print(f"[bold]Fix first:[/] {hint}")
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+
+
+@findings_app.command(name="check")
+def findings_check(
+    fail_on: Annotated[str, typer.Option(
+        "--fail-on", help="reached[:<severity>] or executed[:<severity>], e.g. reached:high.",
+    )],
+    project: Annotated[int | None, typer.Option("--project", help="Limit to one project id.")] = None,
+) -> None:
+    """CI gate: exit 4 when an open finding at that severity or worse is reached in production.
+
+    Off unless you run it. With no runtime data (no sensor, no key, offline
+    without a cache) nothing is reached and the gate passes.
+    """
+    from secfoo.runtime.developer import parse_gate, trips_gate
+
+    try:
+        gate = parse_gate(fail_on)
+    except ValueError as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=2) from None
+    with RunRepository() as repo:
+        items, notes = _finding_rows(repo, skill=[FindingsSkill.SCA], project=project, status=FindingsStatus.OPEN,
+                                     no_runtime=False)
+    tripped = [(row, runtime) for skill_id, row, runtime in items if trips_gate(gate, row, runtime)]
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+    if not tripped:
+        console.print(f"Runtime gate ({fail_on}): pass, no open finding matches.")
+        return
+    console.print(f"[red]Runtime gate ({fail_on}): {len(tripped)} open finding(s) reached in production:[/]")
+    for row, runtime in tripped:
+        console.print(f"  {row['fingerprint'][:10]}  {row.get('severity')}  {_finding_title('sca-reachability', row)}"
+                      f"  -- {runtime.summary}")
+    raise typer.Exit(code=EXIT_RUNTIME_REACHED)
 
 
 @runtime_app.command(name="ingest")
@@ -1600,6 +1861,132 @@ def runtime_ingest(
         err_console.print(f"  ... and {len(report.skipped) - 20} more skipped line(s)")
     if report.skipped:
         raise typer.Exit(code=1)
+
+
+@runtime_app.command(name="import-coverage")
+def runtime_import_coverage(
+    coverage: Annotated[Path, typer.Argument(
+        exists=True, help="coverage.py JSON report, or a V8 coverage folder/file (NODE_V8_COVERAGE).",
+    )],
+    watchlist: Annotated[Path, typer.Option(
+        "--watchlist", exists=True, dir_okay=False, help="From `secfoo runtime watchlist`.",
+    )],
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="Write events here instead of stdout.")] = None,
+) -> None:
+    """Turn coverage from tests or staging into runtime evidence (no sensor needed).
+
+    Then: secfoo runtime ingest events.ndjson --project <name>
+    """
+    from secfoo.runtime.coverage_import import (
+        CoverageImportError,
+        load_coverage,
+        to_events,
+    )
+
+    try:
+        cov = load_coverage(coverage)
+        events, notes = to_events(cov, json.loads(watchlist.read_text(encoding="utf-8")))
+    except (CoverageImportError, OSError, json.JSONDecodeError) as exc:
+        err_console.print(f"[red]Error:[/] {exc}")
+        raise typer.Exit(code=1) from None
+    text = "".join(json.dumps(e) + "\n" for e in events)
+    if output is None:
+        sys.stdout.write(text)
+    else:
+        output.write_text(text, encoding="utf-8")
+    for note in notes:
+        err_console.print(f"[yellow]Note:[/] {note}")
+    hits = sum(1 for e in events if e["type"] == "hit")
+    err_console.print(f"{cov.language} coverage: {hits} watched symbol(s) executed" + (f". Wrote {output}." if output else "."))
+
+
+class InventoryFormat(str, Enum):
+    TABLE = "table"
+    JSON = "json"
+    CYCLONEDX = "cyclonedx"
+
+
+@runtime_app.command(name="inventory")
+def runtime_inventory(
+    project: Annotated[str, typer.Option("--project", help="Project id, name, or path/URL it was scanned as.")],
+    app_name: Annotated[str | None, typer.Option("--app", help="Only this app (SECFOO_APP).")] = None,
+    env: Annotated[str | None, typer.Option("--env", help="Only this environment (SECFOO_ENV).")] = None,
+    format: Annotated[InventoryFormat, typer.Option("--format")] = InventoryFormat.TABLE,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    baseline_hours: Annotated[float, typer.Option(
+        "--baseline-hours", help="Packages first seen after this long into an app's observation are flagged new.",
+    )] = 24.0,
+) -> None:
+    """What production actually loads, compared with the scan: version drift,
+    unscanned dependencies, packages new in production, and vulnerable packages
+    never loaded. --format cyclonedx writes a runtime SBOM."""
+    from secfoo.runtime.inventory import analyze, cyclonedx
+
+    with RunRepository() as repo:
+        project_id = repo.resolve_project_ref(project)
+        if project_id is None:
+            err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+            raise typer.Exit(code=1)
+        identifier = repo.get_project(project_id).identifier
+        report = analyze(repo, project_id, app=app_name, env=env, baseline_hours=baseline_hours)
+    if format is InventoryFormat.CYCLONEDX:
+        text = json.dumps(cyclonedx(report, project=identifier, app=app_name, env=env), indent=2) + "\n"
+    elif format is InventoryFormat.JSON:
+        text = json.dumps({
+            "packages": [{"ecosystem": p.ecosystem, "package": p.package, "version": p.version, "status": p.status,
+                          "scanned_versions": p.scanned_versions, "advisories": p.advisories, "new": p.new,
+                          "apps": sorted(p.apps), "first_seen": p.first_seen} for p in report.packages],
+            "not_loaded": report.not_loaded, "observed_hours": round(report.observed_hours, 2),
+            "raised": report.raised,
+        }, indent=2) + "\n"
+    else:
+        table = Table(show_header=True, header_style="bold")
+        for column in ("package", "version", "status", "advisories", "apps"):
+            table.add_column(column, overflow="fold")
+        for p in report.packages:
+            status = p.status + (" (scanned " + ", ".join(p.scanned_versions) + ")" if p.status == "drift" else "")
+            table.add_row(p.package, p.version, status + (" · new" if p.new else ""), ", ".join(p.advisories) or "-",
+                          ", ".join(sorted(p.apps)))
+        console.print(table)
+        if report.not_loaded:
+            console.print(f"Not loaded in {report.observed_hours:.1f}h of observation (not proof of unreachability): "
+                          + ", ".join(f"{f['package']}@{f['version']}" for f in report.not_loaded))
+        if report.raised:
+            console.print(f"[bold]{len(report.raised)} runtime finding(s):[/] "
+                          + ", ".join(f"{r['kind']} {r['package']}@{r['version']} {r['advisory']}" for r in report.raised))
+        return
+    if output is None:
+        sys.stdout.write(text)
+    else:
+        output.write_text(text, encoding="utf-8")
+        err_console.print(f"Wrote {output}.")
+
+
+@runtime_app.command(name="recheck")
+def runtime_recheck(
+    project: Annotated[str | None, typer.Option("--project", help="One project (default: all with runtime data).")] = None,
+) -> None:
+    """Ask OSV about every package version running right now; a new advisory raises a finding with no new scan."""
+    from secfoo.osv import OsvError
+    from secfoo.runtime.inventory import recheck
+
+    with RunRepository() as repo:
+        project_id = None
+        if project is not None:
+            project_id = repo.resolve_project_ref(project)
+            if project_id is None:
+                err_console.print(f"[red]Error:[/] no single project matches {project!r}.")
+                raise typer.Exit(code=1)
+        try:
+            raised = recheck(repo, project_id=project_id)
+        except OsvError as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+    if not raised:
+        console.print("No advisories against running versions beyond what the scans already report.")
+        return
+    for r in raised:
+        console.print(f"[red]{r['kind']}[/] {r['package']}@{r['version']} {r['advisory']}  running in {', '.join(r['apps'])}")
 
 
 @runtime_app.command(name="watchlist")
@@ -1760,6 +2147,113 @@ def skills_show(
     workdir = (target or Path.cwd()).resolve()
     context = TargetContext(kind="local", local_path=workdir, display_source=str(workdir))
     sys.stdout.write(render_prompt(skill, context, depth=depth.value) + "\n")
+
+
+sensor_app = typer.Typer(name="sensor", help="Runtime sensor tools: the probe conformance kit (#73).")
+app.add_typer(sensor_app, name="sensor")
+
+
+@sensor_app.command(
+    name="conformance",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def sensor_conformance(
+    ctx: typer.Context,
+    symbol: Annotated[str, typer.Option(
+        "--symbol", help="Watched symbol the sample app calls, in the #52 notation for its ecosystem.",
+    )] = "secfoo.runtime.conformance.vulnerable.parse",
+    ecosystem: Annotated[str, typer.Option("--ecosystem", help="OSV ecosystem of --symbol.")] = "PyPI",
+    max_call_overhead_us: Annotated[float, typer.Option(
+        "--max-call-overhead-us", help="Allowed extra microseconds per watched call (#51 budget: 1 ms p99 per request).",
+    )] = 50.0,
+    max_startup_seconds: Annotated[float, typer.Option(
+        "--max-startup-seconds", help="Allowed one-time probe start-up plus exit work.",
+    )] = 5.0,
+) -> None:
+    """Check a runtime probe against the #73 contract: secfoo sensor conformance -- <command that starts the sample app>
+
+    The command must start the sample app with the probe loaded (see
+    docs/RUNTIME_PROTOCOL.md). For the reference Python probe:
+    secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
+    """
+    from secfoo.runtime.conformance.kit import run_kit
+
+    command = list(ctx.args)
+    if command[:1] == ["--"]:
+        command = command[1:]
+    if not command:
+        err_console.print("[red]Error:[/] give the sample app's start command after --")
+        raise typer.Exit(code=2)
+    results = run_kit(command, symbol=symbol, ecosystem=ecosystem, max_call_overhead_us=max_call_overhead_us,
+                      max_startup_seconds=max_startup_seconds)
+    for result in results:
+        mark = "[green]PASS[/]" if result.passed else "[red]FAIL[/]"
+        console.print(f"{mark} {result.name:<10} {result.detail}")
+    failed = [r.name for r in results if not r.passed]
+    console.print(f"{len(results) - len(failed)}/{len(results)} checks passed.")
+    if failed:
+        raise typer.Exit(code=1)
+
+
+_SITECUSTOMIZE = """\
+# Written by `secfoo instrument` (#55): starts the secfoo runtime probe in
+# every Python process of the wrapped command. Inert unless SECFOO_SENSOR=1.
+try:
+    import secfoo.sensor as _secfoo_sensor
+    _secfoo_sensor.start_from_env()
+except Exception:  # never break the app's interpreter start-up
+    pass
+"""
+
+
+@app.command(
+    name="instrument",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def instrument(
+    ctx: typer.Context,
+    watchlist: Annotated[Path | None, typer.Option(
+        "--watchlist", exists=True, dir_okay=False, help="Watchlist from `secfoo runtime watchlist`.",
+    )] = None,
+    output: Annotated[Path | None, typer.Option(
+        "--output", "-o",
+        help="Write events here ({pid} is replaced per process). Ignored when SECFOO_SENSOR_ADDR is set.",
+    )] = None,
+    flush_interval: Annotated[float, typer.Option("--flush-interval", min=0.05)] = 10.0,
+) -> None:
+    """Run a Python command with the secfoo runtime probe: secfoo instrument -o events.ndjson -- python app.py
+
+    The probe starts in every Python process the command launches (workers
+    included), records which watched vulnerable functions run, and writes
+    #53 events. Then: `secfoo runtime ingest events.ndjson --project <p>`.
+    """
+    import subprocess  # nosec B404 -- runs the user's own command, as given
+    import tempfile
+
+    import secfoo
+
+    command = list(ctx.args)
+    if command[:1] == ["--"]:
+        command = command[1:]
+    if not command:
+        err_console.print("[red]Error:[/] give the command to run after --, e.g. -- python app.py")
+        raise typer.Exit(code=2)
+    env = dict(os.environ)
+    if output is None and not env.get("SECFOO_SENSOR_ADDR") and not env.get("SECFOO_EVENTS_OUT"):
+        err_console.print("[red]Error:[/] pass -o events.ndjson (or set SECFOO_SENSOR_ADDR) so events go somewhere.")
+        raise typer.Exit(code=2)
+    with tempfile.TemporaryDirectory(prefix="secfoo-instrument-") as hook_dir:
+        Path(hook_dir, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
+        package_root = str(Path(secfoo.__file__).resolve().parent.parent)
+        env["PYTHONPATH"] = os.pathsep.join(p for p in (hook_dir, package_root, env.get("PYTHONPATH", "")) if p)
+        env["SECFOO_SENSOR"] = "1"
+        env["SECFOO_FLUSH_INTERVAL"] = str(flush_interval)
+        if watchlist is not None:
+            env["SECFOO_WATCHLIST"] = str(watchlist.resolve())
+        if output is not None:
+            env["SECFOO_EVENTS_OUT"] = str(output.resolve())
+        result = subprocess.run(command, env=env, check=False)  # nosec B603 -- the user's command
+    raise typer.Exit(code=result.returncode)
 
 
 MERMAID_CDN_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"

@@ -473,6 +473,225 @@ runtime-confirmed findings, but only once there is runtime data.
 
 ![SCA vulnerabilities list with the Runtime column and a highlighted conflict](assets/sca-runtime.jpg)
 
+### Runtime package inventory
+
+Probes report which packages a process actually **loaded**, and at which
+version (`load` lines). `secfoo runtime inventory` compares that with the
+latest SCA scan:
+
+```bash
+secfoo runtime inventory --project payments                          # table
+secfoo runtime inventory --project payments --app payments-api --env prod --format cyclonedx -o runtime-sbom.json
+secfoo runtime recheck                                               # OSV querybatch for every running version
+```
+
+| Case | Result |
+|---|---|
+| A vulnerable package is loaded at the scanned version | The SCA finding shows **Loaded**. |
+| A package is loaded at a *different* version than scanned | **Drift.** That version is checked against OSV, and an advisory raises a runtime finding. |
+| A package is loaded but no scanned manifest lists it | **Unscanned dependency.** OSV is checked, and an advisory raises a runtime finding. |
+| A vulnerable package is never loaded | **Not loaded**, shown with the observation window (it is not proof of unreachability). |
+
+- **New in production.** A package first seen more than `--baseline-hours`
+  (default 24) after its app's first session is marked **new**, even with no
+  known advisory.
+- **Real-time advisories.** `secfoo runtime recheck` asks OSV
+  (`/v1/querybatch`) about every package version that is running now. An
+  advisory the scans don't already account for raises a `new_advisory`
+  runtime finding, with no new scan. `secfoo serve` runs the same recheck in
+  the background every `--runtime-recheck-hours` (default 6; `0` disables
+  it). It only queries when runtime data exists.
+- **Storage.** Runtime findings live in `runtime_findings` (kind, package,
+  version, advisory, and the app/env running it).
+- **SBOM.** `--format cyclonedx` writes a CycloneDX 1.5 SBOM of what is
+  actually loaded, with purls and each package's runtime status.
+
+### Coverage files as runtime evidence
+
+The easiest evidence needs no sensor: coverage from your test suite or a
+staging run.
+
+```bash
+coverage run --source=app,yaml,jinja2 -m pytest && coverage json         # include the dependencies you watch
+secfoo runtime import-coverage coverage.json --watchlist watchlist.json -o events.ndjson
+NODE_V8_COVERAGE=./v8-cov node app.js
+secfoo runtime import-coverage ./v8-cov --watchlist watchlist.json -o events.ndjson
+secfoo runtime ingest events.ndjson --project payments
+```
+
+- **Python:** a coverage.py JSON report from coverage 7.5 or later, which has
+  per-function data. coverage.py **omits site-packages by default**, so
+  measure the watched packages with `--source` or `[run] include`; the command
+  says so when no dependency files are in the report.
+- **Node:** a V8 coverage folder, or one of its files. Its function ranges
+  already include `node_modules`.
+
+A watched symbol counts as **Executed** when its function ran. Coverage has no
+routes or stack traces. The session line gets the app's own function
+coverage. The session id comes from the file contents, so re-importing the
+same coverage never double-counts.
+
+### Python probe
+
+The probe runs inside a Python app and records which watched vulnerable
+functions actually run. It writes the event format above.
+
+```bash
+secfoo runtime watchlist --project payments -o watchlist.json
+secfoo instrument --watchlist watchlist.json -o events.ndjson -- python app.py   # or gunicorn ..., uvicorn ...
+secfoo runtime ingest events.ndjson --project payments
+```
+
+`secfoo instrument` starts the probe in every Python process the command
+launches, workers included, without changing the app's start command. It
+does this through a temporary `sitecustomize` on `PYTHONPATH`. When you can't
+wrap the command, set the variables yourself:
+
+```bash
+SECFOO_SENSOR=1 SECFOO_WATCHLIST=watchlist.json SECFOO_EVENTS_OUT=events-{pid}.ndjson python -m secfoo.sensor app.py
+```
+
+| Variable | Meaning |
+|---|---|
+| `SECFOO_SENSOR=1` | Required. Without it the probe installs nothing: no hooks, threads or connections. |
+| `SECFOO_WATCHLIST` | The watchlist file. It is re-read when its mtime changes (checked at most every 30 s). |
+| `SECFOO_EVENTS_OUT` | The events file. `{pid}` gives each process its own file; otherwise processes append to one file safely. |
+| `SECFOO_SENSOR_ADDR` | Send to a sensor instead: `unix://…`, `tcp://127.0.0.1:port` (loopback only), `npipe://…`, `https://…` (direct mode, using the runtime ingest API with `SECFOO_API_KEY_FILE` / `SECFOO_PROJECT`), or `file://…`. |
+| `SECFOO_FLUSH_INTERVAL` | Seconds between flushes (default 10). It also flushes at exit. |
+| `SECFOO_APP_ROOT` | The app's own code, for coverage and stack frames (default: the working directory). |
+
+**How it works.**
+
+- **Backends.** On Python 3.12+ it uses `sys.monitoring` (PEP 669), with
+  `PY_START` events only on the watched functions' code objects, so unwatched
+  code costs nothing. On 3.10/3.11 it falls back to `sys.setprofile` and
+  `threading.setprofile`.
+- **Symbols** are resolved as their modules are imported.
+- **Coverage.** Each app function is counted the first time it runs, for
+  `app_functions_executed`. On 3.12+ that event is then disabled for the
+  function.
+- **Inventory.** It emits `load` lines for installed distributions whose
+  top-level module was imported.
+- **Workers.** Each process, including forked or spawned workers (gunicorn,
+  uvicorn, multiprocessing), is its own session. With gunicorn `--preload`,
+  the probe starts in the master and each forked worker starts a new session
+  automatically.
+
+**Guarantees.**
+
+- It never reads `frame.f_locals`, arguments or return values. It records
+  only function identity, counts, timestamps and `file:line` app frames.
+- An internal error disables the probe, with one stderr line, and never
+  reaches the app.
+- Transports run on a background thread and drop data rather than block
+  when the destination is gone.
+- It opens no connection other than `SECFOO_SENSOR_ADDR`.
+
+**Overhead** (`python benchmarks/sensor_overhead.py`, CPython 3.14, a ~7 µs
+request-like handler):
+
+| Mode | Unwatched code | Watched function called on every request |
+|---|---|---|
+| `sys.monitoring` (3.12+) | ≈ 0% | ~20% (≈ 1.4 µs per watched call) |
+| `setprofile` fallback (3.10/3.11) | ~10× slower | ~10× slower |
+
+The fallback fires on every Python call, so prefer 3.12+ in production or
+keep the fallback to staging.
+
+### Runtime evidence in the CLI and CI
+
+Runtime evidence is most useful where fixes are chosen: in the branch, the PR
+and CI. The CLI attaches it to findings automatically.
+
+```bash
+secfoo findings list                           # Runtime column; sorted by severity, then by what production saw
+secfoo findings show 3f2a9c                    # one finding, its routes and a "Fix first" hint
+secfoo findings export --format sarif --runtime-priority -o findings.sarif
+secfoo findings check --fail-on reached:high   # CI gate: exit 4 if an open High+ finding is reached in production
+```
+
+Evidence comes from two places, and the stronger state wins:
+
+- **The local store**, for anything ingested here or by a self-hosted
+  `secfoo serve` that shares the store.
+- **The server your `secfoo cloud login` key belongs to**, via
+  `GET /api/runtime/v1/evidence`. The answer is cached under
+  `$SECFOO_HOME/runtime-cache/`, so offline runs reuse the last one.
+
+With no key, no network call is made. **No runtime data** is the normal state
+when no sensor is deployed, not an error. `--no-runtime` skips all of it.
+
+- **Ordering** within each severity: Reached, Executed, Loaded, No runtime
+  data, Not observed / Not loaded. Not-observed findings are never hidden, and
+  always show their coverage.
+- **SARIF.** Each SCA result carries `properties.secfoo.runtime` (state,
+  summary, routes, hits, last seen, version drift). A reached finding's
+  message says "Reached in production via …". `--runtime-priority` raises
+  reached findings to `error`.
+- **Gate.** `--fail-on reached[:<severity>]` counts findings reached on a
+  request route. `executed[:<severity>]` also counts code that ran with no
+  request context. The gate exits **`4`** (distinct from `1`, `2` and `3` of
+  `secfoo run`) and is off unless you run it.
+- **After `secfoo run`**, when runtime data exists for the project, the
+  summary adds one line, e.g. *"2 of 12 findings are reached in production:
+  D2 (POST /upload, anonymous), …"*.
+
+### Runtime ingest API
+
+Live sensors send evidence to the same server your CLI results go to. They
+authenticate with **the same Secfoo API key**, so one key gives one view of
+static findings and runtime evidence. `secfoo serve` implements this API; the
+hosted service implements the same contract.
+
+**On a self-hosted `secfoo serve`, issue a key:**
+
+```bash
+secfoo serve key create --name payments-prod-sensor --project payments-api --runtime-only
+secfoo serve key list
+secfoo serve key revoke 3
+secfoo cloud login --api-key <key> --portal-url https://secfoo.internal   # the CLI shares the same key
+```
+
+The key is printed once. Only a SHA-256 of it is stored. `--project` limits a
+key to one project, and `--runtime-only` limits it to these endpoints; both
+are recommended for production clusters.
+
+**Sensor configuration**, set explicitly at deploy time:
+
+```bash
+SECFOO_API_KEY_FILE=/var/run/secrets/secfoo/api-key   # or SECFOO_API_KEY; mount it from a secret, never bake it into an image
+SECFOO_SERVER=https://secfoo.internal                 # default: the portal URL `secfoo cloud login` saved
+SECFOO_PROJECT=https://github.com/acme/payments-api   # the identifier exactly as `secfoo run` recorded it
+SECFOO_APP=payments-api
+SECFOO_ENV=prod
+```
+
+A missing key, server or project is an error. There is no fallback account.
+`SECFOO_SERVER` must be `https://`, or a loopback `http://` address.
+
+**Endpoints** (`Authorization: Bearer <key>`; `project` is required on each):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/runtime/v1/watchlist?project=` | The watchlist above, with an `ETag`. Send `If-None-Match` to get a cheap `304`. |
+| `POST /api/runtime/v1/events?project=&app=&env=` | An NDJSON batch in the evidence format (gzip allowed, `Content-Encoding: gzip`). It uses the same validation and idempotent upsert as `secfoo runtime ingest`, so a retried batch never double-counts. `app` / `env` fill session lines that don't set them. Returns the counts stored and any skipped lines. |
+| `POST /api/runtime/v1/heartbeat?project=` | JSON `{sensor_id, version, app, env, instances, dropped}`. Registers the sensor and sums dropped events. |
+| `GET /api/runtime/v1/evidence?project=` | The runtime state of each open SCA finding (state, routes, coverage, conflict), for the CLI and CI. |
+
+- **Errors:** `401` for a missing, unknown or revoked key; `403` for a key
+  without access to the project; `404` for an unknown project (it is not
+  auto-created; run `secfoo run` first); `413` for oversized batches; `429`
+  when rate-limited.
+- **Limits:** 5 MiB request body, 20 MiB decompressed, 50,000 lines per
+  batch, and 120 requests per minute per key.
+- **Logging:** keys and event payloads are never logged or echoed in errors.
+
+**TLS.** `secfoo serve` binds `127.0.0.1` by default. On any other `--host`,
+it refuses API keys over plain HTTP. Put a TLS-terminating proxy in front
+(e.g. Caddy, nginx, or a cloud load balancer forwarding `X-Forwarded-Proto`)
+and run uvicorn behind it. `--allow-insecure-runtime` disables the check, for
+a trusted private network only.
+
 ## Install
 
 Pick whichever fits how you work — they're all the same tool underneath.

@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import PlainTextResponse
 
 from secfoo.config import STORE_DIR
+from secfoo.runtime import api as runtime_api
 from secfoo.web.routes import (
     activities,
     agents,
@@ -34,30 +35,12 @@ def mermaid_bundle_available() -> bool:
     return MERMAID_BUNDLE.is_file()
 
 
-_STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-_CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; "
-    "form-action 'self'; connect-src 'self'"
-)
-
-
-def _cross_site(request) -> bool:
-    """A browser on another site can POST to 127.0.0.1 while this dashboard
-    is open. Same-origin form posts send a matching Origin; cross-site
-    posts do not. Requests with no Origin (the CLI, tests, curl) are local.
-    """
-    if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
-        return True
-    origin = request.headers.get("origin")
-    if not origin or origin == "null":
-        return origin == "null"
-    host = request.headers.get("host") or request.url.netloc
-    return origin != f"{request.url.scheme}://{host}"
-
-
-def create_app() -> FastAPI:
+def create_app(*, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = False) -> FastAPI:
     app = FastAPI(title="secfoo dashboard")
+    # Read by the runtime ingest API (#66): on a non-loopback bind it refuses
+    # API keys over plain HTTP unless the operator opted in.
+    app.state.bind_host = bind_host
+    app.state.allow_insecure_runtime = allow_insecure_runtime
 
     @app.middleware("http")
     async def revalidate_static(request, call_next):
@@ -82,16 +65,5 @@ def create_app() -> FastAPI:
     app.include_router(responsible_ai.router)
     app.include_router(projects.router)
     app.include_router(runs.router)
-
-    @app.middleware("http")
-    async def browser_guard(request, call_next):
-        if request.method in _STATE_CHANGING and _cross_site(request):
-            return PlainTextResponse("Cross-site request rejected", status_code=403)
-        response = await call_next(request)
-        response.headers["Content-Security-Policy"] = _CSP
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["X-Frame-Options"] = "DENY"
-        return response
-
+    app.include_router(runtime_api.router)
     return app
