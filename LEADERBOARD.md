@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-14 10:24:39 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-14 14:09:23 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -9,7 +9,7 @@ _Updated 2026-11-14 10:24:39 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **76** | Silver | 4 | 5 | 2 | 18 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 4 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 3 |
+| 4 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@AmirNCI](https://github.com/AmirNCI), [@Varunpoojari](https://github.com/Varunpoojari), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20).
 
