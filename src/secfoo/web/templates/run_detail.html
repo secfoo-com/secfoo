@@ -50,7 +50,7 @@
     </div>
     {% if run.confluence_urls %}
     <ul class="ds-caption u-mt-3 u-pl-4 u-wrap-anywhere">
-      {% for url in run.confluence_urls %}<li><a href="{{ url }}" target="_blank" rel="noreferrer">{{ url }}</a></li>{% endfor %}
+      {% for url in run.confluence_urls %}{% set safe = url | https_url %}{% if safe %}<li><a href="{{ safe }}" target="_blank" rel="noreferrer noopener">{{ safe }}</a></li>{% endif %}{% endfor %}
     </ul>
     {% endif %}
     <div class="receipt__actions">

@@ -14,7 +14,9 @@ from secfoo.targets.resolver import (
     "url,expected",
     [
         ("https://github.com/org/repo", True),
-        ("http://github.com/org/repo", True),
+        ("http://github.com/org/repo", False),
+        ("https://evil.example/github.com/org/repo", False),
+        ("ext::sh -c evil", False),
         ("git@github.com:org/repo.git", True),
         ("https://gitlab.com/org/repo", False),
         ("/some/local/path", False),
