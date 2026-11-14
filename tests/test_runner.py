@@ -480,7 +480,7 @@ def test_execute_runs_pushes_to_portal_when_cloud_configured(tmp_path, monkeypat
     target_dir = tmp_path / "target"
     target_dir.mkdir()
 
-    cloud_config = cloud.CloudConfig(api_key="k", portal_url="https://portal.example.com")
+    cloud_config = cloud.CloudConfig(api_key="sfc_ingest_abc123456789", portal_url="https://app.secfoo.com")
     monkeypatch.setattr("secfoo.cloud.load_cloud_config", lambda: cloud_config)
 
     class _FakeResponse:
@@ -496,10 +496,12 @@ def test_execute_runs_pushes_to_portal_when_cloud_configured(tmp_path, monkeypat
         def __exit__(self, *exc):
             return False
 
-    monkeypatch.setattr(
-        "secfoo.cloud.urllib.request.urlopen",
-        lambda request, timeout=None: _FakeResponse({"server_run_id": "x", "status": "recorded"}),
-    )
+    def _fake_urlopen(request, timeout=None):
+        if request.full_url.endswith("/whoami"):
+            return _FakeResponse({"tenant_slug": "acme", "scope": "ingest"})
+        return _FakeResponse({"server_run_id": "x", "status": "recorded"})
+
+    monkeypatch.setattr("secfoo.cloud.urllib.request.urlopen", _fake_urlopen)
 
     repo = RunRepository(db_path=tmp_path / "db.sqlite")
     outcomes = execute_runs(
@@ -524,7 +526,7 @@ def test_execute_runs_still_succeeds_when_portal_unreachable(tmp_path, monkeypat
     target_dir = tmp_path / "target"
     target_dir.mkdir()
 
-    cloud_config = cloud.CloudConfig(api_key="k", portal_url="https://unreachable.example.com")
+    cloud_config = cloud.CloudConfig(api_key="sfc_ingest_abc123456789", portal_url="https://app.secfoo.com")
     monkeypatch.setattr("secfoo.cloud.load_cloud_config", lambda: cloud_config)
 
     def _fake_urlopen(request, timeout=None):

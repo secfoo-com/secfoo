@@ -35,7 +35,7 @@ def user_config(tmp_path, monkeypatch):
 
 @pytest.fixture
 def memory_key():
-    memory.save_memory_config(memory.MemoryConfig(api_key="sfm_free_test", url="https://mem.example"))
+    memory.save_memory_config(memory.MemoryConfig(api_key="sfm_free_test"))
 
 
 # ---------- config file ----------
@@ -73,7 +73,7 @@ def test_key_gives_an_http_server_with_a_bearer_header(user_config, memory_key):
     server = memory.memory_server()
     assert server == MCPServerConfig(
         name="secfoo-memory",
-        url="https://mem.example/mcp",
+        url="https://memory.secfoo.com/mcp",
         transport="http",
         headers={"Authorization": "Bearer sfm_free_test"},
     )
@@ -279,13 +279,13 @@ def test_signup_verify_and_whoami_hit_the_right_endpoints(monkeypatch):
         return _FakeResponse({"status": "code_sent"})
 
     monkeypatch.setattr("secfoo.memory.urllib.request.urlopen", _fake)
-    memory.request_signup("a@b.co", url="https://m.example/")
-    key = memory.verify_signup("a@b.co", "123456", url="https://m.example")
-    info = memory.whoami(memory.MemoryConfig(api_key=key, url="https://m.example"))
+    memory.request_signup("a@b.co", url="https://memory.secfoo.com/")
+    key = memory.verify_signup("a@b.co", "123456", url="https://memory.secfoo.com")
+    info = memory.whoami(memory.MemoryConfig(api_key=key, url="https://memory.secfoo.com"))
 
     assert key == "sfm_free_new"
     assert info["plan"] == "free"
-    assert calls[0][0] == "https://m.example/v1/signup"
+    assert calls[0][0] == "https://memory.secfoo.com/v1/signup"
     assert json.loads(calls[1][1]) == {"email": "a@b.co", "code": "123456"}
     assert calls[2][2] == "Bearer sfm_free_new"
 
@@ -299,6 +299,14 @@ def test_http_errors_surface_the_service_detail(monkeypatch):
     monkeypatch.setattr("secfoo.memory.urllib.request.urlopen", _fake)
     with pytest.raises(memory.MemoryServiceError, match="429: daily quota exhausted"):
         memory.whoami(memory.MemoryConfig(api_key="k"))
+
+
+def test_cleartext_memory_url_is_refused_before_any_request(monkeypatch):
+    called = []
+    monkeypatch.setattr("secfoo.memory.urllib.request.urlopen", lambda *args, **kwargs: called.append(args))
+    with pytest.raises(memory.MemoryServiceError, match="https"):
+        memory.request_signup("a@b.co", url="http://memory.internal.example")
+    assert called == []
 
 
 def test_verify_without_a_key_in_the_response_is_an_error(monkeypatch):

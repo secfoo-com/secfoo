@@ -7,7 +7,15 @@ from enum import Enum
 from pathlib import Path
 from urllib.parse import urlsplit
 
-_GITHUB_URL_RE = re.compile(r"^(https?://github\.com/|git@github\.com:)", re.IGNORECASE)
+# Owner and repo are a single path segment. http:// is rejected (cleartext),
+# and anything with userinfo, a port, a query, or an extra path is rejected
+# so `git clone` cannot be handed an option-like or ext:: URL.
+_HTTPS_GITHUB_RE = re.compile(
+    r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?/?$"
+)
+_SSH_GITHUB_RE = re.compile(
+    r"^git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$"
+)
 
 
 class TargetResolutionError(RuntimeError):
@@ -30,7 +38,10 @@ class ResolvedTarget:
 
 
 def is_github_url(value: str) -> bool:
-    return bool(_GITHUB_URL_RE.match(value.strip()))
+    value = value.strip()
+    if any(char in value for char in "\r\n\t \\") or ".." in value.split("/") or ".." in value.split(":"):
+        return False
+    return bool(_HTTPS_GITHUB_RE.match(value) or _SSH_GITHUB_RE.match(value))
 
 
 def forge_kind(value: str) -> TargetKind | None:

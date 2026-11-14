@@ -15,11 +15,13 @@ user-authored TOML.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -27,11 +29,18 @@ else:
     import tomli as tomllib
 
 from secfoo.config import CLOUD_CONFIG_PATH
+from secfoo.egress import PORTAL_HOST, EgressError, require_origin
 from secfoo.storage.models import AssessmentRecord, RunRecord
 from secfoo.storage.repository import RunRepository
 
 DEFAULT_PORTAL_URL = "https://app.secfoo.com"
 REQUEST_TIMEOUT_SECONDS = 15
+
+# Portal keys are `sfc_ingest_` or `sfc_view_` plus url-safe token material.
+# Sync may use only the ingest form.
+# A view key logs into the browser and must never upload a report.
+_INGEST_KEY_RE = re.compile(r"^sfc_ingest_[A-Za-z0-9_-]+$")
+_VIEW_KEY_RE = re.compile(r"^sfc_view_[A-Za-z0-9_-]+$")
 
 
 class CloudError(RuntimeError):
@@ -42,6 +51,26 @@ class CloudError(RuntimeError):
 class CloudConfig:
     api_key: str
     portal_url: str = DEFAULT_PORTAL_URL
+
+
+def key_kind(api_key: str) -> str | None:
+    """`ingest`, `view`, or None when the string is not a portal key."""
+    key = (api_key or "").strip()
+    if _INGEST_KEY_RE.fullmatch(key):
+        return "ingest"
+    if _VIEW_KEY_RE.fullmatch(key):
+        return "view"
+    return None
+
+
+def _require_ingest_key(api_key: str) -> str:
+    key = (api_key or "").strip()
+    if key_kind(key) != "ingest":
+        raise CloudError(
+            "Sync refused: app.secfoo.com accepts an ingest key (sfc_ingest_...) only. "
+            "The report was not uploaded."
+        )
+    return key
 
 
 def _toml_escape(value: str) -> str:
@@ -65,15 +94,20 @@ def load_cloud_config(path: Path | None = None) -> CloudConfig | None:
     api_key = data.get("api_key")
     if not api_key:
         raise CloudError(f"{path}: missing api_key")
-    return CloudConfig(api_key=api_key, portal_url=data.get("portal_url") or DEFAULT_PORTAL_URL)
+    return CloudConfig(
+        api_key=_require_ingest_key(api_key),
+        portal_url=_portal_origin(data.get("portal_url") or DEFAULT_PORTAL_URL),
+    )
 
 
 def save_cloud_config(config: CloudConfig, path: Path | None = None) -> None:
     path = path or CLOUD_CONFIG_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
+    portal_url = _portal_origin(config.portal_url)
+    api_key = _require_ingest_key(config.api_key)
     path.write_text(
-        f'api_key = "{_toml_escape(config.api_key)}"\n'
-        f'portal_url = "{_toml_escape(config.portal_url)}"\n',
+        f'api_key = "{_toml_escape(api_key)}"\n'
+        f'portal_url = "{_toml_escape(portal_url)}"\n',
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -83,7 +117,16 @@ def delete_cloud_config(path: Path | None = None) -> None:
     (path or CLOUD_CONFIG_PATH).unlink(missing_ok=True)
 
 
+def _portal_origin(url: str) -> str:
+    try:
+        return require_origin(url, host=PORTAL_HOST)
+    except EgressError as exc:
+        raise CloudError(str(exc)) from exc
+
+
 def _request(url: str, *, api_key: str, payload: dict | None = None) -> dict:
+    parts = urlsplit(url)
+    url = _portal_origin(f"{parts.scheme}://{parts.netloc}") + (parts.path or "")
     headers = {"Authorization": f"Bearer {api_key}"}
     data = None
     if payload is not None:
@@ -122,6 +165,10 @@ def push_run(
     (runner.py's auto-push hook) catch it; `secfoo cloud sync`, run
     interactively, lets it surface per-run instead.
 
+    The report is sent only after the portal's whoami endpoint confirms
+    this exact key is scope `ingest`. A view key, a revoked key, or any
+    other string never gets as far as the upload.
+
     `assessment`, when given, is the case file this run is attached to
     locally -- included so the portal's Assessments register actually
     gets populated instead of only ever seeing bare runs (the gap that
@@ -130,6 +177,15 @@ def push_run(
     autoincrement id, since that id only means something within this
     one machine's SQLite file -- see schema.sql's comment on that column.
     """
+    api_key = _require_ingest_key(config.api_key)
+    confirmed = CloudConfig(api_key=api_key, portal_url=config.portal_url)
+    identity = whoami(confirmed)
+    if identity.get("scope") != "ingest":
+        raise CloudError(
+            "Sync refused: the portal did not accept this key as an ingest key. "
+            "The report was not uploaded."
+        )
+
     payload = {
         "client_run_uuid": run.run_uuid,
         "project": {
@@ -168,7 +224,7 @@ def push_run(
             "review_date": assessment.review_date,
             "notes": assessment.notes,
         }
-    _request(f"{config.portal_url.rstrip('/')}/api/v1/runs", api_key=config.api_key, payload=payload)
+    _request(f"{confirmed.portal_url.rstrip('/')}/api/v1/runs", api_key=api_key, payload=payload)
 
 
 def _cli_version() -> str:

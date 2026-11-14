@@ -9,6 +9,8 @@ best-effort annotation, never a requirement.
 from __future__ import annotations
 
 import re
+from html import unescape
+from urllib.parse import urlsplit
 
 from markdown_it import MarkdownIt
 
@@ -178,6 +180,29 @@ def _annotate_diff_blocks(html: str) -> str:
     return _DIFF_BLOCK_RE.sub(replace, html)
 
 
+_IMG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+_A_HREF_RE = re.compile(r'(<a\b[^>]*\bhref=")([^"]*)(")', re.IGNORECASE)
+
+
+def _is_safe_navigation_url(url: str) -> bool:
+    """Links the dashboard may leave in a report. Images are removed
+    separately: the browser would fetch them as soon as the page loads,
+    which is an exfiltration channel for a prompt-injected report."""
+    parts = urlsplit(unescape(url).strip())
+    return parts.scheme in {"http", "https"} and bool(parts.hostname) and not parts.username and not parts.password
+
+
+def _strip_outbound_markup(html: str) -> str:
+    html = _IMG_RE.sub("", html)
+
+    def replace(match: re.Match[str]) -> str:
+        if _is_safe_navigation_url(match.group(2)):
+            return match.group(0)
+        return match.group(1) + "#" + match.group(3)
+
+    return _A_HREF_RE.sub(replace, html)
+
+
 def render_report_html(markdown_text: str) -> str:
     html = _md.render(markdown_text)
     html = _annotate_severity_badges(html)
@@ -185,4 +210,5 @@ def render_report_html(markdown_text: str) -> str:
     html = _annotate_diff_blocks(html)
     # Before _style_tables so the mermaid <pre> is never mistaken for one.
     html = _prepare_mermaid_blocks(html)
-    return _style_tables(html)
+    html = _style_tables(html)
+    return _strip_outbound_markup(html)

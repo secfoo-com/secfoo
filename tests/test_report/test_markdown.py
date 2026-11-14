@@ -240,6 +240,18 @@ def test_mermaid_figure_is_not_wrapped_as_a_table():
     assert "table-wrap" not in mermaid_part.split("</figure>")[0]
 
 
+def test_report_html_does_not_fetch_remote_images_or_script_urls():
+    html = render_report_html(
+        "# Report\n\n"
+        "![pixel](https://evil.example/pixel.gif)\n\n"
+        "[proto](//evil.example/x)\n\n"
+        "[docs](https://app.secfoo.com/docs)\n"
+    )
+    assert "<img" not in html
+    assert "evil.example" not in html
+    assert 'href="https://app.secfoo.com/docs"' in html
+
+
 def test_non_mermaid_code_blocks_are_untouched():
     html = render_report_html("# R\n\n```python\nprint('hi')\n```\n")
     assert 'class="language-python"' in html
