@@ -509,6 +509,18 @@ class RunRepository:
         ).fetchone()
         return self._row_to_run(row) if row else None
 
+    def previous_skill_sha256(self, *, skill_id: str, before_started_at: str, exclude_run_uuid: str) -> str | None:
+        """The skill_sha256 of the most recent earlier run of `skill_id`
+        (#93's "definition changed" marker on the run detail page) --
+        across every project and source, since the same skill id is one
+        activity regardless of where its definition came from."""
+        row = self._conn.execute(
+            "SELECT skill_sha256 FROM runs WHERE skill_id = ? AND run_uuid != ? AND started_at < ? "
+            "AND skill_sha256 IS NOT NULL ORDER BY started_at DESC LIMIT 1",
+            (skill_id, exclude_run_uuid, before_started_at),
+        ).fetchone()
+        return row["skill_sha256"] if row else None
+
     def severity_totals(self, *, project_id: int | None = None) -> SeverityCounts:
         query = (
             "SELECT COALESCE(SUM(critical_count),0) c, COALESCE(SUM(high_count),0) h, "

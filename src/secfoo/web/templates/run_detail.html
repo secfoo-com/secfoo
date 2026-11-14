@@ -39,7 +39,19 @@
       <div class="receipt__line"><span>agent</span><span>{{ run.agent_id }}</span></div>
       <div class="receipt__line"><span>skill</span><span>{{ run.skill_id }}</span></div>
       {% if run.skill_source %}
-      <div class="receipt__line"><span>skill definition</span><span>v{{ run.skill_version }} &middot; {{ "built-in" if run.skill_source == "builtin" else "custom" }}{% if run.skill_sha256 %} &middot; <code title="sha256 of the skill file: {{ run.skill_sha256 }}">{{ run.skill_sha256[:12] }}</code>{% endif %}</span></div>
+      <div class="receipt__line">
+        <span>skill definition</span>
+        <span>
+          v{{ run.skill_version }} &middot;
+          {% if run.skill_source == "builtin" %}built-in
+          {% elif run.skill_source == "user" %}custom
+          {% elif run.skill_source.startswith("pack:") %}{{ run.skill_source }}
+          {% elif run.skill_source.startswith("http://") or run.skill_source.startswith("https://") %}<a href="{{ run.skill_source }}" target="_blank" rel="noreferrer">{{ run.skill_source }}</a>
+          {% else %}custom{% endif %}
+          {% if run.skill_sha256 %} &middot; <code title="sha256 of the skill file: {{ run.skill_sha256 }}">{{ run.skill_sha256[:12] }}</code>{% endif %}
+          {% if definition_changed %}<span class="badge badge--warning" title="A different skill definition (sha256) produced this run than the previous run of {{ run.skill_id }}.">definition changed</span>{% endif %}
+        </span>
+      </div>
       {% endif %}
       <div class="receipt__line"><span>confluence pages</span><span>{{ run.confluence_urls | length }}</span></div>
       <div class="receipt__line"><span>duration</span><span>{{ run.duration_seconds | fmt_duration }}</span></div>
