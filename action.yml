@@ -1,0 +1,262 @@
+# secfoo as a GitHub Action: AI security review in CI.
+#
+# Runs one or more secfoo skills (SAST, secret scanning, SCA, threat
+# modeling, ...) against the checked-out repository with the agent you
+# already pay for (an API key, or a coding-agent CLI), exports the
+# structured findings as SARIF, and uploads them to GitHub code scanning so
+# they appear in the repository's Security tab and as PR annotations.
+#
+# Minimal usage (API key, SAST + secret scanning, fail the job on High+):
+#
+#   - uses: secfoo-com/secfoo@main
+#     env:
+#       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # or ANTHROPIC_API_KEY / GEMINI_API_KEY
+#     with:
+#       fail-on: high
+#
+# The job needs `security-events: write` to upload SARIF. See docs/CI.md.
+name: "secfoo AI Security Review"
+description: >-
+  AI security review in CI: SAST, secret scanning, SCA, threat modeling and
+  architecture review with Claude Code, Copilot, Codex, Gemini or an API key.
+  Exports SARIF to GitHub code scanning.
+author: "RakFort"
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  skills:
+    description: >-
+      Comma-separated skill IDs to run concurrently: sast, secret-scanning,
+      sca-reachability, threat-modeling, security-architecture-review,
+      prompt-review, deployment-readiness, responsible-ai-compliance.
+    default: "sast,secret-scanning"
+  target:
+    description: "Directory (or GitHub URL) to assess. Defaults to the checkout."
+    default: "."
+  agent:
+    description: >-
+      Agent that performs the review: api (uses OPENAI_API_KEY, ANTHROPIC_API_KEY
+      or GEMINI_API_KEY from env), claude, codex, gemini, copilot, agent (Cursor),
+      agy, droid, devin, opencode. CLI agents must be on PATH; see install-agent-cli.
+    default: "api"
+  model:
+    description: "Model override for the agent (e.g. anthropic/claude-sonnet-4-5 for api)."
+    default: ""
+  depth:
+    description: "quick (fast triage) or standard (full checklist coverage)."
+    default: "quick"
+  fail-on:
+    description: "Fail the job if any finding is at this severity or worse: critical, high, medium, low. Empty = never."
+    default: ""
+  max-cost:
+    description: "Fail the job if the agent-reported spend (USD) exceeds this amount. Empty = no cap."
+    default: ""
+  timeout:
+    description: "Per-skill timeout in seconds. Empty = the agent's default."
+    default: ""
+  exclude:
+    description: "Comma-separated paths to exclude from the scan (vendored code, fixtures, ...)."
+    default: ""
+  extra-args:
+    description: "Extra arguments appended verbatim to `secfoo run`."
+    default: ""
+  version:
+    description: "secfoo version to install from PyPI. Empty = latest."
+    default: ""
+  python-version:
+    description: "Python used to install secfoo."
+    default: "3.12"
+  install-agent-cli:
+    description: >-
+      Install a coding-agent CLI with npm before the run: claude, codex, gemini
+      or copilot. Only needed when `agent` is one of those. Its API key still
+      has to be in env (e.g. ANTHROPIC_API_KEY for claude).
+    default: ""
+  sarif-file:
+    description: "Where to write the SARIF export. Empty disables the export."
+    default: "secfoo.sarif"
+  upload-sarif:
+    description: "Upload the SARIF file to GitHub code scanning (needs security-events: write)."
+    default: "true"
+  sarif-category:
+    description: "Code scanning category for the upload, so secfoo results don't replace other tools'."
+    default: "secfoo"
+  result-file:
+    description: "Where to write the machine-readable run summary (the `--json` document)."
+    default: "secfoo-result.json"
+
+outputs:
+  exit-code:
+    description: "secfoo's exit code: 0 clean, 1 a run failed, 2 the findings gate tripped, 3 the cost gate tripped."
+    value: ${{ steps.scan.outputs.exit-code }}
+  critical:
+    description: "Critical findings across all skills."
+    value: ${{ steps.scan.outputs.critical }}
+  high:
+    description: "High findings across all skills."
+    value: ${{ steps.scan.outputs.high }}
+  medium:
+    description: "Medium findings across all skills."
+    value: ${{ steps.scan.outputs.medium }}
+  low:
+    description: "Low findings across all skills."
+    value: ${{ steps.scan.outputs.low }}
+  cost-usd:
+    description: "Agent-reported spend for this run in USD, when the agent reports one."
+    value: ${{ steps.scan.outputs.cost-usd }}
+  result-file:
+    description: "Path of the JSON run summary."
+    value: ${{ inputs.result-file }}
+  sarif-file:
+    description: "Path of the SARIF export (empty when disabled)."
+    value: ${{ steps.export.outputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install secfoo
+      shell: bash
+      env:
+        SECFOO_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        python -m pip install --quiet --upgrade pip
+        python -m pip install --quiet "secfoo${SECFOO_VERSION:+==${SECFOO_VERSION}}"
+        secfoo --help >/dev/null
+
+    - name: Install agent CLI
+      if: inputs.install-agent-cli != ''
+      shell: bash
+      env:
+        AGENT_CLI: ${{ inputs.install-agent-cli }}
+      run: |
+        set -euo pipefail
+        case "$AGENT_CLI" in
+          claude)  npm install -g @anthropic-ai/claude-code ;;
+          codex)   npm install -g @openai/codex ;;
+          gemini)  npm install -g @google/gemini-cli ;;
+          copilot) npm install -g @github/copilot ;;
+          *) echo "::error::install-agent-cli must be claude, codex, gemini or copilot (got '$AGENT_CLI')"; exit 1 ;;
+        esac
+
+    - name: Run secfoo
+      id: scan
+      shell: bash
+      env:
+        IN_SKILLS: ${{ inputs.skills }}
+        IN_TARGET: ${{ inputs.target }}
+        IN_AGENT: ${{ inputs.agent }}
+        IN_MODEL: ${{ inputs.model }}
+        IN_DEPTH: ${{ inputs.depth }}
+        IN_FAIL_ON: ${{ inputs.fail-on }}
+        IN_MAX_COST: ${{ inputs.max-cost }}
+        IN_TIMEOUT: ${{ inputs.timeout }}
+        IN_EXCLUDE: ${{ inputs.exclude }}
+        IN_EXTRA_ARGS: ${{ inputs.extra-args }}
+        IN_RESULT_FILE: ${{ inputs.result-file }}
+        # Non-interactive: no project-name prompt, no "scan again?" prompt.
+        SECFOO_PROJECT_NAME: ${{ github.repository }}
+      run: |
+        set -uo pipefail
+        args=(run --agent "$IN_AGENT" --target "$IN_TARGET" --depth "$IN_DEPTH" --json
+              --project-name "$SECFOO_PROJECT_NAME" --rescan)
+        IFS=',' read -ra skills <<< "$IN_SKILLS"
+        for s in "${skills[@]}"; do s="${s// /}"; [ -n "$s" ] && args+=(--skill "$s"); done
+        [ -n "$IN_MODEL" ]    && args+=(--model "$IN_MODEL")
+        [ -n "$IN_FAIL_ON" ]  && args+=(--fail-on "$IN_FAIL_ON")
+        [ -n "$IN_MAX_COST" ] && args+=(--max-cost "$IN_MAX_COST")
+        [ -n "$IN_TIMEOUT" ]  && args+=(--timeout "$IN_TIMEOUT")
+        if [ -n "$IN_EXCLUDE" ]; then
+          IFS=',' read -ra excludes <<< "$IN_EXCLUDE"
+          for x in "${excludes[@]}"; do x="${x## }"; x="${x%% }"; [ -n "$x" ] && args+=(--exclude "$x"); done
+        fi
+        if [ -n "$IN_EXTRA_ARGS" ]; then
+          # shellcheck disable=SC2206
+          extra=($IN_EXTRA_ARGS); args+=("${extra[@]}")
+        fi
+
+        echo "::group::secfoo ${args[*]}"
+        secfoo "${args[@]}" > "$IN_RESULT_FILE"
+        code=$?
+        echo "::endgroup::"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+        # Severity totals and spend from the JSON document (empty file if the
+        # run died before writing one).
+        python - "$IN_RESULT_FILE" >> "$GITHUB_OUTPUT" <<'PY'
+        import json, sys
+        try:
+            doc = json.load(open(sys.argv[1]))
+        except Exception:
+            doc = {"runs": [], "total_cost_usd": None}
+        totals = {k: sum(r["severity"][k] for r in doc["runs"]) for k in ("critical", "high", "medium", "low")}
+        for k, v in totals.items():
+            print(f"{k}={v}")
+        cost = doc.get("total_cost_usd")
+        print(f"cost-usd={'' if cost is None else cost}")
+        PY
+
+        {
+          echo "## secfoo security review"
+          echo
+          echo "| Skill | Status | C / H / M / L | Cost |"
+          echo "|---|---|---|---|"
+          python - "$IN_RESULT_FILE" <<'PY'
+        import json, sys
+        try:
+            doc = json.load(open(sys.argv[1]))
+        except Exception:
+            sys.exit(0)
+        for r in doc["runs"]:
+            s = r["severity"]; cost = r.get("cost_usd")
+            print(f"| {r['skill_name']} | {r['status']} | {s['critical']} / {s['high']} / {s['medium']} / {s['low']} | {'-' if cost is None else f'${cost:.2f}'} |")
+        g = doc.get("gates") or {}
+        f = g.get("findings"); c = g.get("cost")
+        if f: print(f"\n**Findings gate** (--fail-on {f['threshold']}): {'passed' if f['passed'] else 'FAILED'} ({f['count']} at or above)")
+        if c: print(f"\n**Cost gate** (--max-cost ${c['max_cost_usd']}): {'passed' if c['passed'] else 'FAILED'}")
+        PY
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        case "$code" in
+          0) echo "secfoo: clean" ;;
+          1) echo "::error::secfoo: a skill run failed or timed out (see the log above and ~/.secfoo/reports/<run>/stderr.log)" ;;
+          2) echo "::error::secfoo: findings gate tripped (--fail-on $IN_FAIL_ON)" ;;
+          3) echo "::error::secfoo: cost gate tripped (--max-cost $IN_MAX_COST)" ;;
+          *) echo "::error::secfoo exited with $code" ;;
+        esac
+        # Deferred: the SARIF export and upload below still run so the
+        # findings land in the Security tab even when the gate fails.
+        exit 0
+
+    - name: Export SARIF
+      id: export
+      if: inputs.sarif-file != ''
+      shell: bash
+      env:
+        SARIF_FILE: ${{ inputs.sarif-file }}
+      run: |
+        set -euo pipefail
+        # The runner's store only holds this job's scan, so no --project filter
+        # is needed: every exported finding belongs to the checked-out repo.
+        secfoo findings export --format sarif --output "$SARIF_FILE"
+        echo "sarif-file=$SARIF_FILE" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to code scanning
+      if: inputs.sarif-file != '' && inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@5895b2c9be147bc7f1c75ce72c5cb577febb1907 # v4
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: ${{ inputs.sarif-category }}
+
+    - name: Apply secfoo's exit code
+      if: steps.scan.outputs.exit-code != '0'
+      shell: bash
+      env:
+        CODE: ${{ steps.scan.outputs.exit-code }}
+      run: exit "$CODE"

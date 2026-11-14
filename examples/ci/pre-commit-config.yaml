@@ -1,0 +1,13 @@
+# Merge into your .pre-commit-config.yaml, then `pre-commit install --hook-type pre-push`.
+repos:
+  - repo: https://github.com/secfoo-com/secfoo
+    rev: v0.3.1
+    hooks:
+      # Fast gate on every commit: secret scanning only, fail on High+.
+      - id: secfoo-secrets
+        stages: [pre-commit]
+
+      # Fuller review before code leaves your machine.
+      - id: secfoo
+        args: [--skill, sast, --skill, secret-scanning, --fail-on, high]
+        stages: [pre-push]

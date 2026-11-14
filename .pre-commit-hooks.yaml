@@ -1,0 +1,36 @@
+# pre-commit hooks for secfoo (https://pre-commit.com).
+#
+#   repos:
+#     - repo: https://github.com/secfoo-com/secfoo
+#       rev: v0.3.1
+#       hooks:
+#         - id: secfoo-secrets            # fast: secret scanning only
+#         - id: secfoo                    # or any skills you want, e.g.:
+#           args: [--skill, sast, --skill, secret-scanning, --fail-on, high]
+#           stages: [pre-push]            # LLM reviews take minutes; run on push
+#
+# The hooks use whichever agent you already have: an installed CLI (claude,
+# codex, gemini, ...) or the `api` agent when OPENAI_API_KEY /
+# ANTHROPIC_API_KEY / GEMINI_API_KEY is set. Override with `args: [--agent, codex]`.
+- id: secfoo
+  name: secfoo AI security review
+  description: Run secfoo security skills against the repository (configure skills and gates with args).
+  entry: secfoo run --target . --depth quick --rescan
+  args: [--skill, secret-scanning, --fail-on, high]
+  language: python
+  pass_filenames: false
+  always_run: true
+  require_serial: true
+  stages: [pre-commit, pre-push, manual]
+  verbose: true
+
+- id: secfoo-secrets
+  name: secfoo secret scanning
+  description: Fail the commit when secfoo's secret-scanning skill finds a High or Critical secret.
+  entry: secfoo run --target . --depth quick --rescan --skill secret-scanning --fail-on high
+  language: python
+  pass_filenames: false
+  always_run: true
+  require_serial: true
+  stages: [pre-commit, pre-push, manual]
+  verbose: true

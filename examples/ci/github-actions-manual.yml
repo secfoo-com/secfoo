@@ -1,0 +1,45 @@
+# Copy to .github/workflows/secfoo.yml
+#
+# The same pipeline without the marketplace action: install from PyPI, run,
+# export SARIF, upload. Useful when your org pins every step itself.
+name: secfoo security review (manual steps)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secfoo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: pip install secfoo
+
+      - name: Review
+        id: scan
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Keep going on exit 2 (gate tripped) so the SARIF still uploads.
+        run: |
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$GITHUB_REPOSITORY" \
+            --skill sast --skill secret-scanning --fail-on high > secfoo-result.json || echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Export SARIF
+        run: secfoo findings export --format sarif -o secfoo.sarif
+
+      - uses: github/codeql-action/upload-sarif@5895b2c9be147bc7f1c75ce72c5cb577febb1907 # v4
+        with:
+          sarif_file: secfoo.sarif
+          category: secfoo
+
+      - name: Fail on gate
+        if: steps.scan.outputs.code != ''
+        run: exit ${{ steps.scan.outputs.code }}
