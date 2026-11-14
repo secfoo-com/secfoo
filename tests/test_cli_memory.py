@@ -46,12 +46,14 @@ def test_interactive_signup_sends_code_then_saves_key(monkeypatch):
     calls = _service(monkeypatch)
     monkeypatch.setattr("secfoo.cli._is_interactive", lambda: True)
 
-    result = runner.invoke(app, ["memory", "signup", "--email", "dev@example.com", "--url", "https://m.test"],
-                           input="424242\n")
+    result = runner.invoke(
+        app, ["memory", "signup", "--email", "dev@example.com", "--url", "https://memory.secfoo.com"],
+        input="424242\n",
+    )
 
     assert result.exit_code == 0, result.output
-    assert calls == ["https://m.test/v1/signup", "https://m.test/v1/signup/verify"]
-    assert memory.load_memory_config() == memory.MemoryConfig(api_key="sfm_free_abc", url="https://m.test")
+    assert calls == ["https://memory.secfoo.com/v1/signup", "https://memory.secfoo.com/v1/signup/verify"]
+    assert memory.load_memory_config() == memory.MemoryConfig(api_key="sfm_free_abc", url="https://memory.secfoo.com")
 
 
 def test_non_interactive_signup_is_two_steps(monkeypatch):

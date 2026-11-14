@@ -30,6 +30,7 @@ def client(tmp_path, monkeypatch):
     db_path = tmp_path / "db.sqlite"
     monkeypatch.setattr("secfoo.storage.repository.DB_PATH", db_path)
     monkeypatch.setattr("secfoo.storage.repository.ensure_store_dirs", lambda: None)
+    monkeypatch.setattr("secfoo.web.routes.runs.STORE_DIR", tmp_path)
     return TestClient(create_app())
 
 

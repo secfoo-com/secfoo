@@ -31,8 +31,17 @@ All of these are merged:
    ```
 4. **`SECFOO_SKILLS_PATH`:** extra folders separated by `:` (`;` on Windows),
    handy in CI.
-5. **One-off:** `secfoo run --skill-file ./my-skill.md --target .` runs a file
-   without installing it.
+5. **Installed packs:** `secfoo skills install <git-url>` (see
+   [Sharing skills with your team](#sharing-skills-with-your-team) below).
+6. **One-off:** `secfoo run --skill-file ./my-skill.md --target .` runs a file
+   or an `https://` URL without installing it:
+   ```bash
+   secfoo run --skill-file https://raw.githubusercontent.com/acme/appsec-skills/main/graphql-review.md --target .
+   # pin it for CI -- a content mismatch fails before the skill runs at all
+   secfoo run --skill-file https://.../graphql-review.md --skill-sha256 <hex> --target .
+   ```
+   A URL is fetched over HTTPS only (no `http://`, and no redirect to one),
+   capped at 256 KB.
 
 secfoo **never** loads skills from the target it is scanning. A cloned repo
 can't add instructions by shipping a `.secfoo/skills/` folder.
@@ -108,12 +117,43 @@ severity counts and CI gates (`--fail-on`) work like a built-in's. Run
 ## Traceability
 
 Custom skills change over time, so every run records which definition produced
-it: the skill's `version`, its source (`builtin` / `user`) and a SHA-256 of the
-definition file. These appear on the run's page in the dashboard.
+it: the skill's `version`, its source, and a SHA-256 of the definition file.
+For a built-in or a file under `~/.secfoo/skills/`, the source is `builtin` /
+`user`; for a URL or an installed pack, it's the URL itself or
+`pack:<name>@<commit>`, so a run's page always says exactly what ran. If a
+later run of the same skill id used a different SHA-256, its page is marked
+**definition changed**.
 
-## Sharing skills across a team
+## Trust model
 
-Keep the skills in a git repo, one `.md` file per skill. Run
-`secfoo skills validate .` in its CI, and have each person add the checkout to
-`[skills] paths`. Updating the repo updates everyone's skills. Bump `version`
-when you change a skill's instructions, so runs show which wording they used.
+A skill's text becomes agent instructions, so the first time a run would use
+one secfoo didn't author -- anything other than a built-in or a file under
+`~/.secfoo/skills/*.md` (a configured path, a one-off file or URL, a pack) --
+`secfoo run` prints its id, name, source and SHA-256 and asks you to confirm.
+`--yes` skips the prompt, and it's always skipped on a non-interactive run
+(CI, `--json`). The run still records what actually ran either way.
+
+## Sharing skills with your team
+
+Two ways, in increasing order of rigor:
+
+- **A plain checkout:** keep the skills in a git repo, one `.md` file per
+  skill, run `secfoo skills validate .` in its CI, and have each person add
+  the checkout to `[skills] paths`. Updating the repo updates everyone's
+  skills immediately -- good for a small team that trusts its own `main`.
+- **A pinned pack:** `secfoo skills install` clones the repo once into
+  `~/.secfoo/skills/packs/<name>/` (skills optionally under a `skills/`
+  subfolder) and pins it in `~/.secfoo/skills/packs.lock`:
+  ```bash
+  secfoo skills install https://github.com/acme/appsec-skills            # -> packs/acme-appsec-skills
+  secfoo skills install https://github.com/acme/appsec-skills --ref v3   # a tag, branch or commit
+  secfoo skills update [NAME]      # move an installed pack (or every one) to its ref's newest commit
+  secfoo skills remove NAME
+  secfoo skills list               # shows each skill's pack and commit
+  ```
+  Check `packs.lock` into your own repo and run `secfoo skills install
+  --from-lock` in CI to reproduce the exact same commit every time, instead of
+  whatever the pack's branch happens to point to that day.
+
+Either way, bump a skill's `version` when you change its instructions, so
+runs show which wording they used.

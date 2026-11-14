@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import PlainTextResponse
 
 from secfoo.config import STORE_DIR
 from secfoo.runtime import api as runtime_api

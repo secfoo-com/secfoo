@@ -46,6 +46,19 @@ if [ -z "$LATEST_TAG" ]; then
   echo "error: could not determine the latest release tag from the GitHub API" >&2
   exit 1
 fi
+case "$LATEST_TAG" in
+  v[0-9]*) ;;
+  *)
+    echo "error: refusing unexpected release tag '$LATEST_TAG'" >&2
+    exit 1
+    ;;
+esac
+case "$LATEST_TAG" in
+  *[!A-Za-z0-9._-]*)
+    echo "error: refusing unexpected release tag '$LATEST_TAG'" >&2
+    exit 1
+    ;;
+esac
 
 echo "Latest release: $LATEST_TAG"
 

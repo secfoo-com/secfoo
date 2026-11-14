@@ -92,6 +92,183 @@ def test_new_and_edited_files_are_picked_up_without_a_restart(home):
     assert load_skill("late-skill").version == 4
 
 
+# ---------- --skill-file over HTTPS, sha256 pinning (#93) ----------
+
+
+def _skill_bytes(skill_id: str, *, body: str = "Review the GraphQL resolvers.") -> bytes:
+    return (
+        f"---\nid: {skill_id}\nname: {skill_id.title()}\ndescription: A custom review.\nversion: 3\n---\n\n{body}\n"
+    ).encode()
+
+
+class _FakeURLResponse:
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def read(self, n: int = -1) -> bytes:
+        return self._data if n is None or n < 0 else self._data[:n]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeOpener:
+    def __init__(self, data: bytes):
+        self.data = data
+        self.urls: list[str] = []
+
+    def open(self, url, timeout=None):
+        self.urls.append(url)
+        return _FakeURLResponse(self.data)
+
+
+@pytest.fixture
+def fake_url_skill(monkeypatch):
+    """Stands in for the real network fetch in fetch_url_skill(): same
+    precedent as test_memory.py faking urllib.request.urlopen, needed here
+    because the loader builds its own https-only opener instead of calling
+    urlopen() directly."""
+
+    def _install(data: bytes) -> _FakeOpener:
+        opener = _FakeOpener(data)
+        monkeypatch.setattr(loader.urllib.request, "build_opener", lambda *a, **kw: opener)
+        return opener
+
+    return _install
+
+
+def test_skill_file_url_fetches_and_registers(fake_url_skill):
+    data = _skill_bytes("from-url")
+    opener = fake_url_skill(data)
+    skill = register_skill_file("https://example.test/from-url.md")
+    assert (skill.source, skill.origin) == ("url", "https://example.test/from-url.md")
+    assert skill.sha256 == hashlib.sha256(data).hexdigest()
+    assert opener.urls == ["https://example.test/from-url.md"]
+    assert load_skill("from-url").source_label == "https://example.test/from-url.md"
+
+
+def test_skill_file_url_rejects_plain_http(fake_url_skill):
+    opener = fake_url_skill(_skill_bytes("from-url"))
+    with pytest.raises(SkillLoadError, match="https://"):
+        register_skill_file("http://example.test/from-url.md")
+    assert opener.urls == []  # never even tries to connect
+
+
+def test_skill_file_url_rejects_redirect_to_http():
+    handler = loader._HTTPSOnlyRedirectHandler()
+    with pytest.raises(SkillLoadError, match="non-https"):
+        handler.redirect_request(None, None, 302, "Found", {}, "http://evil.test/payload.md")
+
+
+def test_skill_file_url_enforces_size_cap(fake_url_skill):
+    fake_url_skill(b"a" * (loader.MAX_URL_SKILL_BYTES + 1))
+    with pytest.raises(SkillLoadError, match="KB limit"):
+        register_skill_file("https://example.test/huge.md")
+
+
+def test_skill_file_url_sha256_pin_matches(fake_url_skill):
+    data = _skill_bytes("pinned")
+    fake_url_skill(data)
+    digest = hashlib.sha256(data).hexdigest()
+    skill = register_skill_file("https://example.test/pinned.md", expected_sha256=digest)
+    assert skill.id == "pinned"
+
+
+def test_skill_file_url_sha256_mismatch_never_parses_the_body(fake_url_skill):
+    # Not even valid frontmatter -- if the mismatch is checked first (as it
+    # must be), the error is about the hash, never "missing frontmatter".
+    fake_url_skill(b"not a skill file at all")
+    with pytest.raises(SkillLoadError, match="sha256 mismatch") as excinfo:
+        register_skill_file("https://example.test/tampered.md", expected_sha256="0" * 64)
+    assert "frontmatter" not in str(excinfo.value)
+    assert "tampered" not in load_all_skills()
+
+
+def test_skill_sha256_without_a_url_errors(tmp_path):
+    path = _skill(tmp_path / "loose", "one-off")
+    with pytest.raises(SkillLoadError, match="only applies to a --skill-file URL"):
+        register_skill_file(path, expected_sha256="0" * 64)
+
+
+def test_run_skill_file_url_with_matching_sha256(fake_url_skill, monkeypatch):
+    data = _skill_bytes("from-url")
+    fake_url_skill(data)
+    digest = hashlib.sha256(data).hexdigest()
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [])
+    result = runner.invoke(
+        app, ["run", "--skill-file", "https://example.test/from-url.md", "--skill-sha256", digest, "--json"]
+    )
+    assert captured.get("skill_ids") == ["from-url"], result.output
+
+
+def test_run_skill_file_url_with_wrong_sha256_is_reported(fake_url_skill, monkeypatch):
+    fake_url_skill(_skill_bytes("from-url"))
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
+    result = runner.invoke(
+        app, ["run", "--skill-file", "https://example.test/from-url.md", "--skill-sha256", "0" * 64]
+    )
+    assert result.exit_code == 1 and "sha256 mismatch" in _out(result)
+
+
+def test_more_skill_sha256_than_skill_file_errors(monkeypatch):
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
+    result = runner.invoke(app, ["run", "--skill", "sast", "--skill-sha256", "0" * 64])
+    assert result.exit_code == 2 and "--skill-sha256" in _out(result)
+
+
+# ---------- the first-run trust prompt for an untrusted skill source (#93) ----------
+
+
+def test_builtin_and_user_skills_are_trusted(home):
+    _skill(home / "skills", "graphql-review")
+    assert load_skill("sast").is_trusted_source
+    assert load_skill("graphql-review").is_trusted_source
+
+
+def test_path_file_url_and_pack_skills_are_not_trusted(tmp_path):
+    path = _skill(tmp_path / "loose", "one-off")
+    assert not register_skill_file(path).is_trusted_source
+
+
+def test_trust_prompt_skipped_with_yes_flag(tmp_path, monkeypatch):
+    path = _skill(tmp_path / "loose", "one-off")
+    monkeypatch.setattr("secfoo.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("secfoo.cli.Confirm.ask", lambda *a, **kw: pytest.fail("must not prompt"))
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [])
+    result = runner.invoke(
+        app, ["run", "--skill-file", str(path), "--yes", "--project-name", "x", "--app-id", "y"]
+    )
+    assert captured.get("skill_ids") == ["one-off"], result.output
+
+
+def test_trust_prompt_declined_aborts_the_run(tmp_path, monkeypatch):
+    path = _skill(tmp_path / "loose", "one-off")
+    monkeypatch.setattr("secfoo.cli._is_interactive", lambda: True)
+    monkeypatch.setattr("secfoo.cli.Confirm.ask", lambda *a, **kw: False)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: pytest.fail("must not run"))
+    result = runner.invoke(app, ["run", "--skill-file", str(path)])
+    assert result.exit_code == 1 and "not confirmed" in _out(result)
+
+
+def test_trust_prompt_accepted_runs_and_is_asked_once_per_skill(tmp_path, monkeypatch):
+    path = _skill(tmp_path / "loose", "one-off")
+    monkeypatch.setattr("secfoo.cli._is_interactive", lambda: True)
+    asked = []
+    monkeypatch.setattr("secfoo.cli.Confirm.ask", lambda *a, **kw: (asked.append(1), True)[1])
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [])
+    result = runner.invoke(
+        app, ["run", "--skill-file", str(path), "--skill-file", str(path), "--project-name", "x", "--app-id", "y"]
+    )
+    assert captured.get("skill_ids") == ["one-off", "one-off"], result.output
+    assert len(asked) == 1  # same skill id twice in one invocation -- prompted once
+
+
 # ---------- clashes and malformed skills ----------
 
 

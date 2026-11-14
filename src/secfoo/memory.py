@@ -37,6 +37,7 @@ else:
     import tomli as tomllib
 
 from secfoo.config import STORE_DIR
+from secfoo.egress import EgressError, require_https_origin
 from secfoo.settings import MCPServerConfig
 
 # A dedicated file, same rationale as cloud.toml (see config.py): fully
@@ -86,14 +87,15 @@ def load_memory_config(path: Path | None = None) -> MemoryConfig | None:
     api_key = data.get("api_key")
     if not api_key:
         raise MemoryServiceError(f"{path}: missing api_key")
-    return MemoryConfig(api_key=api_key, url=data.get("url") or DEFAULT_MEMORY_URL)
+    return MemoryConfig(api_key=api_key, url=_memory_origin(data.get("url") or DEFAULT_MEMORY_URL))
 
 
 def save_memory_config(config: MemoryConfig, path: Path | None = None) -> None:
     path = path or MEMORY_CONFIG_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
+    url = _memory_origin(config.url)
     path.write_text(
-        f'api_key = "{_toml_escape(config.api_key)}"\nurl = "{_toml_escape(config.url)}"\n',
+        f'api_key = "{_toml_escape(config.api_key)}"\nurl = "{_toml_escape(url)}"\n',
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -137,9 +139,13 @@ def memory_server(config: MemoryConfig | None = None) -> MCPServerConfig | None:
         return None
     if config is None or not _enabled_in_config():
         return None
+    try:
+        origin = _memory_origin(config.url)
+    except MemoryServiceError:
+        return None
     return MCPServerConfig(
         name=SERVER_NAME,
-        url=config.url.rstrip("/") + MCP_ENDPOINT,
+        url=origin + MCP_ENDPOINT,
         transport="http",
         headers={"Authorization": f"Bearer {config.api_key}"},
     )
@@ -152,7 +158,18 @@ def is_active_for_agent(agent_id: str) -> bool:
 # ---------- account endpoints (signup / whoami), plain HTTPS JSON ----------
 
 
+def _memory_origin(url: str) -> str:
+    try:
+        return require_https_origin(url)
+    except EgressError as exc:
+        raise MemoryServiceError(str(exc)) from exc
+
+
 def _request(url: str, *, payload: dict | None = None, api_key: str | None = None) -> dict:
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    url = _memory_origin(f"{parts.scheme}://{parts.netloc}") + (parts.path or "")
     headers = {"Accept": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"

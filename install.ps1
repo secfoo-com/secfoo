@@ -18,6 +18,10 @@ if (-not $Tag) {
     Write-Error "Could not determine the latest release tag from the GitHub API"
     exit 1
 }
+if ($Tag -notmatch '^v[0-9A-Za-z._-]+$' -or $Tag -match '[^A-Za-z0-9._-]') {
+    Write-Error "Refusing unexpected release tag: $Tag"
+    exit 1
+}
 Write-Host "Latest release: $Tag"
 
 $BaseUrl = "https://github.com/$Repo/releases/download/$Tag"

@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from secfoo.targets.resolver import TargetResolutionError
+from secfoo.targets.resolver import TargetResolutionError, is_github_url
 
 
 @contextmanager
@@ -16,11 +16,32 @@ def clone_shallow(url: str, *, timeout: int = 600) -> Iterator[Path]:
     block, then remove it unconditionally -- including when the caller's
     block raises.
     """
+    url = url.strip()
+    if not is_github_url(url):
+        raise TargetResolutionError(
+            f"refusing to clone {url!r}: only https://github.com/owner/repo "
+            "or git@github.com:owner/repo is allowed"
+        )
     tmp_dir = Path(tempfile.mkdtemp(prefix="secfoo-clone-"))
     try:
         try:
+            # Command-line -c overrides repo-controlled config. Hooks,
+            # fsmonitor, ext::, and file:// cannot run during this clone,
+            # and `--` keeps a URL from being parsed as a git option.
             subprocess.run(
-                ["git", "clone", "--depth", "1", url, str(tmp_dir)],
+                [
+                    "git",
+                    "-c", "protocol.file.allow=never",
+                    "-c", "protocol.ext.allow=never",
+                    "-c", "core.hooksPath=/dev/null",
+                    "-c", "core.fsmonitor=",
+                    "clone",
+                    "--depth", "1",
+                    "--no-recurse-submodules",
+                    "--",
+                    url,
+                    str(tmp_dir),
+                ],
                 check=True,
                 capture_output=True,
                 text=True,
