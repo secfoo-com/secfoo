@@ -728,11 +728,50 @@ serve_app.add_typer(serve_key_app, name="key")
 app.add_typer(serve_app, name="serve")
 
 
+def _ensure_port_free(host: str, port: int, *, replace: bool) -> None:
+    """Exits with a clear fix instead of letting uvicorn fail with a raw
+    bind error. Never stops a process unless it's recognizably another
+    `secfoo serve` -- an unidentified or unrelated owner is never touched,
+    `--replace` or not."""
+    from secfoo.web.port_guard import find_owner, port_in_use, stop_gracefully
+
+    if not port_in_use(host, port):
+        return
+    owner = find_owner(port)
+    if replace and owner is not None and owner.is_secfoo_serve:
+        console.print(f"[yellow]{host}:{port} is already in use by another `secfoo serve`[/] (pid {owner.pid}) — stopping it.")
+        if stop_gracefully(owner) and not port_in_use(host, port):
+            return
+        err_console.print(f"[red]Error:[/] couldn't stop pid {owner.pid} in time. Stop it yourself and try again.")
+        raise typer.Exit(code=1)
+    if replace and owner is not None:
+        err_console.print(
+            f"[red]Error:[/] {host}:{port} is in use by pid {owner.pid} ({owner.command}), which doesn't look "
+            "like `secfoo serve` -- refusing to stop it. Free the port yourself, or use a different --port."
+        )
+        raise typer.Exit(code=1)
+    hint = f"pid {owner.pid} ({owner.command})" if owner else "another process"
+    err_console.print(
+        f"[red]Error:[/] {host}:{port} is already in use by {hint}.\n"
+        f"  Find it:   lsof -i :{port}\n"
+        "  Stop it:   kill <pid>\n"
+        "  Or:        secfoo serve --port <other-port>\n"
+        "  Or, if it's an old `secfoo serve`: secfoo serve --replace"
+    )
+    raise typer.Exit(code=1)
+
+
 @serve_app.callback()
 def serve(
     ctx: typer.Context,
     host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port")] = 8787,
+    replace: Annotated[bool, typer.Option(
+        "--replace",
+        help="If --host/--port is already taken by another `secfoo serve` (checked by inspecting its command "
+        "line), stop it first and take over. Never stops anything else -- an unrelated or unidentified "
+        "process is left alone and reported instead.",
+    )] = False,
     allow_insecure_runtime: Annotated[bool, typer.Option(
         "--allow-insecure-runtime",
         help="Accept runtime API keys over plain HTTP on a non-loopback --host. Prefer TLS in front instead.",
@@ -749,6 +788,7 @@ def serve(
 
     from secfoo.web.app import create_app
 
+    _ensure_port_free(host, port, replace=replace)
     if runtime_recheck_hours > 0:
         _start_runtime_recheck(runtime_recheck_hours)
     console.print(f"Serving dashboard at [bold]http://{host}:{port}[/]")
