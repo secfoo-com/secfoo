@@ -36,6 +36,7 @@ def run_detail(request: Request, run_uuid: str):
                 skill_id=record.skill_id, before_started_at=record.started_at, exclude_run_uuid=record.run_uuid,
             )
             definition_changed = previous_sha256 is not None and previous_sha256 != record.skill_sha256
+        context_sources = repo.list_context_sources(run_uuid)
 
     report_html = ""
     report_file = None
@@ -63,6 +64,7 @@ def run_detail(request: Request, run_uuid: str):
             "report_html": report_html,
             "definition_changed": definition_changed,
             "mermaid_available": mermaid_bundle_available(),
+            "context_sources": context_sources,
         },
     )
 

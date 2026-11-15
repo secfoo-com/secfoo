@@ -28,6 +28,7 @@ from secfoo.context_brief import build_context_brief
 from secfoo.context_sources import ContextSource
 from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
+from secfoo.report.context_coverage import CoverageRecord, coverage_for_run
 from secfoo.report.markdown import strip_preamble
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
@@ -127,6 +128,8 @@ class RunOutcome:
     medium_count: int = 0
     low_count: int = 0
     info_count: int = 0
+    # Documentation sources provided or discovered, reconciled against the report (#125).
+    context_sources: tuple[CoverageRecord, ...] = ()
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
@@ -520,6 +523,17 @@ def _run_single_skill(
             _mark_run_crashed(repo, run_uuid, duration_seconds=time.monotonic() - started)
             raise
 
+        context_records: tuple[CoverageRecord, ...] = ()
+        if target_ctx.context_brief is not None:
+            try:
+                records = coverage_for_run(
+                    target_ctx.context_brief, report_text, run_succeeded=result.status == "success",
+                )
+                repo.replace_context_sources(run_uuid, [(r.source, r.type, r.reached, r.notes) for r in records])
+                context_records = tuple(records)
+            except Exception:
+                logger.exception("Failed to record documentation coverage for run %s", run_uuid)
+
         if result.status == "success":
             _try_cloud_sync(repo, run_uuid)
             output_type = skill.output_type  # #79: a custom skill may reuse a built-in's lifecycle
@@ -559,6 +573,7 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            context_sources=context_records,
         )
     finally:
         repo.close()

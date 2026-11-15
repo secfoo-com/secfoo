@@ -90,6 +90,20 @@ CREATE TABLE IF NOT EXISTS runs (
     skill_sha256      TEXT
 );
 
+-- Documentation sources a run was given and whether the agent reached each
+-- (#125); `source` is a URL or a file/folder NAME, never an absolute path.
+CREATE TABLE IF NOT EXISTS context_sources (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id   INTEGER NOT NULL REFERENCES runs(id),
+    position INTEGER NOT NULL,
+    source   TEXT NOT NULL,
+    type     TEXT NOT NULL,
+    reached  INTEGER NOT NULL CHECK (reached IN (0, 1)),
+    notes    TEXT NOT NULL DEFAULT '',
+    UNIQUE (run_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_context_sources_run ON context_sources(run_id);
+
 -- Files manually uploaded to an assessment (AI-BOM inventories, or other
 -- reference material). AI-BOM uploads additionally get parsed into
 -- ai_bom_items below.

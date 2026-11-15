@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from secfoo import mcp as mcp_module
 from secfoo.cli import app
+from secfoo.report.context_coverage import CoverageRecord
 from secfoo.runner import RunOutcome
 from secfoo.settings import Defaults, MCPServerConfig, SecfooConfig
 from secfoo.skills.loader import load_all_skills
@@ -15,7 +16,7 @@ from secfoo.storage.models import CostRow, ProjectRecord
 runner = CliRunner()
 
 
-def _outcome(status: str) -> RunOutcome:
+def _outcome(status: str, context_sources: tuple[CoverageRecord, ...] = ()) -> RunOutcome:
     return RunOutcome(
         run_uuid="u1",
         skill_id="security-architecture-review",
@@ -25,6 +26,7 @@ def _outcome(status: str) -> RunOutcome:
         exit_code=0 if status == "success" else 1,
         duration_seconds=1.2,
         report_path="/tmp/r.md",
+        context_sources=context_sources,
     )
 
 
@@ -551,6 +553,35 @@ def test_json_output_suppresses_interactive_prompts(monkeypatch):
     result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
     assert result.exit_code == 0
     json.loads(result.stdout)
+
+
+def test_json_output_includes_context_sources(monkeypatch):
+    _no_config(monkeypatch)
+    rec = CoverageRecord(
+        source="https://example.com/api",
+        type="URL",
+        reached=True,
+        notes="ok",
+    )
+    monkeypatch.setattr(
+        "secfoo.cli.execute_runs",
+        lambda **kw: [_outcome("success", context_sources=(rec,))],
+    )
+    result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
+    assert result.exit_code == 0
+    doc = json.loads(result.stdout)
+    assert doc["runs"][0]["context_sources"] == [
+        {"source": "https://example.com/api", "type": "URL", "reached": True, "notes": "ok"}
+    ]
+
+
+def test_json_output_default_context_sources_empty(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
+    assert result.exit_code == 0
+    doc = json.loads(result.stdout)
+    assert doc["runs"][0]["context_sources"] == []
 
 
 def test_config_init_refuses_to_overwrite_without_force(tmp_path, monkeypatch):

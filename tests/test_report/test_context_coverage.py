@@ -420,3 +420,24 @@ def test_coverage_for_run_no_absolute_paths(tmp_path: Path) -> None:
     assert str(tmp_path) not in records[0].source
     assert str(tmp_path) not in records[0].type
     assert str(tmp_path) not in records[0].notes
+
+
+def test_coverage_for_run_exact_match_precedence_over_substring() -> None:
+    s1 = parse_context_source("https://x.example/wiki/1")
+    s2 = parse_context_source("https://x.example/wiki/12")
+    brief = build_context_brief([s1, s2], [])
+    assert brief is not None
+
+    report = """\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://x.example/wiki/12 | URL | Yes | note for 12 |
+| https://x.example/wiki/1 | URL | Yes | note for 1 |
+"""
+    records = coverage_for_run(brief, report, run_succeeded=True)
+    assert len(records) == 2
+    assert records[0].source == "https://x.example/wiki/1"
+    assert records[0].notes == "note for 1"
+    assert records[1].source == "https://x.example/wiki/12"
+    assert records[1].notes == "note for 12"

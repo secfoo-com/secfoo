@@ -632,6 +632,10 @@ def run(
                         "low": o.low_count,
                         "info": o.info_count,
                     },
+                    "context_sources": [
+                        {"source": c.source, "type": c.type, "reached": c.reached, "notes": c.notes}
+                        for c in o.context_sources
+                    ],
                 }
                 for o in outcomes
             ],

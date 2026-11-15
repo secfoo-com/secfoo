@@ -209,3 +209,35 @@ def test_relative_time_filter():
     assert format_ago((now - timedelta(minutes=5)).isoformat()) == "5m ago"
     assert format_ago((now - timedelta(hours=3)).isoformat()) == "3h ago"
     assert format_ago(None) == "-"
+
+
+def test_documentation_coverage_shown_when_present(client):
+    run = _run(status="success")
+    with RunRepository() as repo:
+        repo.replace_context_sources(
+            run.run_uuid,
+            [
+                ("https://example.com/spec", "URL", True, "ok"),
+                ("notes.md", "local file", False, "<script>alert(1)</script>"),
+                ("javascript:alert(1)", "other", False, "bad link"),
+            ],
+        )
+    resp = client.get(f"/runs/{run.run_uuid}")
+    assert resp.status_code == 200
+    assert "Documentation coverage" in resp.text
+    assert "1 of 3" in resp.text
+    assert "documentation sources" in resp.text
+    assert "<script>" not in resp.text
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in resp.text
+    assert 'href="javascript:alert(1)"' not in resp.text
+    assert 'href="https://example.com/spec"' in resp.text
+    assert 'data-reached="true"' in resp.text
+    assert 'data-reached="false"' in resp.text
+
+
+def test_documentation_coverage_omitted_when_empty(client):
+    run = _run(status="success")
+    resp = client.get(f"/runs/{run.run_uuid}")
+    assert resp.status_code == 200
+    assert "Documentation coverage" not in resp.text
+    assert "documentation sources" not in resp.text

@@ -102,111 +102,108 @@ def _get_cell(cells: list[str], idx: int | None) -> str:
 
 def parse_documentation_coverage(report_markdown: str) -> list[CoverageRow]:
     """Parse the documentation coverage table from report markdown."""
-    try:
-        normalized = report_markdown.replace("\r\n", "\n").replace("\r", "\n")
-        lines = normalized.split("\n")
+    normalized = report_markdown.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
 
-        heading_idx: int | None = None
-        for i, line in enumerate(lines):
-            match = _HEADING_RE.match(line)
-            if match:
-                raw_text = match.group(2).strip(" \t*")
-                clean_text = _LEADING_NUM_RE.sub("", raw_text).strip(" \t*").lower()
-                if clean_text in {"documentation coverage", "documentation & confluence coverage"}:
-                    heading_idx = i
-                    break
-
-        if heading_idx is None:
-            return []
-
-        table_lines: list[str] = []
-        in_table = False
-        for line in lines[heading_idx + 1:]:
-            stripped = line.strip()
-            if not in_table:
-                if stripped.startswith("#"):
-                    break
-                if stripped.startswith("|"):
-                    in_table = True
-                    table_lines.append(stripped)
-                elif not stripped:
-                    continue
-                else:
-                    continue
-            else:
-                if not stripped or stripped.startswith("#") or not stripped.startswith("|"):
-                    break
-                table_lines.append(stripped)
-
-        if not table_lines:
-            return []
-
-        header_cells = _split_row(table_lines[0])
-        headers = [re.sub(r"[`*]", "", h).strip().lower() for h in header_cells]
-
-        source_idx: int | None = None
-        reached_idx: int | None = None
-        type_idx: int | None = None
-        notes_idx: int | None = None
-
-        for i, h in enumerate(headers):
-            if source_idx is None and "source" in h:
-                source_idx = i
-            if reached_idx is None and h.startswith("reached"):
-                reached_idx = i
-            if type_idx is None and "type" in h:
-                type_idx = i
-            if notes_idx is None and any(kw in h for kw in _NOTES_KEYWORDS):
-                notes_idx = i
-
-        if source_idx is None or reached_idx is None:
-            return []
-
-        rows: list[CoverageRow] = []
-        for line in table_lines[1:]:
-            cells = _split_row(line)
-            if _is_separator_row(cells):
-                continue
-
-            source_cell = _clean_cell(_get_cell(cells, source_idx))
-            if not source_cell:
-                continue
-
-            type_cell = _clean_cell(_get_cell(cells, type_idx))
-            reached_cell = _clean_cell(_get_cell(cells, reached_idx))
-            notes_cell = _clean_cell(_get_cell(cells, notes_idx))
-
-            r_lower = reached_cell.lower()
-            if r_lower.startswith("partial"):
-                reached = False
-                if notes_cell:
-                    notes_cell = f"Partial: {notes_cell}"
-                else:
-                    extra = reached_cell[len("partial"):].lstrip(" -:,")
-                    notes_cell = f"Partial: {extra}" if extra else "Partial"
-            elif (
-                r_lower.startswith(("yes", "true", "reached"))
-                or bool(re.match(r"^y([^a-z]|$)", r_lower))
-                or ("\u2713" in reached_cell or "\u2705" in reached_cell)
-            ):
-                reached = True
-            else:
-                reached = False
-
-            rows.append(
-                CoverageRow(
-                    source=source_cell[:MAX_SOURCE_CHARS],
-                    type=type_cell[:MAX_TYPE_CHARS],
-                    reached=reached,
-                    notes=notes_cell[:MAX_NOTES_CHARS],
-                )
-            )
-            if len(rows) >= MAX_ROWS:
+    heading_idx: int | None = None
+    for i, line in enumerate(lines):
+        match = _HEADING_RE.match(line)
+        if match:
+            raw_text = match.group(2).strip(" \t*")
+            clean_text = _LEADING_NUM_RE.sub("", raw_text).strip(" \t*").lower()
+            if clean_text in {"documentation coverage", "documentation & confluence coverage"}:
+                heading_idx = i
                 break
 
-        return rows
-    except Exception:  # noqa: BLE001
+    if heading_idx is None:
         return []
+
+    table_lines: list[str] = []
+    in_table = False
+    for line in lines[heading_idx + 1:]:
+        stripped = line.strip()
+        if not in_table:
+            if stripped.startswith("#"):
+                break
+            if stripped.startswith("|"):
+                in_table = True
+                table_lines.append(stripped)
+            elif not stripped:
+                continue
+            else:
+                continue
+        else:
+            if not stripped or stripped.startswith("#") or not stripped.startswith("|"):
+                break
+            table_lines.append(stripped)
+
+    if not table_lines:
+        return []
+
+    header_cells = _split_row(table_lines[0])
+    headers = [re.sub(r"[`*]", "", h).strip().lower() for h in header_cells]
+
+    source_idx: int | None = None
+    reached_idx: int | None = None
+    type_idx: int | None = None
+    notes_idx: int | None = None
+
+    for i, h in enumerate(headers):
+        if source_idx is None and "source" in h:
+            source_idx = i
+        if reached_idx is None and h.startswith("reached"):
+            reached_idx = i
+        if type_idx is None and "type" in h:
+            type_idx = i
+        if notes_idx is None and any(kw in h for kw in _NOTES_KEYWORDS):
+            notes_idx = i
+
+    if source_idx is None or reached_idx is None:
+        return []
+
+    rows: list[CoverageRow] = []
+    for line in table_lines[1:]:
+        cells = _split_row(line)
+        if _is_separator_row(cells):
+            continue
+
+        source_cell = _clean_cell(_get_cell(cells, source_idx))
+        if not source_cell:
+            continue
+
+        type_cell = _clean_cell(_get_cell(cells, type_idx))
+        reached_cell = _clean_cell(_get_cell(cells, reached_idx))
+        notes_cell = _clean_cell(_get_cell(cells, notes_idx))
+
+        r_lower = reached_cell.lower()
+        if r_lower.startswith("partial"):
+            reached = False
+            if notes_cell:
+                notes_cell = f"Partial: {notes_cell}"
+            else:
+                extra = reached_cell[len("partial"):].lstrip(" -:,")
+                notes_cell = f"Partial: {extra}" if extra else "Partial"
+        elif (
+            r_lower.startswith(("yes", "true", "reached"))
+            or bool(re.match(r"^y([^a-z]|$)", r_lower))
+            or ("\u2713" in reached_cell or "\u2705" in reached_cell)
+        ):
+            reached = True
+        else:
+            reached = False
+
+        rows.append(
+            CoverageRow(
+                source=source_cell[:MAX_SOURCE_CHARS],
+                type=type_cell[:MAX_TYPE_CHARS],
+                reached=reached,
+                notes=notes_cell[:MAX_NOTES_CHARS],
+            )
+        )
+        if len(rows) >= MAX_ROWS:
+            break
+
+    return rows
 
 
 def coverage_for_run(
@@ -221,33 +218,52 @@ def coverage_for_run(
 
     rows = parse_documentation_coverage(report_markdown) if report_markdown else []
     used_row_indices: set[int] = set()
-    records: list[CoverageRecord] = []
+    matched_rows: dict[int, int] = {}
 
+    # Pass 1: exact normalized match
     for index, entry in enumerate(brief.entries):
         label = source_label(entry.source)
         norm_label = label.lower().rstrip("/")
-        matched_idx: int | None = None
-
+        if not norm_label:
+            continue
         for r_idx, row in enumerate(rows):
             if r_idx in used_row_indices:
                 continue
             norm_row_source = row.source.lower().rstrip("/")
-            if norm_label and norm_label in norm_row_source:
-                matched_idx = r_idx
+            if norm_row_source == norm_label:
+                matched_rows[index] = r_idx
+                used_row_indices.add(r_idx)
                 break
 
-        if (
-            matched_idx is None
-            and len(rows) == len(brief.entries)
-            and index not in used_row_indices
-        ):
-            matched_idx = index
+    # Pass 2: substring match for entries still unmatched
+    for index, entry in enumerate(brief.entries):
+        if index in matched_rows:
+            continue
+        label = source_label(entry.source)
+        norm_label = label.lower().rstrip("/")
+        if not norm_label:
+            continue
+        for r_idx, row in enumerate(rows):
+            if r_idx in used_row_indices:
+                continue
+            norm_row_source = row.source.lower().rstrip("/")
+            if norm_label in norm_row_source:
+                matched_rows[index] = r_idx
+                used_row_indices.add(r_idx)
+                break
 
-        if matched_idx is not None:
-            used_row_indices.add(matched_idx)
-            row = rows[matched_idx]
-        else:
-            row = None
+    # Positional fallback when count equals and row is unused
+    if len(rows) == len(brief.entries):
+        for index in range(len(brief.entries)):
+            if index not in matched_rows and index not in used_row_indices:
+                matched_rows[index] = index
+                used_row_indices.add(index)
+
+    records: list[CoverageRecord] = []
+    for index, entry in enumerate(brief.entries):
+        label = source_label(entry.source)
+        matched_idx = matched_rows.get(index)
+        row = rows[matched_idx] if matched_idx is not None else None
 
         if entry.reached is None:
             if not run_succeeded:
