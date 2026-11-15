@@ -12,6 +12,7 @@ from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -25,6 +26,7 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
+from secfoo.context_sources import ContextSourceError, resolve_context_sources
 from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
@@ -294,8 +296,14 @@ def run(
         None, "--target", "-t", help="GitHub URL or local directory. Defaults to the current directory."
     ),
     confluence: list[str] = typer.Option(
-        [], "--confluence", "-c", help="Confluence page URL for extra context. Repeatable."
+        [], "--confluence", "-c", help="Alias of --context, kept for existing scripts. Repeatable."
     ),
+    context: Annotated[list[str] | None, typer.Option(
+        "--context",
+        help="Documentation source for the agent to read: an https:// URL (Confluence, Jira, "
+        "SharePoint, Notion, Google Docs) or a local Markdown, text, PDF, DOCX or PPTX file or "
+        "folder. Repeatable, and added on top of [defaults].context in ~/.secfoo/config.toml.",
+    )] = None,
     agent: Optional[AgentId] = typer.Option(
         None,
         "--agent",
@@ -398,12 +406,6 @@ def run(
     but the --fail-on gate tripped, 3 all runs succeeded but the --max-cost
     gate tripped.
     """
-    for url in confluence:
-        if not url.strip().lower().startswith(("http://", "https://")):
-            (err_console if json_output else console).print(
-                f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway."
-            )
-
     skill_file_entries = skill_file or []
     skill_sha256_entries = skill_sha256 or []
     if len(skill_sha256_entries) > len(skill_file_entries):
@@ -480,6 +482,21 @@ def run(
     # config's list, so naming one path can't silently drop the others.
     exclude_paths = _merge_excludes(file_defaults.exclude, exclude)
 
+    try:
+        scanned_dir = resolve_target(target).path
+    except TargetResolutionError:
+        scanned_dir = None  # execute_runs reports the bad target below
+    try:
+        context_sources = resolve_context_sources(
+            from_config=file_defaults.context,
+            from_confluence_flag=confluence,
+            from_context_flag=context or [],
+            target_dir=scanned_dir,
+        )
+    except ContextSourceError as exc:
+        err_console.print(f"[red]Error:[/] {escape(str(exc))}")
+        raise typer.Exit(code=2) from None
+
     # Memory Bank: on a terminal, ask before repeating a scan of a commit that
     # was already scanned. Only here, never in execute_runs(), which the
     # dashboard and CI also call with no terminal to answer.
@@ -539,7 +556,7 @@ def run(
             outcomes = execute_runs(
                 skill_ids=skill_ids,
                 target=target,
-                confluence_urls=confluence,
+                confluence_urls=[s.location for s in context_sources if s.kind == "url"],
                 agent_id=agent.value,
                 model=model,
                 max_input_tokens=max_input_tokens,

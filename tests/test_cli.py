@@ -730,3 +730,80 @@ def test_run_without_a_tty_prints_each_line_once(monkeypatch):
     assert result.stdout.count("Running sast via claude...") == 1
     assert result.stdout.count("success — sast") == 1
     assert "⠋" not in result.stdout
+
+
+def test_run_context_url_forwarded_to_execute_runs(monkeypatch):
+    _no_config(monkeypatch)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", "https://wiki.example.com/p"])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == ["https://wiki.example.com/p"]
+
+
+def test_run_confluence_alias_forwarded_to_execute_runs(monkeypatch):
+    _no_config(monkeypatch)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--confluence", "https://wiki.example.com/p"])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == ["https://wiki.example.com/p"]
+
+
+def test_run_context_insecure_http_rejected(monkeypatch):
+    _no_config(monkeypatch)
+    called = []
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: called.append(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", "http://wiki.example.com/p"])
+    assert result.exit_code == 2
+    assert "plain http://" in result.output
+    assert not called
+
+
+def test_run_context_merges_config_and_flag_in_order_deduped(monkeypatch):
+    url_a = "https://wiki.example.com/a"
+    url_b = "https://wiki.example.com/b"
+    url_c = "https://wiki.example.com/c"
+    monkeypatch.setattr(
+        "secfoo.cli.load_config",
+        lambda: SecfooConfig(defaults=Defaults(context=[url_a, url_b]), mcp_servers=[]),
+    )
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--context", url_a, "--context", url_c],
+    )
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == [url_a, url_b, url_c]
+
+
+def test_run_context_file_inside_target_rejected(tmp_path, monkeypatch):
+    _no_config(monkeypatch)
+    called = []
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: called.append(kw) or [_outcome("success")])
+    target_dir = tmp_path / "target_repo"
+    target_dir.mkdir()
+    doc = target_dir / "architecture.md"
+    doc.write_text("# Untrusted Context", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--target", str(target_dir), "--context", str(doc)],
+    )
+    assert result.exit_code == 2
+    assert "inside the scanned target" in " ".join(result.output.split())
+    assert not called
+
+
+def test_run_context_file_outside_target_accepted(tmp_path, monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_outcome("success")])
+    target_dir = tmp_path / "target_repo"
+    target_dir.mkdir()
+    doc = tmp_path / "external_design.md"
+    doc.write_text("# Trusted External Doc", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--target", str(target_dir), "--context", str(doc)],
+    )
+    assert result.exit_code == 0

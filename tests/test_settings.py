@@ -153,3 +153,34 @@ def test_invalid_agent_model_is_rejected(tmp_path, value):
     path.write_text(f"[agents.claude]\nmodel = {value}\n")
     with pytest.raises(ConfigError, match="non-empty string"):
         load_config(path)
+
+
+def test_load_config_defaults_context_absent_is_empty_list(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[defaults]\nagent = "claude"\n')
+    cfg = load_config(path)
+    assert cfg.defaults.context == []
+
+
+def test_load_config_parses_defaults_context(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[defaults]\ncontext = ["https://wiki.example.com/p", "docs/design.md"]\n')
+    cfg = load_config(path)
+    assert cfg.defaults.context == ["https://wiki.example.com/p", "docs/design.md"]
+
+
+@pytest.mark.parametrize("value", ['"https://wiki.example.com"', "42", "true", "{ key = 'val' }"])
+def test_load_config_rejects_non_list_defaults_context(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(f"[defaults]\ncontext = {value}\n")
+    with pytest.raises(ConfigError, match="defaults.context"):
+        load_config(path)
+
+
+@pytest.mark.parametrize("value", ["[42]", '[""]', '["   "]', "[true]"])
+def test_load_config_rejects_invalid_elements_in_defaults_context(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(f"[defaults]\ncontext = {value}\n")
+    with pytest.raises(ConfigError, match="defaults.context"):
+        load_config(path)
+

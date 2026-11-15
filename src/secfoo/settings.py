@@ -56,6 +56,9 @@ class Defaults:
     # max_cost_usd: fail the run when the summed reported spend exceeds this.
     fail_on: str | None = None
     max_cost_usd: float | None = None
+    # Documentation sources read on every run: https:// URLs or local files
+    # and folders (#125). Merged with --context; see context_sources.py.
+    context: list[str] = field(default_factory=list)
 
 
 VALID_FAIL_ON = ("critical", "high", "medium", "low")
@@ -115,6 +118,9 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         if isinstance(max_cost_usd, bool) or not isinstance(max_cost_usd, (int, float)) or max_cost_usd <= 0:
             raise ConfigError("defaults.max_cost_usd must be a positive number")
         max_cost_usd = float(max_cost_usd)
+    context_raw = defaults_raw.get("context", [])
+    if not isinstance(context_raw, list) or not all(isinstance(c, str) and c.strip() for c in context_raw):
+        raise ConfigError("defaults.context must be an array of non-empty strings")
     defaults = Defaults(
         agent=defaults_raw.get("agent"),
         depth=defaults_raw.get("depth"),
@@ -122,6 +128,7 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         exclude=list(exclude_raw),
         fail_on=fail_on,
         max_cost_usd=max_cost_usd,
+        context=list(context_raw),
     )
 
     agents_raw = data.get("agents", {})
