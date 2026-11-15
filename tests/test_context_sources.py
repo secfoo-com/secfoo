@@ -127,4 +127,3 @@ def test_error_names_where_the_bad_value_came_from():
 def test_scheme_less_url_gets_a_hint():
     with pytest.raises(ContextSourceError, match="needs the https:// prefix"):
         parse_context_source("wiki.example.com/some/page")
-

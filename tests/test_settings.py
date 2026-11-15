@@ -183,4 +183,3 @@ def test_load_config_rejects_invalid_elements_in_defaults_context(tmp_path, valu
     path.write_text(f"[defaults]\ncontext = {value}\n")
     with pytest.raises(ConfigError, match="defaults.context"):
         load_config(path)
-
