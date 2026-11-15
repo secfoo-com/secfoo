@@ -1,7 +1,8 @@
-import pytest
 from __future__ import annotations
 
 import sqlite3
+
+import pytest
 
 from secfoo.storage.repository import RunRepository
 
