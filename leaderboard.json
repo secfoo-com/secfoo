@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-15T13:43:40Z",
+  "generated_at": "2026-11-15T14:30:04Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -277,6 +277,31 @@
       "level": null
     },
     {
+      "login": "bfs2021",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 126,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/126",
+          "issue": 119,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/119",
+          "issue_title": "CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice",
+          "contributor": "bfs2021",
+          "merged_at": "2026-11-15T14:29:52Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 5,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -286,7 +311,7 @@
       },
       "merged_prs": 24,
       "awards": [],
-      "rank": 5,
+      "rank": 6,
       "level": null
     },
     {
@@ -299,7 +324,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 6,
+      "rank": 7,
       "level": null
     },
     {
@@ -312,7 +337,7 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 7,
+      "rank": 8,
       "level": null
     },
     {
@@ -325,7 +350,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 8,
+      "rank": 9,
       "level": null
     },
     {
@@ -338,11 +363,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 9,
+      "rank": 10,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 126,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/126",
+      "issue": 119,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/119",
+      "issue_title": "CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice",
+      "contributor": "bfs2021",
+      "merged_at": "2026-11-15T14:29:52Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 105,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/105",
