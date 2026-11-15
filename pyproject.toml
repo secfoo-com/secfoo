@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "secfoo"
 dynamic = ["version"]
-description = "AI security review CLI: SAST, secret scanning, SCA, threat modeling and architecture review with Claude Code, Copilot, Codex, Gemini, Cursor or an API key. SARIF output for CI."
+description = "AI security review CLI: SAST, secret scanning, SCA, threat modeling and architecture review with Claude Code, Copilot, Codex, Gemini, Cursor or an API key. Reads your design docs, Confluence and Jira through MCP. SARIF output for CI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -17,7 +17,7 @@ keywords = [
   "security", "appsec", "devsecops", "sast", "static-analysis", "secret-scanning", "sca",
   "threat-modeling", "security-architecture", "owasp", "stride", "sarif", "code-review",
   "ai-security", "llm", "llm-agent", "claude-code", "copilot", "codex", "gemini", "cursor",
-  "security-scanner", "ci", "compliance",
+  "security-scanner", "ci", "compliance", "mcp", "confluence", "context-aware",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
