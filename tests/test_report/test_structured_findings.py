@@ -161,3 +161,32 @@ def test_secret_fingerprint_uses_the_code_region_when_the_repo_is_on_disk(tmp_pa
     shifted = SECRET_REPORT.replace("ci.yml:14", "ci.yml:19").replace("ci.yml:90", "ci.yml:95")
     after = {r["id"]: r for r in secret_scanning.findings_with_fingerprints(shifted, workdir=tmp_path)}
     assert after["S1"]["fingerprint"] == with_repo["S1"]["fingerprint"]
+
+
+def test_secret_multi_site_and_range_locations_parse_and_fingerprint_on_first_path(tmp_path):
+    (tmp_path / "config" / "env").mkdir(parents=True)
+    (tmp_path / "config" / "env" / "development.js").write_text(
+        "\n".join(f"const x{i} = {i};" for i in range(1, 20)), encoding="utf-8"
+    )
+    multi_report = """\
+# Secret Scanning Report
+
+## 3. Findings Register
+| ID | Secret type | Location | Source | Validity | Severity |
+|----|-------------|----------|--------|----------|----------|
+| S1 | OWASP ZAP API key | `config/env/development.js:6-7`, `config/env/test.js:6` | config | Unclear | Medium |
+"""
+    single_report = multi_report.replace(
+        "`config/env/development.js:6-7`, `config/env/test.js:6`",
+        "`config/env/development.js:6`",
+    )
+    multi_row = secret_scanning.findings_with_fingerprints(multi_report, workdir=tmp_path)[0]
+    single_row = secret_scanning.findings_with_fingerprints(single_report, workdir=tmp_path)[0]
+    assert multi_row["location_file"] == "config/env/development.js"
+    assert multi_row["location_line"] == "6"
+    assert multi_row["locations"] == [
+        {"path": "config/env/development.js", "start_line": 6, "end_line": 7},
+        {"path": "config/env/test.js", "start_line": 6, "end_line": None},
+    ]
+    assert multi_row["code_region_hash"] is not None
+    assert multi_row["fingerprint"] == single_row["fingerprint"]

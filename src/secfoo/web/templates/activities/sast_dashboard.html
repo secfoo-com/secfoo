@@ -135,7 +135,7 @@
           {% if f.cvss_vector | cvss_network_reachable %}<span class="badge badge--neutral">External</span>{% endif %}
         </td>
         <td>{{ f.title }} <br><span class="ds-caption">{{ f.cwe or "unverified" }}</span></td>
-        <td><code>{{ f.location_file }}{% if f.location_line %}:{{ f.location_line }}{% endif %}</code></td>
+        <td>{% if f.locations %}<code>{{ f.locations[0] | fmt_location }}</code>{% if f.locations | length > 1 %} <span class="ds-caption">(+{{ (f.locations | length) - 1 }} more)</span>{% endif %}{% else %}<code>{{ f.location_file }}{% if f.location_line %}:{{ f.location_line }}{% endif %}</code>{% endif %}</td>
         <td>{{ f.last_seen_at | fmt_time }}</td>
         <td>
           {% if f.cvss_score is not none %}

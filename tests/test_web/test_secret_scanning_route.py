@@ -138,6 +138,38 @@ def test_secret_scanning_finding_detail_404s_for_unknown_key(client, tmp_path):
     assert resp.status_code == 404
 
 
+def test_secret_scanning_finding_detail_renders_every_site(client, tmp_path):
+    multi_site_report = """\
+# Secret Scanning Report
+
+## 3. Findings Register
+| ID | Secret type | Location | Source | Validity | Severity |
+|----|-------------|----------|--------|----------|----------|
+| S1 | Seeded passwords | `artifacts/db-reset.js:18,27,35`; `test/e2e/fixtures/users/*.json`; `test/security/profile-test.js:37` | code | Looks live | Medium |
+
+## 4. Detailed Findings
+
+### [MEDIUM] S1: Seeded passwords
+- **Evidence:** Admin_12...
+- **Remediation:** Rotate seeded credentials.
+"""
+    _seed(tmp_path, report_text=multi_site_report)
+    dashboard_resp = client.get("/activities/secret-scanning")
+    match = re.search(r"/activities/secret-scanning/findings/([0-9a-f]+)", dashboard_resp.text)
+    assert match, dashboard_resp.text
+
+    resp = client.get(f"/activities/secret-scanning/findings/{match.group(1)}")
+    assert resp.status_code == 200
+    for expected in (
+        "<code>artifacts/db-reset.js:18</code>",
+        "<code>artifacts/db-reset.js:27</code>",
+        "<code>artifacts/db-reset.js:35</code>",
+        "<code>test/e2e/fixtures/users/*.json</code>",
+        "<code>test/security/profile-test.js:37</code>",
+    ):
+        assert expected in resp.text
+
+
 def test_secret_scanning_findings_list_filters_by_severity(client, tmp_path):
     _seed(tmp_path)  # one High finding
 

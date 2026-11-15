@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from secfoo.report.sast import (
     extract_description_by_id,
     extract_findings_register_rows,
@@ -7,6 +9,7 @@ from secfoo.report.sast import (
     findings_with_fingerprints,
     fingerprint_for_row,
     parse_location,
+    parse_locations,
 )
 
 SAMPLE_REPORT = """\
@@ -134,16 +137,110 @@ def test_parse_location_handles_no_backticks():
 
 
 def test_parse_location_strips_backticks_from_a_multi_location_cell():
-    """A real finding can legitimately span more than one call site (e.g.
-    a missing-auth finding citing both the app factory and the CLI flag
-    that exposes it) -- the contract only anticipates one `file:line`, so
-    this must degrade to the whole cell as one location string, not raise
-    or silently drop part of it. Backticks (Markdown code-span syntax) are
-    still stripped either way.
+    """A multi-site cell resolves to the primary site in `parse_location`
+    while `parse_locations` preserves every call site in order.
     """
     file_path, line = parse_location("`web/app.py:35`, `cli.py:308`")
-    assert file_path == "web/app.py:35, cli.py:308"
-    assert line is None
+    assert file_path == "web/app.py"
+    assert line == "35"
+    assert parse_locations("`web/app.py:35`, `cli.py:308`") == [
+        ("web/app.py", 35, None),
+        ("cli.py", 308, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw_location", "expected_sites", "expected_primary"),
+    [
+        (
+            "config/env/all.js:8-9",
+            [("config/env/all.js", 8, 9)],
+            ("config/env/all.js", "8"),
+        ),
+        (
+            "server.js:78-102, app/routes/session.js:116, …",
+            [("server.js", 78, 102), ("app/routes/session.js", 116, None)],
+            ("server.js", "78"),
+        ),
+        (
+            "app/data/user-dao.js:25, :61",
+            [("app/data/user-dao.js", 25, None), ("app/data/user-dao.js", 61, None)],
+            ("app/data/user-dao.js", "25"),
+        ),
+        (
+            "`server.js:135-137`, `app/views/layout.html:75`",
+            [("server.js", 135, 137), ("app/views/layout.html", 75, None)],
+            ("server.js", "135"),
+        ),
+        (
+            "`app/data/user-dao.js:25`, `:61`",
+            [("app/data/user-dao.js", 25, None), ("app/data/user-dao.js", 61, None)],
+            ("app/data/user-dao.js", "25"),
+        ),
+        (
+            "`artifacts/db-reset.js:18,27,35`; `test/e2e/fixtures/users/*.json`; `test/security/profile-test.js:37`",
+            [
+                ("artifacts/db-reset.js", 18, None),
+                ("artifacts/db-reset.js", 27, None),
+                ("artifacts/db-reset.js", 35, None),
+                ("test/e2e/fixtures/users/*.json", None, None),
+                ("test/security/profile-test.js", 37, None),
+            ],
+            ("artifacts/db-reset.js", "18"),
+        ),
+        (
+            "C:\\work\\app.js:10-20; /srv/app/db.py:42:7",
+            [("C:\\work\\app.js", 10, 20), ("/srv/app/db.py", 42, None)],
+            ("C:\\work\\app.js", "10"),
+        ),
+        (
+            "app/db.py:8-8, app/other.py:20-12",
+            [("app/db.py", 8, None), ("app/other.py", 12, 20)],
+            ("app/db.py", "8"),
+        ),
+    ],
+)
+def test_parse_locations_handles_ranges_lists_and_bare_continuations(
+    raw_location, expected_sites, expected_primary
+):
+    assert parse_locations(raw_location) == expected_sites
+    assert parse_location(raw_location) == expected_primary
+
+
+def test_fingerprint_and_code_region_match_between_line_and_line_range(tmp_path):
+    (tmp_path / "config" / "env").mkdir(parents=True)
+    source = "\n".join(f"const line{i} = {i};" for i in range(1, 30))
+    (tmp_path / "config" / "env" / "all.js").write_text(source, encoding="utf-8")
+
+    row_range = {"cwe": "CWE-798", "location": "`config/env/all.js:8-9`, `artifacts/db-reset.js:15-18`"}
+    row_single = {"cwe": "CWE-798", "location": "`config/env/all.js:8`"}
+    assert fingerprint_for_row(row_range) == fingerprint_for_row(row_single)
+
+    report_template = """\
+# SAST Report
+
+## 3. Findings Register
+| ID | Finding | Severity | CWE | OWASP | CVSS Vector | Location | Verdict |
+|----|---------|----------|-----|-------|-------------|----------|---------|
+| F1 | Hardcoded secret | Medium | CWE-798 | A07:2021 | AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N | {loc} | Confirmed |
+"""
+    r_range = findings_with_fingerprints(
+        report_template.format(loc="`config/env/all.js:8-9`, `artifacts/db-reset.js:15-18`"),
+        workdir=tmp_path,
+    )[0]
+    r_single = findings_with_fingerprints(
+        report_template.format(loc="`config/env/all.js:8`"),
+        workdir=tmp_path,
+    )[0]
+    assert r_range["location_file"] == "config/env/all.js"
+    assert r_range["location_line"] == "8"
+    assert r_range["locations"] == [
+        {"path": "config/env/all.js", "start_line": 8, "end_line": 9},
+        {"path": "artifacts/db-reset.js", "start_line": 15, "end_line": 18},
+    ]
+    assert r_range["code_region_hash"] is not None
+    assert r_range["code_region_hash"] == r_single["code_region_hash"]
+    assert r_range["fingerprint"] == r_single["fingerprint"]
 
 
 def test_fingerprint_for_row_is_stable_for_identical_cwe_and_file_without_region_hash():

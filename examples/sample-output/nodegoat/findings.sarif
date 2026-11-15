@@ -9,7 +9,32 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "server.js%3A78-102%2C%20app/routes/session.js%3A116%2C%20app/routes/error.js%3A10-12"
+                  "uri": "server.js"
+                },
+                "region": {
+                  "endLine": 102,
+                  "startLine": 78
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/session.js"
+                },
+                "region": {
+                  "startLine": 116
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/routes/error.js"
+                },
+                "region": {
+                  "endLine": 12,
+                  "startLine": 10
                 }
               }
             }
@@ -26,7 +51,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/profile.js%3A59-61"
+                  "uri": "app/routes/profile.js"
+                },
+                "region": {
+                  "endLine": 61,
+                  "startLine": 59
                 }
               }
             }
@@ -43,7 +72,21 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "server.js%3A104-113%2C%20app/views/profile.html%3A73"
+                  "uri": "server.js"
+                },
+                "region": {
+                  "endLine": 113,
+                  "startLine": 104
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/views/profile.html"
+                },
+                "region": {
+                  "startLine": 73
                 }
               }
             }
@@ -60,7 +103,22 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "config/env/all.js%3A8-9%2C%20artifacts/db-reset.js%3A15-18"
+                  "uri": "config/env/all.js"
+                },
+                "region": {
+                  "endLine": 9,
+                  "startLine": 8
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "artifacts/db-reset.js"
+                },
+                "region": {
+                  "endLine": 18,
+                  "startLine": 15
                 }
               }
             }
@@ -77,7 +135,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/index.js%3A70-73"
+                  "uri": "app/routes/index.js"
+                },
+                "region": {
+                  "endLine": 73,
+                  "startLine": 70
                 }
               }
             }
@@ -94,7 +156,20 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/data/user-dao.js%3A25%2C%20%3A61"
+                  "uri": "app/data/user-dao.js"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/data/user-dao.js"
+                },
+                "region": {
+                  "startLine": 61
                 }
               }
             }
@@ -111,7 +186,21 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "server.js%3A135-137%2C%20app/views/layout.html%3A75"
+                  "uri": "server.js"
+                },
+                "region": {
+                  "endLine": 137,
+                  "startLine": 135
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/views/layout.html"
+                },
+                "region": {
+                  "startLine": 75
                 }
               }
             }
@@ -128,7 +217,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/index.js%3A55-56"
+                  "uri": "app/routes/index.js"
+                },
+                "region": {
+                  "endLine": 56,
+                  "startLine": 55
                 }
               }
             }
@@ -145,7 +238,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/allocations.js%3A16-23"
+                  "uri": "app/routes/allocations.js"
+                },
+                "region": {
+                  "endLine": 23,
+                  "startLine": 16
                 }
               }
             }
@@ -162,7 +259,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/data/allocations-dao.js%3A77-79"
+                  "uri": "app/data/allocations-dao.js"
+                },
+                "region": {
+                  "endLine": 79,
+                  "startLine": 77
                 }
               }
             }
@@ -179,7 +280,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/research.js%3A15-26"
+                  "uri": "app/routes/research.js"
+                },
+                "region": {
+                  "endLine": 26,
+                  "startLine": 15
                 }
               }
             }
@@ -196,7 +301,11 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/routes/contributions.js%3A32-34"
+                  "uri": "app/routes/contributions.js"
+                },
+                "region": {
+                  "endLine": 34,
+                  "startLine": 32
                 }
               }
             }
@@ -213,7 +322,20 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "app/views/tutorial/a2.html%3A153%2C%20app/views/tutorial/a3.html%3A176"
+                  "uri": "app/views/tutorial/a2.html"
+                },
+                "region": {
+                  "startLine": 153
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "app/views/tutorial/a3.html"
+                },
+                "region": {
+                  "startLine": 176
                 }
               }
             }
@@ -230,7 +352,47 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "artifacts/db-reset.js%3A18%2C27%2C35%3B%20test/e2e/fixtures/users/%2A.json%3B%20test/security/profile-test.js%3A37"
+                  "uri": "artifacts/db-reset.js"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "artifacts/db-reset.js"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "artifacts/db-reset.js"
+                },
+                "region": {
+                  "startLine": 35
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "test/e2e/fixtures/users/%2A.json"
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "test/security/profile-test.js"
+                },
+                "region": {
+                  "startLine": 37
                 }
               }
             }
@@ -247,7 +409,20 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "config/env/development.js%3A6%2C%20config/env/test.js%3A6"
+                  "uri": "config/env/development.js"
+                },
+                "region": {
+                  "startLine": 6
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/env/test.js"
+                },
+                "region": {
+                  "startLine": 6
                 }
               }
             }

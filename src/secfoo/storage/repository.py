@@ -35,6 +35,7 @@ def use_db_path(path: Path):
         yield
     finally:
         _default_db_path.reset(token)
+from secfoo.report.sast import locations_from_raw
 from secfoo.report.severity import SeverityCounts, extract_overall_risk_rating
 from secfoo.storage.models import (
     AssessmentRecord,
@@ -91,6 +92,7 @@ _ASSESSMENTS_MIGRATIONS = {
 }
 
 _SAST_FINDINGS_MIGRATIONS = {
+    "locations": "ALTER TABLE sast_findings ADD COLUMN locations TEXT",
     "code_region_hash": "ALTER TABLE sast_findings ADD COLUMN code_region_hash TEXT",
     "language": "ALTER TABLE sast_findings ADD COLUMN language TEXT",
     "framework": "ALTER TABLE sast_findings ADD COLUMN framework TEXT",
@@ -102,6 +104,10 @@ _SAST_FINDINGS_MIGRATIONS = {
     "review_note": "ALTER TABLE sast_findings ADD COLUMN review_note TEXT",
     "reviewed_by": "ALTER TABLE sast_findings ADD COLUMN reviewed_by TEXT",
     "reviewed_at": "ALTER TABLE sast_findings ADD COLUMN reviewed_at TEXT",
+}
+
+_SECRET_FINDINGS_MIGRATIONS = {
+    "locations": "ALTER TABLE secret_findings ADD COLUMN locations TEXT",
 }
 
 SAST_REVIEW_STATUSES = ("confirmed", "false_positive", "accepted_risk")
@@ -120,6 +126,19 @@ _ASSESSMENT_UPDATE_FIELDS = {
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _decode_locations(raw: object) -> list[dict]:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except ValueError:
+            pass
+    return []
 
 
 class RunRepository:
@@ -163,8 +182,41 @@ class RunRepository:
         for column, ddl in _SAST_FINDINGS_MIGRATIONS.items():
             if column not in existing_sast_cols:
                 self._conn.execute(ddl)
+        existing_secret_cols = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(secret_findings)").fetchall()
+        }
+        for column, ddl in _SECRET_FINDINGS_MIGRATIONS.items():
+            if column not in existing_secret_cols:
+                self._conn.execute(ddl)
         self._conn.commit()
+        self._migrate_finding_locations()
         self._migrate_attachment_kind_check()
+
+    def _migrate_finding_locations(self) -> None:
+        """Backfill `locations` JSON (and clean `location_file` / `location_line`
+        to the primary site) for pre-existing rows created before `#112`.
+        """
+        updated = False
+        for table in ("sast_findings", "secret_findings"):
+            rows = self._conn.execute(
+                f"SELECT id, location_file, location_line FROM {table} WHERE locations IS NULL"  # nosec B608 -- fixed table tuple
+            ).fetchall()
+            for row in rows:
+                sites = locations_from_raw(row["location_file"], row["location_line"])
+                if sites:
+                    first_file = str(sites[0]["path"])
+                    first_start = sites[0]["start_line"]
+                    first_line = str(first_start) if first_start is not None else None
+                else:
+                    first_file = row["location_file"]
+                    first_line = row["location_line"]
+                self._conn.execute(
+                    f"UPDATE {table} SET location_file = ?, location_line = ?, locations = ? WHERE id = ?",  # nosec B608 -- fixed table tuple
+                    (first_file, first_line, json.dumps(sites), row["id"]),
+                )
+                updated = True
+        if updated:
+            self._conn.commit()
 
     def _migrate_attachment_kind_check(self) -> None:
         """Widens assessment_attachments.attachment_kind's CHECK constraint
@@ -1297,6 +1349,7 @@ class RunRepository:
     def _row_to_sast_finding(self, row: sqlite3.Row) -> SastFindingRecord:
         data = dict(row)
         project_display_name = data.pop("display_name", None)
+        data["locations"] = _decode_locations(data.get("locations"))
         return SastFindingRecord(project_display_name=project_display_name, **data)
 
     def upsert_sast_finding(
@@ -1315,6 +1368,7 @@ class RunRepository:
         cvss_vector: str | None,
         cvss_score: float | None,
         run_id: int,
+        locations: list[dict] | None = None,
         description: str | None = None,
         recommendation: str | None = None,
         code_region_hash: str | None = None,
@@ -1330,17 +1384,20 @@ class RunRepository:
         first-seen date rather than looking like a brand-new finding.
         """
         now = _now()
+        resolved_locations = locations if locations is not None else locations_from_raw(location_file, location_line)
+        locations_json = json.dumps(resolved_locations)
         self._conn.execute(
             "INSERT INTO sast_findings (project_id, fingerprint, current_ref, title, severity, cwe, "
-            "owasp, verdict, location_file, location_line, code_region_hash, language, framework, construct, "
+            "owasp, verdict, location_file, location_line, locations, code_region_hash, language, framework, construct, "
             "cvss_vector, cvss_score, "
             "description, recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, "
             "last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
             "ON CONFLICT(project_id, fingerprint) DO UPDATE SET "
             "current_ref = excluded.current_ref, title = excluded.title, severity = excluded.severity, "
             "cwe = excluded.cwe, owasp = excluded.owasp, verdict = excluded.verdict, "
             "location_file = excluded.location_file, location_line = excluded.location_line, "
+            "locations = excluded.locations, "
             "code_region_hash = excluded.code_region_hash, "
             "language = excluded.language, framework = excluded.framework, construct = excluded.construct, "
             "cvss_vector = excluded.cvss_vector, cvss_score = excluded.cvss_score, "
@@ -1349,7 +1406,7 @@ class RunRepository:
             "closed_in_run_id = NULL, closed_at = NULL",
             (
                 project_id, fingerprint, current_ref, title, severity, cwe, owasp, verdict,
-                location_file, location_line, code_region_hash, language, framework, construct,
+                location_file, location_line, locations_json, code_region_hash, language, framework, construct,
                 cvss_vector, cvss_score, description, recommendation, run_id, now, run_id, now,
             ),
         )
@@ -1505,6 +1562,7 @@ class RunRepository:
         location_file: str,
         severity: str,
         location_line: str | None = None,
+        locations: list[dict] | None = None,
         code_region_hash: str | None = None,
         source: str | None = None,
         validity: str | None = None,
@@ -1515,6 +1573,7 @@ class RunRepository:
         framework: str | None = None,
         construct: str | None = None,
     ) -> None:
+        resolved_locations = locations if locations is not None else locations_from_raw(location_file, location_line)
         self._upsert_finding(
             "secret_findings",
             project_id=project_id,
@@ -1522,7 +1581,8 @@ class RunRepository:
             run_id=run_id,
             fields={
                 "current_ref": current_ref, "secret_type": secret_type, "location_file": location_file,
-                "location_line": location_line, "code_region_hash": code_region_hash, "source": source,
+                "location_line": location_line, "locations": json.dumps(resolved_locations),
+                "code_region_hash": code_region_hash, "source": source,
                 "validity": validity, "severity": severity, "evidence": evidence, "exposure": exposure,
                 "remediation": remediation, "language": language, "framework": framework,
                 "construct": construct,
@@ -1563,6 +1623,8 @@ class RunRepository:
     def _row_to_finding(record_cls, row: sqlite3.Row):
         data = dict(row)
         project_display_name = data.pop("display_name", None)
+        if "locations" in data:
+            data["locations"] = _decode_locations(data["locations"])
         return record_cls(project_display_name=project_display_name, **data)
 
     def list_structured_findings(
@@ -1582,7 +1644,10 @@ class RunRepository:
             if skill_ids and skill_id not in skill_ids:
                 continue
             for row in self._list_findings(table, project_id=project_id, status=status, limit=limit):
-                result.append((skill_id, dict(row)))
+                data = dict(row)
+                if "locations" in data:
+                    data["locations"] = _decode_locations(data["locations"])
+                result.append((skill_id, data))
         return result
 
     def review_sast_finding(
@@ -1642,10 +1707,10 @@ class RunRepository:
         if search:
             query += (
                 " AND (sast_findings.title LIKE ? OR sast_findings.cwe LIKE ? "
-                "OR sast_findings.location_file LIKE ?)"
+                "OR sast_findings.location_file LIKE ? OR sast_findings.locations LIKE ?)"
             )
             like = f"%{search}%"
-            params.extend([like, like, like])
+            params.extend([like, like, like, like])
         query += " ORDER BY sast_findings.cvss_score DESC, sast_findings.last_seen_at DESC LIMIT ?"
         params.append(limit)
         rows = self._conn.execute(query, params).fetchall()

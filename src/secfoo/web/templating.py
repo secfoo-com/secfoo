@@ -10,6 +10,7 @@ from secfoo.cost import format_cost, format_tokens
 from secfoo.cvss import CvssError, parse_vector
 from secfoo.cvss import rating as cvss_rating
 from secfoo.report.architecture import classify_design_verdict
+from secfoo.report.sast import format_location_site
 from secfoo.skills.loader import load_all_skills
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -336,3 +337,4 @@ templates.env.filters["assessment_status_badge"] = assessment_status_badge_class
 templates.env.filters["responsible_ai_risk_badge"] = responsible_ai_risk_badge_class
 templates.env.filters["responsible_ai_status_badge"] = responsible_ai_status_badge_class
 templates.env.filters["design_verdict_badge"] = design_verdict_badge_class
+templates.env.filters["fmt_location"] = format_location_site

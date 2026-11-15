@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import PureWindowsPath
 from urllib.parse import quote
@@ -20,22 +21,57 @@ _SEVERITIES = {
 }
 
 
-def _location(record: dict) -> dict | None:
-    path = str(record.get("location_file") or "").strip().replace("\\", "/")
+def _uri_for_path(raw_path: str) -> str | None:
+    path = raw_path.strip().replace("\\", "/")
     if not path:
         return None
     if PureWindowsPath(path).is_absolute():
-        uri = PureWindowsPath(path).as_uri()
-    elif path.startswith("/"):
-        uri = "file://" + quote(path, safe="/")
-    else:
-        uri = quote(path, safe="/")
-    physical = {"artifactLocation": {"uri": uri}}
+        return PureWindowsPath(path).as_uri()
+    if path.startswith("/"):
+        return "file://" + quote(path, safe="/")
+    return quote(path, safe="/")
+
+
+def _location(record: dict) -> dict | None:
+    uri = _uri_for_path(str(record.get("location_file") or ""))
+    if uri is None:
+        return None
+    physical: dict = {"artifactLocation": {"uri": uri}}
     # Stored legacy/model-authored lines are not guaranteed to be numeric.
     line = str(record.get("location_line") or "").strip()
     if re.fullmatch(r"[0-9]+", line) and int(line) > 0:
         physical["region"] = {"startLine": int(line)}
     return {"physicalLocation": physical}
+
+
+def _locations(record: dict) -> list[dict]:
+    raw_sites = record.get("locations")
+    if isinstance(raw_sites, str):
+        try:
+            raw_sites = json.loads(raw_sites)
+        except ValueError:
+            raw_sites = None
+    if isinstance(raw_sites, list) and raw_sites:
+        entries: list[dict] = []
+        for site in raw_sites:
+            if not isinstance(site, dict):
+                continue
+            uri = _uri_for_path(str(site.get("path") or ""))
+            if uri is None:
+                continue
+            physical: dict = {"artifactLocation": {"uri": uri}}
+            start = site.get("start_line")
+            end = site.get("end_line")
+            if isinstance(start, int) and not isinstance(start, bool) and start > 0:
+                region: dict[str, int] = {"startLine": start}
+                if isinstance(end, int) and not isinstance(end, bool) and end > start:
+                    region["endLine"] = end
+                physical["region"] = region
+            entries.append({"physicalLocation": physical})
+        if entries:
+            return entries
+    fallback = _location(record)
+    return [fallback] if fallback is not None else []
 
 
 def findings_to_sarif(records: list[dict], *, runtime_priority: bool = False) -> dict:
@@ -88,9 +124,9 @@ def findings_to_sarif(records: list[dict], *, runtime_priority: bool = False) ->
         }
         if runtime:
             result["properties"] = {"secfoo": {"runtime": runtime}}
-        location = _location(record)
-        if location is not None:
-            result["locations"] = [location]
+        locations = _locations(record)
+        if locations:
+            result["locations"] = locations
         results.append(result)
     return {
         "$schema": SCHEMA_URI,

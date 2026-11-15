@@ -1804,7 +1804,9 @@ class FindingsFormat(str, Enum):
 
 # Lifecycle bookkeeping that means nothing outside this one SQLite file.
 _EXPORT_DROP_COLUMNS = {"id", "project_id", "first_seen_run_id", "last_seen_run_id", "closed_in_run_id"}
-_EXPORT_LOCATION_COLUMNS = {"location_file", "location_line", "code_region_hash", "reachability_evidence"}
+_EXPORT_LOCATION_COLUMNS = {
+    "location_file", "location_line", "locations", "code_region_hash", "reachability_evidence",
+}
 
 
 @findings_app.command(name="export")
@@ -1920,6 +1922,7 @@ def findings_show(
     no_runtime: Annotated[bool, typer.Option("--no-runtime", help="Skip runtime evidence (no fetch).")] = False,
 ) -> None:
     """One finding in full, with its runtime evidence and a remediation hint."""
+    from secfoo.report.sast import format_location_site
     from secfoo.runtime.developer import remediation_hint
 
     with RunRepository() as repo:
@@ -1931,7 +1934,11 @@ def findings_show(
     skill_id, row, runtime = matches[0]
     console.print(f"[bold]{_finding_title(skill_id, row)}[/]  ({skill_id}, {row.get('severity')}, {row.get('status')})")
     console.print(f"Project: {row.get('display_name')}   Fingerprint: {row['fingerprint']}")
-    for label, key in (("Location", "location_file"), ("Reachability", "reachability"), ("Fixed in", "fixed_in"),
+    rendered_sites = [format_location_site(site) for site in (row.get("locations") or [])]
+    location_display = ", ".join(s for s in rendered_sites if s) or row.get("location_file")
+    if location_display:
+        console.print(f"Location: {location_display}")
+    for label, key in (("Reachability", "reachability"), ("Fixed in", "fixed_in"),
                        ("Recommendation", "recommendation")):
         if row.get(key):
             console.print(f"{label}: {row[key]}")

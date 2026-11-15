@@ -154,6 +154,27 @@ def test_sast_finding_detail_renders_for_a_real_finding(client):
     assert "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N" in resp.text
 
 
+def test_sast_finding_detail_renders_every_site_and_secondary_file_is_searchable(client):
+    _, fingerprint = _seed_finding(
+        fingerprint="fp-multi",
+        title="Global template autoescape disabled",
+        location_file="server.js",
+        location_line="135",
+        locations=[
+            {"path": "server.js", "start_line": 135, "end_line": 137},
+            {"path": "app/views/layout.html", "start_line": 75, "end_line": None},
+        ],
+    )
+    detail = client.get(f"/activities/sast/findings/{fingerprint}")
+    assert detail.status_code == 200
+    assert "<code>server.js:135-137</code>" in detail.text
+    assert "<code>app/views/layout.html:75</code>" in detail.text
+
+    search_resp = client.get("/activities/sast/findings?q=layout.html")
+    assert search_resp.status_code == 200
+    assert "Global template autoescape disabled" in search_resp.text
+
+
 def test_sast_finding_detail_404s_for_unknown_fingerprint(client):
     resp = client.get("/activities/sast/findings/does-not-exist")
     assert resp.status_code == 404

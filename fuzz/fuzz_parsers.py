@@ -17,14 +17,18 @@ with `python fuzz/fuzz_parsers.py crash-<sha1>`.
 
 from __future__ import annotations
 
+import re
 import sys
 
 import atheris
 
 with atheris.instrument_imports():
+    from secfoo.report.sast import parse_location, parse_locations
     from secfoo.report.severity import count_severities, extract_overall_risk_rating
     from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
     from secfoo.web.finding_filters import normalize_severity
+
+_TRAILING_RANGE_RE = re.compile(r":\s*\d+(?:\s*-\s*\d*)?\s*$")
 
 
 def test_one_input(data: bytes) -> None:
@@ -49,6 +53,17 @@ def test_one_input(data: bytes) -> None:
     # Severity normalisation is total and idempotent.
     normalised = normalize_severity(text[:64])
     assert normalize_severity(normalised) == normalised
+
+    # Location parsing must never return delimiters, backticks, or trailing ranges.
+    loc_path, _loc_line = parse_location(text[:256])
+    assert all(ch not in loc_path for ch in (",", ";", "`"))
+    assert not _TRAILING_RANGE_RE.search(loc_path)
+    for site_path, start_line, end_line in parse_locations(text[:256]):
+        assert site_path
+        assert all(ch not in site_path for ch in (",", ";", "`"))
+        assert not _TRAILING_RANGE_RE.search(site_path)
+        if end_line is not None:
+            assert start_line is not None and end_line > start_line >= 1
 
 
 def main() -> None:
