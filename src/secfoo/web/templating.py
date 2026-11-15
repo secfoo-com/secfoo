@@ -140,7 +140,7 @@ _ASSESSMENT_STATUS_BADGE = {
     "blocked": "badge--error",
 }
 
-_RESPONSIBLE_AI_RISK_BADGE = {"high-risk": "badge--error", "moderate": "badge--warning"}
+_RESPONSIBLE_AI_RISK_BADGE = {"high-risk": "badge--error", "moderate": "badge--warning", "low-risk": "badge--success"}
 _RESPONSIBLE_AI_STATUS_BADGE = {"provisional": "badge--neutral", "confirmed": "badge--success"}
 
 

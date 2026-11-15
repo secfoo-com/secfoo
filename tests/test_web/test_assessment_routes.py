@@ -562,6 +562,30 @@ def test_responsible_ai_page_shows_derived_risk(client, tmp_path):
     assert "provisional" in resp.text
 
 
+def test_responsible_ai_page_shows_low_risk_for_a_low_rated_run(client, tmp_path):
+    """A Low rating is a green low-risk badge, not the amber "moderate" one."""
+    project_id, assessment_id = _create_assessment()
+    repo = RunRepository()
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="responsible-ai-compliance", skill_name="Responsible AI Compliance",
+        agent_id="claude", confluence_urls=[], assessment_id=assessment_id,
+    )
+    report_path = tmp_path / "report.md"
+    report_path.write_text("# Responsible AI Compliance Report\n\n## Summary\n**Overall risk rating:** Low\n")
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=1.0, report_path=str(report_path),
+        prompt_path=None, stderr_excerpt=None,
+    )
+    repo.close()
+
+    resp = client.get("/responsible-ai")
+    assert resp.status_code == 200
+    assert 'badge--success">low-risk' in resp.text
+    assert "moderate" not in resp.text
+    detail = client.get(f"/assessments/{assessment_id}")
+    assert 'badge--success">low-risk' in detail.text
+
+
 def _row_order(html: str) -> list[str]:
     import re
 
