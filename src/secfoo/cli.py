@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import sys
 from datetime import date, datetime, timezone
@@ -18,16 +19,22 @@ from rich.table import Table
 from secfoo import cloud as cloud_module
 from secfoo import mcp as mcp_module
 from secfoo import memory as memory_module
+from secfoo.__about__ import __version__
 from secfoo.agents.registry import ADAPTERS, get_adapter
 from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
-from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
+from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
 from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
-from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill, register_skill_file
+from secfoo.skills.loader import (
+    SkillLoadError,
+    load_all_skills,
+    load_skill,
+    register_skill_file,
+)
 from secfoo.skills.renderer import merge_excludes as _merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
@@ -61,6 +68,41 @@ console = Console()
 err_console = Console(stderr=True)
 
 CONFIG_EXAMPLE_PATH = Path(__file__).parent / "config.example.toml"
+
+
+def _show_version(value: bool) -> None:
+    if value:
+        typer.echo(f"secfoo {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: Annotated[
+        bool,
+        typer.Option("--version", "-V", is_eager=True, callback=_show_version, help="Show the installed version and exit."),
+    ] = False,
+) -> None:
+    """Context-based security architectural assessment."""
+
+
+@app.command()
+def version(
+    json_output: Annotated[bool, typer.Option("--json", help="Print the details as JSON.")] = False,
+) -> None:
+    """Print the secfoo version, Python runtime and store paths."""
+    details = {
+        "version": __version__,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "store_path": str(STORE_DIR),
+        "config_path": str(CONFIG_PATH),
+    }
+    if json_output:
+        typer.echo(json.dumps(details))
+        return
+    for key, value in details.items():
+        console.print(f"[bold]{key}[/]: {value}")
 
 
 def _now_iso() -> str:
@@ -457,19 +499,30 @@ def run(
                 raise typer.Exit(code=0)
 
     task_ids: dict[str, int] = {}
-    # In --json mode nothing but the final document may reach stdout, so
-    # the spinner is disabled and human-facing notes go to stderr.
+    # Rich animates whenever it thinks the output is a terminal -- and
+    # FORCE_COLOR=1 makes it think that even when stdout is redirected, which
+    # flooded captured CI logs with spinner redraw frames. Only animate on a
+    # real stdout TTY; otherwise print one line per start and per completion.
+    # In --json mode nothing but the final document may reach stdout.
+    live_progress = not json_output and sys.stdout.isatty()
     progress = Progress(
         SpinnerColumn(finished_text=" "),
         TextColumn("{task.description}"),
         console=console,
-        disable=json_output,
+        disable=not live_progress,
     )
 
     def handle_start(skill_name: str) -> None:
-        task_ids[skill_name] = progress.add_task(f"Running [bold]{skill_name}[/] via {agent.value}...", total=None)
+        if live_progress:
+            task_ids[skill_name] = progress.add_task(f"Running [bold]{skill_name}[/] via {agent.value}...", total=None)
+        elif not json_output:
+            console.print(f"Running {skill_name} via {agent.value}...")
 
     def handle_complete(skill_name: str, result_status: str) -> None:
+        if not live_progress:
+            if not json_output:
+                console.print(f"{result_status} — {skill_name}")
+            return
         style = _STATUS_STYLE.get(result_status, "white")
         task_id = task_ids.get(skill_name)
         if task_id is not None:

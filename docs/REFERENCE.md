@@ -2,6 +2,18 @@
 
 The full activity catalog, dashboards, assessments, configuration, and distribution details -- moved out of the README to keep that short. See the [main README](../README.md) for the dashboard screenshots and Quick Start.
 
+## Version and environment
+
+`secfoo --version` (or `-V`) prints the installed version, so bug reports and
+CI jobs can record the build they ran. `secfoo version --json` prints the same
+version plus the Python runtime, platform, store path and config path as one
+JSON object; without `--json` the same details are printed line by line.
+
+When `run` is not attached to a terminal -- a redirected log, CI, or a
+container without a TTY -- it prints one line per skill start and one per
+completion instead of a live spinner, even if `FORCE_COLOR` is set. That keeps
+captured output free of cursor-movement escape sequences.
+
 ## Activity catalog
 
 Each activity is a self-contained security engagement with its own report
