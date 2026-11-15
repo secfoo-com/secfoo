@@ -1,3 +1,4 @@
+import pytest
 from __future__ import annotations
 
 import sqlite3
@@ -1116,4 +1117,52 @@ def test_list_sast_findings_scoped_by_project(tmp_path):
     assert len(repo.list_sast_findings(project_id=project_b)) == 1
     assert len(repo.list_sast_findings()) == 2
     repo.close()
+    repo.close()
+
+
+@pytest.mark.parametrize(
+    "rating,expected",
+    [("Critical", "high-risk"), ("High", "high-risk"), ("Medium", "moderate"), ("Low", "low-risk")],
+)
+def test_responsible_ai_risk_tier_follows_the_report_rating(tmp_path, rating, expected):
+    """Every rating the skill can emit gets its own tier. Before this, a
+    Low-rated system showed as "moderate" because only High was mapped."""
+    repo = _repo(tmp_path)
+    project_id = repo.upsert_project("id-1", "P1", "local")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="responsible-ai-compliance", skill_name="Responsible AI Compliance",
+        agent_id="claude", confluence_urls=[], assessment_id=assessment_id,
+    )
+    report_path = tmp_path / "report.md"
+    report_path.write_text(f"# Report\n\n## Summary\n**Overall risk rating:** {rating}\n")
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=1, report_path=str(report_path),
+        prompt_path=None, stderr_excerpt=None,
+    )
+    assessment = repo.get_assessment(assessment_id)
+    assert assessment.responsible_ai_risk == expected
+    assert assessment.responsible_ai_status == "provisional"
+    assert repo.count_assessments_with_responsible_ai_risk() == 1
+    repo.close()
+
+
+def test_responsible_ai_unknown_rating_means_not_rated(tmp_path):
+    repo = _repo(tmp_path)
+    project_id = repo.upsert_project("id-1", "P1", "local")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="responsible-ai-compliance", skill_name="Responsible AI Compliance",
+        agent_id="claude", confluence_urls=[], assessment_id=assessment_id,
+    )
+    report_path = tmp_path / "report.md"
+    report_path.write_text("# Report\n\n## Summary\n**Overall risk rating:** Severe\n")
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=1, report_path=str(report_path),
+        prompt_path=None, stderr_excerpt=None,
+    )
+    assessment = repo.get_assessment(assessment_id)
+    assert assessment.responsible_ai_risk is None
+    assert assessment.responsible_ai_status is None
+    assert repo.count_assessments_with_responsible_ai_risk() == 0
     repo.close()

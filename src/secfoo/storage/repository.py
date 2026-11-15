@@ -122,6 +122,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# The skill's rubric (skills/definitions/responsible-ai-compliance.md) rates a
+# system High / Medium / Low; the dashboard shows that as a risk tier. Each
+# tier must map to its own badge: a Low-rated demo app and a Medium-rated
+# eligibility system are not the same "moderate" risk, and an unparsable
+# rating is "not rated", never a tier.
+RESPONSIBLE_AI_RISK_BY_RATING = {
+    "critical": "high-risk",
+    "high": "high-risk",
+    "medium": "moderate",
+    "low": "low-risk",
+}
+
+
 class RunRepository:
     def __init__(self, db_path: Path | None = None) -> None:
         ensure_store_dirs()
@@ -703,9 +716,9 @@ class RunRepository:
         if not path.exists():
             return None, None
         rating = extract_overall_risk_rating(path.read_text(encoding="utf-8", errors="replace"))
-        if rating is None:
+        risk = RESPONSIBLE_AI_RISK_BY_RATING.get(rating or "")
+        if risk is None:
             return None, None
-        risk = "high-risk" if rating == "high" else "moderate"
         ra_status = "confirmed" if status == "completed" else "provisional"
         return risk, ra_status
 
