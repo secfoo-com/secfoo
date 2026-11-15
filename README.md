@@ -6,7 +6,8 @@
 
 <p align="center">
   <strong>Turn the coding agent you already have into a disciplined security reviewer.</strong><br>
-  SAST, secret scanning, SCA, threat modeling and architecture review. Same checklist, same report shape, every run.
+  SAST, secret scanning, SCA, threat modeling and architecture review, with your design docs, Confluence and tickets as context.<br>
+  Same checklist, same report shape, every run.
 </p>
 
 <p align="center">
@@ -53,6 +54,56 @@ reflected as HTML (CWE-918), NoSQL injection through a `$where` string
 repo. Every finding carries CWE, OWASP category, CVSS vector, location,
 the vulnerable code and a fix. The full reports, the SARIF and the JSONL
 export are in [examples/sample-output/nodegoat](https://github.com/secfoo-com/secfoo/blob/main/examples/sample-output/nodegoat).
+
+## Context, not just code
+
+A code repository is one input. Real reviews also need the design doc, the
+threat model from last year, the runbook and the ticket that explains why the
+odd thing is there. secfoo passes that context to the agent through
+[MCP](https://modelcontextprotocol.io) and asks the skills to use it:
+the architecture review compares what is *documented* (Confluence, README,
+ADRs) with what is *implemented* and reports the gaps; secret scanning
+covers linked Confluence pages as well as code; every report ends with a
+coverage section that says which documentation sources were reached and
+which were not.
+
+```bash
+secfoo run --skill security-architecture-review --skill threat-modeling \
+  --target https://github.com/org/payments-api \
+  --confluence https://yourcompany.atlassian.net/wiki/spaces/PAY/pages/123/Architecture \
+  --confluence https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/456/Threat+Model
+```
+
+Connect the documentation sources once in `~/.secfoo/config.toml`; any MCP
+server works, so the same applies to SharePoint and Microsoft 365, Jira,
+Notion, Google Drive or an internal wiki:
+
+```toml
+[[mcp_servers]]
+name = "Atlassian-Rovo-MCP"          # Confluence + Jira, official Atlassian server
+command = "npx"
+args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+
+[[mcp_servers]]
+name = "sharepoint"                   # any HTTP/SSE MCP server
+url = "https://mcp.example.com/sharepoint"
+transport = "http"
+headers = { Authorization = "Bearer ..." }
+```
+
+| Context | How it gets in | Used by |
+|---|---|---|
+| Confluence pages | `--confluence <url>` (repeatable) plus an Atlassian MCP server | Architecture review, threat modeling, secret scanning, compliance skills |
+| Jira, SharePoint, Notion, Google Drive, internal wikis | `[[mcp_servers]]` in config; the agent calls them as tools during the review | Every skill |
+| Vendor documents (PDF, DOCX, PPTX) and AI-BOM files | `secfoo assessment upload <id> <file>` | Third-party risk assessment, Responsible AI compliance |
+| Curated vulnerability patterns | `secfoo memory signup` (optional hosted service, exposed as an MCP server) | SAST, SCA, secret scanning |
+
+With `--agent claude` the configured servers are attached to each run
+automatically and nothing else (your global Claude config is not touched and
+the target's own `.mcp.json` is not loaded). For Gemini CLI and Cursor run
+`secfoo mcp sync --agent <agent>` once. Codex, Antigravity and the `api`
+agent cannot use MCP servers yet. Details in
+[docs/REFERENCE.md](https://github.com/secfoo-com/secfoo/blob/main/docs/REFERENCE.md#configuration-secfooconfigtoml).
 
 ## Put it in CI
 
@@ -104,6 +155,9 @@ Screenshots are from a real local `secfoo serve` against public vulnerable-app t
   structured prompt and a target, then collects a report in a fixed shape.
 - **One dashboard for the program.** Coverage, dispositions, STRIDE,
   design verdicts, and findings across every project you have scanned.
+- **Context-aware.** Confluence pages, tickets, design docs and uploaded
+  vendor documents reach the agent through MCP, and the report says which
+  sources it could and could not read. See [Context, not just code](#context-not-just-code).
 - **Local first.** Runs and `secfoo serve` stay on your machine. Optional
   `secfoo cloud login` syncs to an org portal that is not in this repo.
 - **Concurrent by default.** Several `--skill` flags run at the same time.
@@ -126,6 +180,7 @@ Screenshots are from a real local `secfoo serve` against public vulnerable-app t
 | Prompt Review | `prompt-review` |
 | Deployment Readiness | `deployment-readiness` |
 | Responsible AI Compliance | `responsible-ai-compliance` |
+| Third-Party Risk Assessment | `third-party-risk-assessment` |
 
 Run one, or several together. What each report actually contains is in
 [docs/REFERENCE.md](https://github.com/secfoo-com/secfoo/blob/main/docs/REFERENCE.md). Write your own skill as a
