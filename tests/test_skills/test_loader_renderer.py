@@ -397,7 +397,9 @@ def test_sca_contract_is_dependency_centric_with_reachability(tmp_path):
 def test_secret_scanning_covers_docs_history_and_demands_rotation(tmp_path):
     prompt = _prompt_for("secret-scanning", tmp_path)
     assert "# Secret Scanning Report" in prompt
-    assert "## 5. Documentation & Confluence Coverage" in prompt
+    assert "## 5. Documentation coverage" in prompt
+    assert "| Source | Type | Reached | Notes |" in prompt
+    assert "Documentation & Confluence Coverage" not in prompt
     assert "Confluence" in prompt
     assert "history" in prompt.lower()
     # Rotation, not deletion, is the required remediation for a live secret.

@@ -203,6 +203,16 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
     return True, combined, note
 
 
+def source_label(source: ContextSource) -> str:
+    """Return the display label for a context source."""
+    if source.kind == "url":
+        return source.location
+    source_path = Path(source.location)
+    if source.kind == "directory":
+        return f"{source_path.name}/"
+    return source_path.name
+
+
 def build_context_brief(
     sources: list[ContextSource],
     servers: list[MCPServerConfig] | None,
@@ -260,7 +270,7 @@ def build_context_brief(
             is_folder = source.kind == "directory"
             type_label = "local folder" if is_folder else "local file"
             source_path = Path(source.location)
-            display_name = (source_path.name + "/") if is_folder else source_path.name
+            display_name = source_label(source)
 
             if is_folder:
                 success, raw_text, note = _extract_folder(source_path)
@@ -333,6 +343,25 @@ def build_context_brief(
             section_lines.append(inlined_text)
             section_lines.append(f"<<<END REFERENCE DOCUMENT {i}>>>")
             section_lines.append("")
+
+    section_lines.extend(
+        [
+            "### Reporting requirement",
+            (
+                "In your report, record these sources in a table headed exactly "
+                "`### Documentation coverage`, placed at the end of the Coverage "
+                "Notes section. In a Secret Scanning report, fill section 5 with "
+                "the same table instead. Use these columns: | Source | Type | Reached | Notes |"
+            ),
+            (
+                "Write exactly one row per source listed above, in the same order, "
+                "using the URL or file name exactly as shown in its heading. "
+                "Reached is `Yes` or `No`. For a source you could not read, or "
+                "read only in part, say why in Notes. A source you did not read is a gap, not a pass."
+            ),
+            "",
+        ]
+    )
 
     rendered = "\n".join(section_lines).rstrip() + "\n"
     return ContextBrief(section=rendered, entries=tuple(entries))

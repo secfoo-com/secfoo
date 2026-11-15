@@ -11,6 +11,7 @@ from secfoo.context_brief import (
     build_context_brief,
     classify_url,
     likely_readers,
+    source_label,
 )
 from secfoo.context_sources import parse_context_source
 from secfoo.settings import MCPServerConfig
@@ -168,7 +169,7 @@ def test_folder_extraction_filters_and_caps(tmp_path: Path, monkeypatch: pytest.
     (folder / "b.md").write_text("Doc B", encoding="utf-8")
     (folder / "a.md").write_text("Doc A", encoding="utf-8")
     (folder / "image.png").write_bytes(b"\x89PNG")
-    (folder / ".hidden.md").write_text("Secret", encoding="utf-8")
+    (folder / ".hidden.md").write_text("HiddenDoc", encoding="utf-8")
 
     sub_hidden = folder / ".hidden_dir"
     sub_hidden.mkdir()
@@ -183,7 +184,7 @@ def test_folder_extraction_filters_and_caps(tmp_path: Path, monkeypatch: pytest.
     assert entry.reached is True
     assert "Doc A" in brief.section
     assert "Doc B" in brief.section
-    assert "Secret" not in brief.section
+    assert "HiddenDoc" not in brief.section
     assert "Ignored" not in brief.section
     assert "image.png" not in brief.section
     assert "--- file: a.md ---" in brief.section
@@ -314,3 +315,30 @@ def test_normal_folder_without_cap(tmp_path: Path) -> None:
     entry = brief.entries[0]
     assert entry.reached is True
     assert "per-source cap" not in entry.note
+
+
+def test_brief_includes_reporting_requirement(tmp_path: Path) -> None:
+    doc = tmp_path / "spec.md"
+    doc.write_text("# Spec", encoding="utf-8")
+    source = parse_context_source(str(doc))
+    brief = build_context_brief([source], [])
+    assert brief is not None
+    assert "### Reporting requirement" in brief.section
+    assert "### Documentation coverage" in brief.section
+    assert "| Source | Type | Reached | Notes |" in brief.section
+
+
+def test_source_label(tmp_path: Path) -> None:
+    url_source = parse_context_source("https://acme.atlassian.net/wiki/1")
+    assert source_label(url_source) == "https://acme.atlassian.net/wiki/1"
+
+    file_path = tmp_path / "architecture.md"
+    file_path.write_text("# Doc", encoding="utf-8")
+    file_source = parse_context_source(str(file_path))
+    assert source_label(file_source) == "architecture.md"
+
+    folder_path = tmp_path / "docs_folder"
+    folder_path.mkdir()
+    (folder_path / "a.md").write_text("Hello", encoding="utf-8")
+    folder_source = parse_context_source(str(folder_path))
+    assert source_label(folder_source) == "docs_folder/"

@@ -664,7 +664,7 @@ then counts by severity and by source (code / config / history / docs).
 
 ## 2. Scope
 Paths scanned, whether version-control history was checked (and how far
-back), and which documentation/Confluence sources were reached. If a
+back), and which documentation sources were reached. If a
 provided documentation source could NOT be reached, say so here as well
 as in Coverage Notes -- an unscanned doc source is a gap, not a pass.
 
@@ -693,10 +693,11 @@ Same order and IDs as the register. Exact heading shape required:
 - **Remediation:** for any real secret this MUST begin with rotating the
   credential; removing the line alone is never sufficient
 
-## 5. Documentation & Confluence Coverage
-| Source | Reached? | Secrets found |
+## 5. Documentation coverage
+| Source | Type | Reached | Notes |
 
-One row per documentation source provided or discovered.
+One row per documentation source provided or discovered. Reached is Yes or No; put the
+number of secrets found, or why the source could not be read, in Notes.
 
 ## 6. Remediation Roadmap
 P0 first and it must be the rotation list -- every credential that needs
