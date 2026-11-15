@@ -797,7 +797,8 @@ def test_run_context_file_inside_target_rejected(tmp_path, monkeypatch):
 
 def test_run_context_file_outside_target_accepted(tmp_path, monkeypatch):
     _no_config(monkeypatch)
-    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_outcome("success")])
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
     target_dir = tmp_path / "target_repo"
     target_dir.mkdir()
     doc = tmp_path / "external_design.md"
@@ -807,3 +808,6 @@ def test_run_context_file_outside_target_accepted(tmp_path, monkeypatch):
         ["run", "--skill", "sast", "--target", str(target_dir), "--context", str(doc)],
     )
     assert result.exit_code == 0
+    assert len(captured["context_sources"]) == 1
+    assert captured["context_sources"][0].kind == "file"
+    assert isinstance(captured["mcp_servers"], list)

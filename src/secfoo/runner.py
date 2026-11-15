@@ -24,6 +24,8 @@ from typing import Literal
 from secfoo import cloud, cvss, memory, osv
 from secfoo.agents.registry import get_adapter
 from secfoo.config import ensure_store_dirs, run_dir
+from secfoo.context_brief import build_context_brief
+from secfoo.context_sources import ContextSource
 from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
 from secfoo.report.markdown import strip_preamble
@@ -33,6 +35,7 @@ from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
 from secfoo.report.sca import osv_keys_for_report
 from secfoo.report.secret_scanning import SKILL_ID as SECRET_SKILL_ID
 from secfoo.report.severity import count_severities
+from secfoo.settings import MCPServerConfig
 from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
 from secfoo.stack import Stack, detect_stack, language_for_ecosystem, language_for_path
@@ -566,6 +569,8 @@ def execute_runs(
     skill_ids: list[str],
     target: str | None,
     confluence_urls: list[str],
+    context_sources: list[ContextSource] | None = None,
+    mcp_servers: list[MCPServerConfig] | None = None,
     agent_id: str,
     model: str | None = None,
     max_input_tokens: int | None = None,
@@ -587,6 +592,10 @@ def execute_runs(
     after -- callers (e.g. the CLI) use these to show live progress, since
     an individual agent invocation can take minutes with no output of its
     own. Both may be called concurrently from different threads.
+
+    `context_sources` and `mcp_servers` feed the prompt's documentation brief:
+    URLs are classified with likely MCP readers named, and local files or
+    folders are extracted and inlined by secfoo.
 
     `project_id`, when given, attaches every run to that EXISTING project
     instead of the one `resolve_target(target)` would normally
@@ -652,12 +661,14 @@ def execute_runs(
                 )
         db_path = repo.db_path
 
+        context_brief = build_context_brief(context_sources, mcp_servers) if context_sources else None
         with _target_workdir(resolved) as workdir:
             target_ctx = TargetContext(
                 kind=resolved.kind.value,  # type: ignore[arg-type]
                 local_path=workdir,
                 display_source=resolved.display_name,
                 confluence_urls=confluence_urls,
+                context_brief=context_brief,
             )
             # Once per target, not per skill: every skill scans the same tree.
             stack = detect_stack(workdir)

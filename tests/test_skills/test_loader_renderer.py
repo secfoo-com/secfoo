@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from secfoo.context_brief import ContextBrief
 from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill
-from secfoo.skills.renderer import TargetContext, render_prompt
+from secfoo.skills.renderer import SAFETY_PREAMBLE, TargetContext, render_prompt
 
 EXPECTED_SKILL_IDS = {
     # Focused security activities
@@ -469,3 +470,31 @@ def test_merge_excludes_dedupes_and_preserves_order():
     assert merge_excludes(["a/", "b/"], ["b/", "c/"], None) == ["a/", "b/", "c/"]
     assert merge_excludes([" a/ "], ["a/"]) == ["a/"]
     assert merge_excludes(None, []) == []
+
+
+# ---------------------------------------------------------------------------
+# Context brief / documentation sources (#125)
+# ---------------------------------------------------------------------------
+
+
+def test_render_prompt_with_context_brief_includes_sources_section(tmp_path):
+    skill = load_skill("security-architecture-review")
+    brief = ContextBrief(
+        section="## Additional context (documentation sources)\n\nSome brief content here.",
+        entries=(),
+    )
+    ctx = TargetContext(
+        kind="local",
+        local_path=tmp_path,
+        display_source=str(tmp_path),
+        confluence_urls=[],
+        context_brief=brief,
+    )
+    prompt = render_prompt(skill, ctx)
+    assert "## Additional context (documentation sources)" in prompt
+    assert "Some brief content here." in prompt
+
+
+def test_safety_preamble_mentions_additional_context():
+    assert "Additional context" in SAFETY_PREAMBLE
+    assert "a Confluence URL" not in SAFETY_PREAMBLE

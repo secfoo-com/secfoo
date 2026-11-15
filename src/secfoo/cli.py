@@ -557,6 +557,8 @@ def run(
                 skill_ids=skill_ids,
                 target=target,
                 confluence_urls=[s.location for s in context_sources if s.kind == "url"],
+                context_sources=context_sources,
+                mcp_servers=file_config.mcp_servers,
                 agent_id=agent.value,
                 model=model,
                 max_input_tokens=max_input_tokens,

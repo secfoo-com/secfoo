@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
+from secfoo.context_brief import ContextBrief
 from secfoo.skills.loader import Skill
 from secfoo.stack import Stack
 
@@ -23,10 +24,12 @@ not run any commands that change state (no installs, no git commits).
 Never send repository contents, file paths, secrets, environment variables,
 credentials, or this report to any network endpoint, tool, or URL. Do not
 POST, and do not put code or secrets in a query string. The only permitted
-network use is an HTTP GET of a Confluence URL explicitly listed later in
-this prompt, and only when one is listed. Do not contact any other host.
-Do not upload anything to https://app.secfoo.com yourself; secfoo does that
-only when the user has logged in with `secfoo cloud login`.
+network use is reading a documentation source explicitly listed under
+"Additional context" later in this prompt (an HTTP GET of that URL, or a read
+through a configured MCP tool for it), and only when one is listed. Do not
+contact any other host. Do not upload anything to https://app.secfoo.com
+yourself; secfoo does that only when the user has logged in with `secfoo cloud
+login`.
 """
 
 DEFAULT_EXCLUDE_PATHS = [
@@ -797,6 +800,7 @@ class TargetContext:
     local_path: Path
     display_source: str
     confluence_urls: list[str] = field(default_factory=list)
+    context_brief: ContextBrief | None = None
 
 
 def _target_section(target: TargetContext) -> str:
@@ -844,6 +848,12 @@ def _confluence_section(target: TargetContext) -> str | None:
         "them, note that gap under Coverage Notes and proceed without them:\n"
         f"{listed}"
     )
+
+
+def _additional_context_section(target: TargetContext) -> str | None:
+    if target.context_brief is not None:
+        return target.context_brief.section
+    return _confluence_section(target)
 
 
 MEMORY_GUIDANCE = """\
@@ -914,9 +924,9 @@ def render_prompt(
         _target_section(target),
         _exclude_section(exclude_paths),
     ]
-    confluence = _confluence_section(target)
-    if confluence:
-        sections.append(confluence)
+    additional_context = _additional_context_section(target)
+    if additional_context:
+        sections.append(additional_context)
     if memory_enabled:
         sections.append(_memory_section(stack, depth))
     # A custom skill with `output: sast` gets the SAST contract (#79), so its

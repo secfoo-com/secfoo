@@ -891,3 +891,51 @@ def test_runner_applies_and_persists_selected_model(tmp_path, monkeypatch):
     assert observed == ["chosen-model"]
     assert repo.get_run(outcomes[0].run_uuid).model == "chosen-model"
     repo.close()
+
+
+def test_execute_runs_passes_context_brief_to_target_context(tmp_path, monkeypatch):
+    import secfoo.runner
+    from secfoo.context_sources import parse_context_source
+
+    _patch_runner(monkeypatch, tmp_path)
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Context\nSome info", encoding="utf-8")
+
+    captured_targets = []
+    real_render = secfoo.runner.render_prompt
+
+    def fake_render(skill, target, **kwargs):
+        captured_targets.append(target)
+        return real_render(skill, target, **kwargs)
+
+    monkeypatch.setattr("secfoo.runner.render_prompt", fake_render)
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    execute_runs(
+        skill_ids=["security-architecture-review"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=[parse_context_source(str(doc))],
+    )
+    assert len(captured_targets) == 1
+    assert captured_targets[0].context_brief is not None
+    assert "Some info" in captured_targets[0].context_brief.section
+
+    captured_targets.clear()
+    execute_runs(
+        skill_ids=["security-architecture-review"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=None,
+    )
+    assert len(captured_targets) == 1
+    assert captured_targets[0].context_brief is None
+
+    repo.close()
