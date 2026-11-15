@@ -690,3 +690,43 @@ def test_run_configured_agent_wins_over_detection(monkeypatch):
     assert result.exit_code == 0, result.output
     assert captured["agent_id"] == "codex"
     assert "Using agent" not in result.output
+
+
+def test_version_flag_prints_the_version():
+    from secfoo.__about__ import __version__
+
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == f"secfoo {__version__}"
+
+
+def test_version_command_json_reports_runtime_and_paths():
+    from secfoo.__about__ import __version__
+
+    result = runner.invoke(app, ["version", "--json"])
+    assert result.exit_code == 0, result.output
+    details = json.loads(result.stdout)
+    assert details["version"] == __version__
+    assert details["python"]
+    assert details["platform"]
+    assert details["store_path"]
+    assert details["config_path"].endswith("config.toml")
+
+
+def test_run_without_a_tty_prints_each_line_once(monkeypatch):
+    """Captured output (CI, a redirect) gets one plain line per event -- no
+    spinner redraw frames and no duplicated completion line, even when Rich
+    is forced into terminal mode by FORCE_COLOR."""
+    monkeypatch.setenv("FORCE_COLOR", "1")
+
+    def fake_execute(**kwargs):
+        kwargs["on_skill_start"]("sast")
+        kwargs["on_skill_complete"]("sast", "success")
+        return [_outcome("success")]
+
+    monkeypatch.setattr("secfoo.cli.execute_runs", fake_execute)
+    result = runner.invoke(app, ["run", "--skill", "sast", "--agent", "claude"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout.count("Running sast via claude...") == 1
+    assert result.stdout.count("success — sast") == 1
+    assert "⠋" not in result.stdout
