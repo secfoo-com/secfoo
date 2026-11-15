@@ -37,24 +37,6 @@ Antigravity, OpenCode, ...) or, if none is installed, uses the
 shell. Pass `--agent` to choose. Keep it around with `pipx install secfoo`
 or `pip install secfoo`; more channels under [Install](#install).
 
-## What it found on OWASP NodeGoat
-
-One real, unedited run against [OWASP/NodeGoat](https://github.com/OWASP/NodeGoat)
-(Claude Code, `--depth quick`, 2026-11-14), both skills running concurrently:
-
-| Skill | Critical | High | Medium | Low | Time | Cost |
-|---|---|---|---|---|---|---|
-| SAST — Static Code Analysis | 0 | 6 | 5 | 1 | 4 min 12 s | $2.34 |
-| Secret Scanning — Code, Confluence & Docs | 0 | 3 | 2 | 1 | 2 min 15 s | $1.39 |
-
-Among the Highs: `eval()` on a POST body (CWE-95), SSRF with the response
-reflected as HTML (CWE-918), NoSQL injection through a `$where` string
-(CWE-943), IDOR on `/allocations/:userId`, autoescaping disabled globally
-(CWE-79), an RSA private key and the session-signing secret committed to the
-repo. Every finding carries CWE, OWASP category, CVSS vector, location,
-the vulnerable code and a fix. The full reports, the SARIF and the JSONL
-export are in [examples/sample-output/nodegoat](https://github.com/secfoo-com/secfoo/blob/main/examples/sample-output/nodegoat).
-
 ## Context, not just code
 
 A code repository is one input. Real reviews also need the design doc, the
@@ -104,33 +86,6 @@ the target's own `.mcp.json` is not loaded). For Gemini CLI and Cursor run
 `secfoo mcp sync --agent <agent>` once. Codex, Antigravity and the `api`
 agent cannot use MCP servers yet. Details in
 [docs/REFERENCE.md](https://github.com/secfoo-com/secfoo/blob/main/docs/REFERENCE.md#configuration-secfooconfigtoml).
-
-## Put it in CI
-
-Findings show up in GitHub's **Security** tab and as PR annotations; the job
-fails on the severity you choose.
-
-```yaml
-# .github/workflows/secfoo.yml
-permissions:
-  contents: read
-  security-events: write
-steps:
-  - uses: actions/checkout@v4
-  - uses: secfoo-com/secfoo@main
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # or ANTHROPIC_API_KEY / GEMINI_API_KEY
-    with:
-      skills: sast,secret-scanning
-      fail-on: high
-      max-cost: "2.00"
-```
-
-- **GitHub Action** with SARIF upload, job summary and severity outputs: [docs/CI.md](https://github.com/secfoo-com/secfoo/blob/main/docs/CI.md#github-actions)
-- **pre-commit**: `repo: https://github.com/secfoo-com/secfoo`, hooks `secfoo-secrets` and `secfoo` ([example](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/pre-commit-config.yaml))
-- **GitLab CI** job with SARIF artifact: [examples/ci/gitlab-ci.yml](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/gitlab-ci.yml)
-- **Docker**: `docker run --rm ghcr.io/rakfortltd/secfoo --help`
-- **Anywhere else**: `secfoo run ... --json --fail-on high`, then `secfoo findings export --format sarif`. Exit codes `0` clean, `1` run failed, `2` findings gate, `3` cost gate.
 
 ## A 30-second look at the dashboard
 
@@ -243,6 +198,51 @@ secfoo run --skill sast --target https://github.com/org/repo   # picks the api a
 Universal install scripts, standalone binaries, CI flags, spend tracking,
 and configuration live in [docs/REFERENCE.md](https://github.com/secfoo-com/secfoo/blob/main/docs/REFERENCE.md#install).
 Developing this repo: `pip install -e ".[dev]"`.
+
+## What it found on OWASP NodeGoat
+
+One real, unedited run against [OWASP/NodeGoat](https://github.com/OWASP/NodeGoat)
+(Claude Code, `--depth quick`, 2026-11-14), both skills running concurrently:
+
+| Skill | Critical | High | Medium | Low | Time | Cost |
+|---|---|---|---|---|---|---|
+| SAST — Static Code Analysis | 0 | 6 | 5 | 1 | 4 min 12 s | $2.34 |
+| Secret Scanning — Code, Confluence & Docs | 0 | 3 | 2 | 1 | 2 min 15 s | $1.39 |
+
+Among the Highs: `eval()` on a POST body (CWE-95), SSRF with the response
+reflected as HTML (CWE-918), NoSQL injection through a `$where` string
+(CWE-943), IDOR on `/allocations/:userId`, autoescaping disabled globally
+(CWE-79), an RSA private key and the session-signing secret committed to the
+repo. Every finding carries CWE, OWASP category, CVSS vector, location,
+the vulnerable code and a fix. The full reports, the SARIF and the JSONL
+export are in [examples/sample-output/nodegoat](https://github.com/secfoo-com/secfoo/blob/main/examples/sample-output/nodegoat).
+
+## Put it in CI
+
+Findings show up in GitHub's **Security** tab and as PR annotations; the job
+fails on the severity you choose.
+
+```yaml
+# .github/workflows/secfoo.yml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@v4
+  - uses: secfoo-com/secfoo@main
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # or ANTHROPIC_API_KEY / GEMINI_API_KEY
+    with:
+      skills: sast,secret-scanning
+      fail-on: high
+      max-cost: "2.00"
+```
+
+- **GitHub Action** with SARIF upload, job summary and severity outputs: [docs/CI.md](https://github.com/secfoo-com/secfoo/blob/main/docs/CI.md#github-actions)
+- **pre-commit**: `repo: https://github.com/secfoo-com/secfoo`, hooks `secfoo-secrets` and `secfoo` ([example](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/pre-commit-config.yaml))
+- **GitLab CI** job with SARIF artifact: [examples/ci/gitlab-ci.yml](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/gitlab-ci.yml)
+- **Docker**: `docker run --rm ghcr.io/rakfortltd/secfoo --help`
+- **Anywhere else**: `secfoo run ... --json --fail-on high`, then `secfoo findings export --format sarif`. Exit codes `0` clean, `1` run failed, `2` findings gate, `3` cost gate.
 
 ## Learn more
 
