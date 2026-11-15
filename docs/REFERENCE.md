@@ -729,6 +729,10 @@ SARIF upload) is covered in [CI.md](CI.md).
 ## Usage
 
 ```bash
+# Check installed version and environment details
+secfoo --version
+secfoo version --json
+
 # Run a skill against the current directory with Claude Code
 secfoo run --skill security-architecture-review --agent claude
 

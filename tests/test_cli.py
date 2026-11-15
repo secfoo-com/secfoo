@@ -690,3 +690,93 @@ def test_run_configured_agent_wins_over_detection(monkeypatch):
     assert result.exit_code == 0, result.output
     assert captured["agent_id"] == "codex"
     assert "Using agent" not in result.output
+
+
+def test_version_flag():
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "secfoo 0.3.0" in result.output
+
+    result_short = runner.invoke(app, ["-v"])
+    assert result_short.exit_code == 0
+    assert "secfoo 0.3.0" in result_short.output
+
+
+def test_version_command():
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    assert "secfoo 0.3.0" in result.output
+
+
+def test_version_command_json():
+    result = runner.invoke(app, ["version", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["version"] == "0.3.0"
+    assert "python" in data and len(data["python"]) > 0
+    assert "platform" in data and len(data["platform"]) > 0
+    assert "store_path" in data and ".secfoo" in data["store_path"]
+    assert "config_path" in data and "config.toml" in data["config_path"]
+
+
+def test_non_tty_run_no_spinner_flooding_and_no_duplicate_completion(monkeypatch):
+    """#119: when stdout is not a TTY (captured to file/CI log), Progress
+    spinner must not flood redraw frames even with FORCE_COLOR=1, and each
+    skill's start and completion must be printed exactly once.
+    """
+    monkeypatch.setenv("FORCE_COLOR", "1")
+
+    def fake_execute_runs(**kwargs):
+        on_start = kwargs.get("on_skill_start")
+        on_complete = kwargs.get("on_skill_complete")
+        if on_start:
+            on_start("Secret Scanning")
+            on_start("SAST")
+        if on_complete:
+            on_complete("Secret Scanning", "success")
+            on_complete("SAST", "success")
+        return [
+            RunOutcome("u1", "secret-scanning", "Secret Scanning", "claude", "success", 0, 1.0, "/tmp/1.md"),
+            RunOutcome("u2", "sast", "SAST", "claude", "success", 0, 1.0, "/tmp/2.md"),
+        ]
+
+    monkeypatch.setattr("secfoo.cli.execute_runs", fake_execute_runs)
+    result = runner.invoke(app, ["run", "--skill", "secret-scanning", "--skill", "sast"])
+    assert result.exit_code == 0, result.output
+
+    # No spinner cursor movement escapes in non-TTY output
+    assert "\x1b[2K" not in result.output
+    assert "\x1b[1A" not in result.output
+    assert "\x1b[?25" not in result.output
+
+    # Total byte count should be compact (< 2500 bytes) instead of 96+ KB
+    assert len(result.output) < 2500
+
+    # Start and completion lines must appear exactly once
+    assert result.output.count("Running Secret Scanning via claude...") == 1
+    assert result.output.count("Running SAST via claude...") == 1
+    assert result.output.count("success — Secret Scanning") == 1
+    assert result.output.count("success — SAST") == 1
+
+
+def test_json_run_suppresses_progress_lines(monkeypatch):
+    """In --json mode, neither start nor completion messages reach stdout,
+    so the output remains pure byte-exact JSON.
+    """
+    def fake_execute_runs(**kwargs):
+        on_start = kwargs.get("on_skill_start")
+        on_complete = kwargs.get("on_skill_complete")
+        if on_start:
+            on_start("SAST")
+        if on_complete:
+            on_complete("SAST", "success")
+        return [_outcome("success")]
+
+    monkeypatch.setattr("secfoo.cli.execute_runs", fake_execute_runs)
+    result = runner.invoke(app, ["run", "--skill", "sast", "--agent", "claude", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "Running SAST" not in result.output
+    assert "success — SAST" not in result.output
+    doc = json.loads(result.output)
+    assert doc["exit_code"] == 0
+    assert len(doc["runs"]) == 1

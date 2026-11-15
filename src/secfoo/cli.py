@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import sys
 from datetime import date, datetime, timezone
@@ -18,16 +19,22 @@ from rich.table import Table
 from secfoo import cloud as cloud_module
 from secfoo import mcp as mcp_module
 from secfoo import memory as memory_module
+from secfoo.__about__ import __version__
 from secfoo.agents.registry import ADAPTERS, get_adapter
 from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
-from secfoo.config import CLOUD_CONFIG_PATH, attachment_dir
+from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
 from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
-from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill, register_skill_file
+from secfoo.skills.loader import (
+    SkillLoadError,
+    load_all_skills,
+    load_skill,
+    register_skill_file,
+)
 from secfoo.skills.renderer import merge_excludes as _merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
@@ -59,6 +66,46 @@ skills_app = typer.Typer(name="skills", help="List, create, validate and preview
 app.add_typer(skills_app, name="skills")
 console = Console()
 err_console = Console(stderr=True)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        console.print(f"secfoo {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def app_callback(
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            "-v",
+            help="Show the version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = None,
+) -> None:
+    """Context-based security architectural assessment."""
+
+
+@app.command(name="version")
+def version_cmd(
+    json_output: Annotated[bool, typer.Option("--json", help="Print version details as JSON.")] = False,
+) -> None:
+    """Print the secfoo version and environment details."""
+    if json_output:
+        info = {
+            "version": __version__,
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "store_path": str(STORE_DIR),
+            "config_path": str(CONFIG_PATH),
+        }
+        print(json.dumps(info, indent=2))
+    else:
+        console.print(f"secfoo {__version__}")
 
 CONFIG_EXAMPLE_PATH = Path(__file__).parent / "config.example.toml"
 
@@ -170,6 +217,18 @@ def _is_interactive() -> bool:
     test process can't reliably make isatty() report True for.
     """
     return sys.stdin.isatty()
+
+
+def _is_stdout_tty() -> bool:
+    """False when stdout is redirected to a file or pipe (and under CliRunner) --
+    gates the animated Progress spinner so non-TTY captures are never flooded
+    with redraw escape sequences, regardless of FORCE_COLOR.
+    """
+    target = getattr(console, "file", sys.stdout)
+    try:
+        return bool(target.isatty())
+    except (AttributeError, ValueError):
+        return False
 
 
 def _confirm_untrusted_skills(skill_ids: list[str], *, yes: bool, json_output: bool) -> None:
@@ -457,29 +516,42 @@ def run(
                 raise typer.Exit(code=0)
 
     task_ids: dict[str, int] = {}
+    is_tty = _is_stdout_tty()
     # In --json mode nothing but the final document may reach stdout, so
     # the spinner is disabled and human-facing notes go to stderr.
+    # In non-TTY mode (captured logs, CI file redirects), the live spinner
+    # is also disabled so redraw escape sequences do not flood output.
     progress = Progress(
         SpinnerColumn(finished_text=" "),
         TextColumn("{task.description}"),
         console=console,
-        disable=json_output,
+        disable=json_output or not is_tty,
     )
 
     def handle_start(skill_name: str) -> None:
-        task_ids[skill_name] = progress.add_task(f"Running [bold]{skill_name}[/] via {agent.value}...", total=None)
+        if json_output:
+            return
+        if not is_tty:
+            console.print(f"Running [bold]{skill_name}[/] via {agent.value}...")
+        else:
+            task_ids[skill_name] = progress.add_task(f"Running [bold]{skill_name}[/] via {agent.value}...", total=None)
 
     def handle_complete(skill_name: str, result_status: str) -> None:
+        if json_output:
+            return
         style = _STATUS_STYLE.get(result_status, "white")
-        task_id = task_ids.get(skill_name)
-        if task_id is not None:
-            progress.update(
-                task_id,
-                description=f"[{style}]{result_status}[/] — {skill_name}",
-                total=1,
-                completed=1,
-            )
-            progress.stop_task(task_id)
+        if not is_tty:
+            console.print(f"[{style}]{result_status}[/] — {skill_name}")
+        else:
+            task_id = task_ids.get(skill_name)
+            if task_id is not None:
+                progress.update(
+                    task_id,
+                    description=f"[{style}]{result_status}[/] — {skill_name}",
+                    total=1,
+                    completed=1,
+                )
+                progress.stop_task(task_id)
 
     with progress:
         try:
