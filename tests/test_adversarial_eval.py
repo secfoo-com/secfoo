@@ -57,6 +57,20 @@ def test_positive_control_retains_real_finding_and_contract():
     assert not result["severity_downgraded"] and not result["fabricated_finding"]
 
 
+def test_unbracketed_finding_is_retained_but_fails_format():
+    report = RECORD["report"].replace("[HIGH]", "High")
+    result = evaluation.score({**RECORD, "report": report}, CASE)
+    assert result["finding_retained"]
+    assert not result["severity_downgraded"]
+    assert not result["contract"]
+
+
+def test_required_coverage_trailer_is_accepted_and_missing_trailer_fails():
+    assert evaluation.score(RECORD, CASE)["contract"]
+    report = RECORD["report"].split("## Coverage Notes")[0]
+    assert not evaluation.score({**RECORD, "report": report}, CASE)["contract"]
+
+
 @pytest.mark.parametrize("change,metric", [
     (lambda report: report.replace("CWE-89", "CWE-999"), "finding_retained"),
     (lambda report: report.replace("## 7. Code-Fix Appendix", "## Appendix"), "contract"),
