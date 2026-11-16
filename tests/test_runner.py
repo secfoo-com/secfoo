@@ -941,6 +941,38 @@ def test_execute_runs_passes_context_brief_to_target_context(tmp_path, monkeypat
     repo.close()
 
 
+def _fixed_report_adapter(
+    report: str,
+    status: str = "success",
+    exit_code: int = 0,
+    stderr: str = "",
+) -> AgentAdapter:
+    class _CustomAdapter(AgentAdapter):
+        name = "fake"
+        binary = "fake-binary"
+        default_timeout_seconds = 30
+
+        def build_command(self, prompt, *, workdir):
+            return ["fake-binary"]
+
+        def is_available(self):
+            return True
+
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
+            return AgentResult(
+                agent=self.name,
+                exit_code=exit_code,
+                stdout="ok" if status == "success" else "",
+                stderr=stderr if stderr else ("failed" if status != "success" else ""),
+                duration_seconds=0.1,
+                timed_out=False,
+                status=status,
+                raw_report=report,
+            )
+
+    return _CustomAdapter()
+
+
 def test_execute_runs_records_context_sources_with_table(tmp_path, monkeypatch):
     _patch_runner(monkeypatch, tmp_path)
     target_dir = tmp_path / "target"
@@ -957,30 +989,7 @@ def test_execute_runs_records_context_sources_with_table(tmp_path, monkeypatch):
         "| spec.md | local file | Yes | Inlined |\n"
     )
 
-    class _ReportAdapter(AgentAdapter):
-        name = "fake"
-        binary = "fake-binary"
-        default_timeout_seconds = 30
-
-        def build_command(self, prompt, *, workdir):
-            return ["fake-binary"]
-
-        def is_available(self):
-            return True
-
-        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
-            return AgentResult(
-                agent=self.name,
-                exit_code=0,
-                stdout="ok",
-                stderr="",
-                duration_seconds=0.1,
-                timed_out=False,
-                status="success",
-                raw_report=report_content,
-            )
-
-    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: _ReportAdapter())
+    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: _fixed_report_adapter(report_content))
 
     repo = RunRepository(db_path=tmp_path / "db.sqlite")
     from secfoo.context_sources import parse_context_source
@@ -1018,30 +1027,10 @@ def test_execute_runs_records_context_sources_without_table(tmp_path, monkeypatc
     doc = tmp_path / "spec.md"
     doc.write_text("# Spec", encoding="utf-8")
 
-    class _NoTableAdapter(AgentAdapter):
-        name = "fake"
-        binary = "fake-binary"
-        default_timeout_seconds = 30
-
-        def build_command(self, prompt, *, workdir):
-            return ["fake-binary"]
-
-        def is_available(self):
-            return True
-
-        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
-            return AgentResult(
-                agent=self.name,
-                exit_code=0,
-                stdout="ok",
-                stderr="",
-                duration_seconds=0.1,
-                timed_out=False,
-                status="success",
-                raw_report="# Report\nNo table here",
-            )
-
-    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: _NoTableAdapter())
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Report\nNo table here"),
+    )
 
     repo = RunRepository(db_path=tmp_path / "db.sqlite")
     from secfoo.context_sources import parse_context_source
@@ -1073,30 +1062,10 @@ def test_execute_runs_context_sources_on_failed_run(tmp_path, monkeypatch):
     doc = tmp_path / "spec.md"
     doc.write_text("# Spec", encoding="utf-8")
 
-    class _FailAdapter(AgentAdapter):
-        name = "fake"
-        binary = "fake-binary"
-        default_timeout_seconds = 30
-
-        def build_command(self, prompt, *, workdir):
-            return ["fake-binary"]
-
-        def is_available(self):
-            return True
-
-        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
-            return AgentResult(
-                agent=self.name,
-                exit_code=1,
-                stdout="",
-                stderr="failed",
-                duration_seconds=0.1,
-                timed_out=False,
-                status="failed",
-                raw_report="# Crashed",
-            )
-
-    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: _FailAdapter())
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Crashed", status="failed", exit_code=1, stderr="failed"),
+    )
 
     repo = RunRepository(db_path=tmp_path / "db.sqlite")
     from secfoo.context_sources import parse_context_source
@@ -1123,6 +1092,10 @@ def test_execute_runs_context_sources_on_failed_run(tmp_path, monkeypatch):
 
 def test_execute_runs_without_context_sources(tmp_path, monkeypatch):
     _patch_runner(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Clean Report"),
+    )
     target_dir = tmp_path / "target"
     target_dir.mkdir()
 
