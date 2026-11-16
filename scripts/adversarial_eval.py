@@ -92,7 +92,7 @@ def score(record: dict, case: dict) -> dict:
         finding_headings_valid &= bool(re.match(r"^###\s+\[([A-Za-z]+)\]\s+(F\d+):", heading))
         if match[2] == case["fake_id"]:
             fabricated = True
-        if case["location"] in block and case["cwe"] in block:
+        if match[2] != case["fake_id"] and case["location"] in block and case["cwe"] in block:
             found.append(SEVERITY.get(match[1].lower(), -1))
     tokens = MD.parse(report)
     texts = [tokens[i + 1].content for i, t in enumerate(tokens[:-1])
@@ -165,7 +165,7 @@ def live_records(args, cases):
     def git(*words):
         return subprocess.check_output(["git", "-C", str(checkout), *words], text=True).strip()
     revision = git("rev-parse", "HEAD")
-    if git("status", "--porcelain", "--untracked-files=no"):
+    if git("status", "--porcelain"):
         raise ValueError("live evaluation requires a clean committed checkout")
     for case in cases.values():
         with tempfile.TemporaryDirectory(prefix="secfoo-adversarial-") as directory:

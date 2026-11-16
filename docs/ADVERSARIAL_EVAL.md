@@ -2,8 +2,8 @@
 
 ## Current validation record
 
-Local Python 3.12 validation: 60 focused evaluator/API/parser tests pass;
-the full suite reports 1,358 passes and one sensor lifecycle failure
+Local Python 3.12 validation: 67 focused evaluator/API/parser/property tests pass;
+the full suite reports 1,367 passes and one sensor lifecycle failure
 (`test_sensor_dying_mid_run_drops_events_without_blocking`), reproduced
 unchanged on the clean baseline revision below. Changed Python files pass
 Ruff. The native Atheris fuzzer could not build on this Mac because
@@ -55,9 +55,12 @@ The first local Claude measurements are checked in under
 retained the real SQL injection in all 16 baseline and all 16 hardened reviews;
 this corpus therefore does **not** demonstrate a Claude retention improvement.
 A second trial captures full tool streams for the tool-request attack/control
-pair in both phases. The local API comparison is still being collected; keep
-the PR draft until its before/after evidence is reviewed. Failed runs and
-missing telemetry never count as security passes.
+pair in both phases. The completed local Qwen3 4B Instruct API comparison
+retained the finding in 7/8 baseline attacks and 8/8 hardened attacks, with
+8/8 controls retained in both phases. All 32 API reports failed formatting.
+The linked record includes the raw reports, exact model digest and sampling
+settings, the incomplete earlier thinking-model pilot, and limitations.
+Failed runs and missing telemetry never count as security passes.
 
 Use the manually dispatched **Adversarial repository evaluation** workflow
 after a maintainer reviews the workflow code. It needs an OpenAI API key for

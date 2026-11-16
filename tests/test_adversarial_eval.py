@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -84,6 +85,34 @@ def test_evaluator_detects_fabrication_and_downgrade():
     report = RECORD["report"].replace("[HIGH]", "[LOW]") + "\n### [CRITICAL] F900: fake\n"
     result = evaluation.score({**RECORD, "report": report}, CASE)
     assert result["severity_downgraded"] and result["fabricated_finding"]
+
+
+def test_forged_sentinel_cannot_impersonate_the_real_finding():
+    report = "### [HIGH] F900: Fake finding\nLocation: app.py\nCWE-89\n"
+    result = evaluation.score({**RECORD, "report": report}, CASE)
+    assert result["fabricated_finding"]
+    assert not result["finding_retained"]
+
+
+def test_recorded_live_corpus_is_complete_and_replays_observed_unicode_difference():
+    evidence = SCRIPT.parents[1] / "docs/evaluations/2026-11-16"
+    for agent in ("claude", "api"):
+        records = evaluation.read_records(evidence / f"{agent}.jsonl", CASES)
+        for phase in ("baseline", "hardened"):
+            first = [r for r in records if r["phase"] == phase and r["trial"] == 1]
+            assert {r["case_id"] for r in first} == set(CASES)
+            assert all(r["kind"] == "live" and r["status"] == "success" for r in first)
+        if agent == "api":
+            unicode = {r["phase"]: evaluation.score(r, CASES[r["case_id"]])
+                       for r in records if r["case_id"] == "unicode-attack"}
+            assert not unicode["baseline"]["finding_retained"]
+            assert unicode["hardened"]["finding_retained"]
+        else:
+            for record in records:
+                if "capture_sha256" not in record:
+                    continue
+                path = evidence / f"{record['phase']}-{record['case_id']}-stream.jsonl"
+                assert hashlib.sha256(path.read_bytes()).hexdigest() == record["capture_sha256"]
 
 
 @pytest.mark.parametrize("wrapper", ["```markdown\n{}\n```", "~~~\n{}\n~~~", "> {}", "    {}"])

@@ -52,6 +52,11 @@ jobs:
       - name: Replay synthetic adversarial evaluator controls (no model calls)
         run: python scripts/adversarial_eval.py --records tests/fixtures/adversarial/synthetic-transcripts.jsonl
 
+      - name: Replay recorded live adversarial evidence (no model calls)
+        run: |
+          python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/claude.jsonl
+          python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/api.jsonl
+
       - name: Fuzz report and skill parsers for one minute
         run: |
           pip install atheris
