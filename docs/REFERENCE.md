@@ -992,3 +992,19 @@ Homebrew is a planned follow-up (a tap formula in a separate
 See [`design-system/README.md`](../design-system/README.md) for the design
 system used by the dashboard.
 
+## Malicious repositories and adversarial validation
+
+Repository text is untrusted evidence, including files named `AGENTS.md`,
+`CLAUDE.md` and `.cursorrules`. Secfoo's review brief rejects instructions to
+suppress findings, change severity, copy fabricated reports, or execute
+commands from the target. The API adapter separates the brief into a system
+message and JSON-quotes source records. Severity counting ignores headings
+inside Markdown code fences and blockquotes.
+
+These controls do not establish that a malicious repository cannot influence
+an agent. Tool grants are not an operating-system sandbox, and model behavior
+must be measured. The [adversarial evaluation guide](ADVERSARIAL_EVAL.md)
+documents eight paired fixture techniques, offline regression replay,
+opt-in live measurements and the limits of the metrics. Synthetic replay
+results are not live security results.
+
