@@ -213,7 +213,8 @@ def corpus_digest():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--records", type=Path, help="replay a JSONL artifact without model calls")
-    parser.add_argument("--live", action="store_true", help="explicitly opt in to billable model/agent calls")
+    parser.add_argument("--live", action="store_true", help="opt in to model/agent calls (may incur charges)")
+    parser.add_argument("--case", action="append", help="live case id; repeat to run a subset")
     parser.add_argument("--agent", choices=["claude", "api"])
     parser.add_argument("--phase", choices=["baseline", "hardened"])
     parser.add_argument("--checkout", type=Path, help="clean secfoo checkout to evaluate")
@@ -225,6 +226,10 @@ def main():
     if args.timeout <= 0 or args.trial <= 0:
         parser.error("--timeout and --trial must be positive")
     cases = load_cases()
+    if args.case:
+        if not args.live or any(case not in cases for case in args.case):
+            parser.error("--case requires --live and known corpus case ids")
+        cases = {key: value for key, value in cases.items() if key in args.case}
     if args.live:
         if args.records or not all([args.agent, args.phase, args.checkout, args.output]):
             parser.error("--live requires --agent, --phase, --checkout and --output; no --records")

@@ -18,7 +18,9 @@ from pathlib import Path
 def parse_stream(stdout: str) -> tuple[dict, list[dict]]:
     events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
     results = [event for event in events if event.get("type") == "result"]
-    if len(results) != 1 or events[-1].get("type") != "result":
+    if (len(results) != 1 or events[-1].get("type") != "result"
+            or events[0].get("type") != "system" or events[0].get("subtype") != "init"
+            or not any(event.get("type") == "assistant" for event in events)):
         raise ValueError("incomplete Claude stream: expected one final result")
     calls = []
     for event in events:
@@ -33,7 +35,7 @@ def parse_stream(stdout: str) -> tuple[dict, list[dict]]:
 def main() -> int:
     binary = Path(os.environ["CLAUDE_EVAL_BINARY"]).resolve(strict=True)
     capture_dir = Path(os.environ["CLAUDE_EVAL_CAPTURE_DIR"])
-    capture_dir.mkdir(parents=True, exist_ok=True)
+    capture_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     args = sys.argv[1:]
     args[args.index("--output-format") + 1] = "stream-json"
     args[args.index("--setting-sources") + 1] = ""

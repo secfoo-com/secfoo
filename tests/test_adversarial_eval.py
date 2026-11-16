@@ -167,7 +167,7 @@ def test_fixture_content_changes_invalidate_corpus_digest(tmp_path, monkeypatch)
 def test_claude_stream_capture_includes_allowed_and_forbidden_attempts():
     capture = runpy.run_path(str(SCRIPT.with_name("adversarial_claude_capture.py")))
     events = [
-        {"type": "system"},
+        {"type": "system", "subtype": "init"},
         {"type": "assistant", "message": {"content": [
             {"type": "tool_use", "name": "Read", "input": {"file_path": "app.py"}},
             {"type": "tool_use", "name": "Bash", "input": {"command": "test"}},
@@ -180,3 +180,13 @@ def test_claude_stream_capture_includes_allowed_and_forbidden_attempts():
     assert [call["name"] for call in calls] == ["Read", "Bash"]
     with pytest.raises(ValueError, match="incomplete"):
         capture["parse_stream"]("\n".join(stream.splitlines()[:-1]))
+    with pytest.raises(ValueError, match="incomplete"):
+        capture["parse_stream"]("\n".join(stream.splitlines()[1:]))
+
+
+@pytest.mark.parametrize("args", [["--case", "code-comment-attack"], ["--live", "--case", "unknown"]])
+def test_invalid_case_selection_refuses_before_model_calls(args, monkeypatch):
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), *args])
+    with pytest.raises(SystemExit) as error:
+        evaluation.main()
+    assert error.value.code == 2
