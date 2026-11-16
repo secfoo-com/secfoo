@@ -49,6 +49,14 @@ jobs:
       - name: Test (secfoo core)
         run: pytest tests
 
+      - name: Replay synthetic adversarial evaluator controls (no model calls)
+        run: python scripts/adversarial_eval.py --records tests/fixtures/adversarial/synthetic-transcripts.jsonl
+
+      - name: Fuzz report and skill parsers for one minute
+        run: |
+          pip install atheris
+          python fuzz/fuzz_parsers.py -max_total_time=60
+
       - name: Runtime probe conformance (reference Python probe, #73)
         run: secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
 

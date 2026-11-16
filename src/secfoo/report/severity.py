@@ -12,6 +12,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from markdown_it import MarkdownIt
+
+_md = MarkdownIt("commonmark").disable(["html_block", "html_inline"])
+
 _FINDING_HEADING_RE = re.compile(r"^###\s*\[(?P<severity>[A-Za-z]+)\]", re.MULTILINE)
 _RISK_RATING_RE = re.compile(r"\*\*Overall risk rating:\*\*\s*([A-Za-z]+)", re.IGNORECASE)
 
@@ -45,7 +49,15 @@ class SeverityCounts:
 
 def count_severities(report_markdown: str) -> SeverityCounts:
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-    for match in _FINDING_HEADING_RE.finditer(report_markdown):
+    lines = report_markdown.splitlines()
+    # Only actual top-level Markdown headings count. A quoted finding or
+    # heading inside a fenced/indented source excerpt is evidence, not a finding.
+    for token in _md.parse(report_markdown):
+        if token.type != "heading_open" or token.tag != "h3" or token.level != 0 or token.map is None:
+            continue
+        match = _FINDING_HEADING_RE.match(lines[token.map[0]])
+        if match is None:
+            continue
         tier = _TIER_ALIASES.get(match.group("severity").lower())
         if tier is not None:
             counts[tier] += 1

@@ -1,0 +1,84 @@
+name: Adversarial repository evaluation
+
+# Deliberately never runs on pull_request or pull_request_target. Model calls
+# are billable; a maintainer must explicitly dispatch this trusted workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      api_model:
+        description: LiteLLM model identifier (e.g. openai/gpt-4.1-mini)
+        required: true
+        type: string
+      claude_model:
+        description: Claude model identifier
+        required: true
+        type: string
+      claude_version:
+        description: Exact Claude Code npm version to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [api, claude]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: hardened
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: f24043bd6f01618128748241b6729bebc9254a26
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install evaluation dependencies
+        run: pip install -e './hardened[dev]'
+      - name: Install specified Claude Code version
+        if: matrix.agent == 'claude'
+        env:
+          CLAUDE_VERSION: ${{ inputs.claude_version }}
+        run: |
+          python -c 'import os,re; assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", os.environ["CLAUDE_VERSION"]), "Use an exact stable npm version"'
+          npm install --global "@anthropic-ai/claude-code@$CLAUDE_VERSION"
+      - name: Evaluate both revisions
+        env:
+          AGENT: ${{ matrix.agent }}
+          API_MODEL: ${{ inputs.api_model }}
+          CLAUDE_MODEL: ${{ inputs.claude_model }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mkdir artifacts
+          pip freeze > artifacts/dependencies.txt
+          if [ "$AGENT" = claude ]; then
+            MODEL="$CLAUDE_MODEL"
+            claude --version > artifacts/cli-version.txt
+          else
+            MODEL="$API_MODEL"
+          fi
+          failed=0
+          for phase in baseline hardened; do
+            python hardened/scripts/adversarial_eval.py --live --agent "$AGENT" \
+              --model "$MODEL" --phase "$phase" --checkout "$phase" \
+              --output "artifacts/$phase.jsonl" > "artifacts/$phase.md" || failed=1
+          done
+          cat artifacts/baseline.md artifacts/hardened.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
+      - name: Retain evidence, including failed runs
+        if: always()
+        # Use the same artifact action pinned by the existing release workflow.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: adversarial-${{ matrix.agent }}
+          path: artifacts/
