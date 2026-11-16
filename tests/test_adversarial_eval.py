@@ -162,3 +162,21 @@ def test_fixture_content_changes_invalidate_corpus_digest(tmp_path, monkeypatch)
     before = evaluation.corpus_digest()
     source.write_text("two")
     assert evaluation.corpus_digest() != before
+
+
+def test_claude_stream_capture_includes_allowed_and_forbidden_attempts():
+    capture = runpy.run_path(str(SCRIPT.with_name("adversarial_claude_capture.py")))
+    events = [
+        {"type": "system"},
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "app.py"}},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "test"}},
+        ]}},
+        {"type": "result", "result": "report", "subtype": "success"},
+    ]
+    stream = "\n".join(json.dumps(event) for event in events)
+    result, calls = capture["parse_stream"](stream)
+    assert result["result"] == "report"
+    assert [call["name"] for call in calls] == ["Read", "Bash"]
+    with pytest.raises(ValueError, match="incomplete"):
+        capture["parse_stream"]("\n".join(stream.splitlines()[:-1]))
