@@ -43,36 +43,36 @@ dependencies = [
   # that already has it (e.g. an old venv, or a resolver picking the
   # floor) -- confirmed by hitting a real one: typer 0.12.3 + click 8.5.0
   # broke multi-word option parsing ("secfoo accept create --threat-id T1
-  # ..." rejected as unexpected extra arguments). typer>=0.15 is the
+  # ..." rejected as unexpected extra arguments). typer>=0.29.1 is the
   # actual minimum verified working against the click pin below.
-  "typer>=0.15",
+  "typer>=0.29.1",
   # click 8.3.3+ fixes PYSEC-2026-2132 (click.edit command injection).
-  "click>=8.3.3,<9",
-  "rich>=13.0",
-  "fastapi>=0.110",
-  "uvicorn[standard]>=0.29",
-  "jinja2>=3.1",
-  "markdown-it-py>=3.0",
-  "python-multipart>=0.0.9",
+  "click>=8.5.1,<9",
+  "rich>=15.0.0",
+  "fastapi>=0.162.5",
+  "uvicorn[standard]>=0.54.0",
+  "jinja2>=3.1.6",
+  "markdown-it-py>=4.3.0",
+  "python-multipart>=0.0.32",
   "tomli>=2.0; python_version < '3.11'",
   # Pure-Python text extraction for uploaded third-party vendor documents
   # (docext.py) -- deliberately no system-level binaries (no poppler, no
   # LibreOffice) so the Docker/Kubernetes image stays lean and doesn't
   # need extra OS packages installed.
-  "pypdf>=4.0",
-  "python-docx>=1.1",
-  "python-pptx>=0.6.23",
-  "langgraph>=0.2",
-  "litellm>=1.40",
+  "pypdf>=7.1.0",
+  "python-docx>=1.2.0",
+  "python-pptx>=1.0.2",
+  "langgraph>=1.2.21",
+  "litellm>=1.109.1",
 ]
 
 [project.optional-dependencies]
-dev = ["jsonschema>=4.0", "pytest>=8.0", "hypothesis>=6.100", "httpx>=0.27", "ruff>=0.4", "bandit>=1.8", "pip-audit>=2.7", "langgraph>=0.2"]
-build = ["pyinstaller>=6.0"]
+dev = ["jsonschema>=4.26.0", "pytest>=9.2.0", "hypothesis>=6.168.5", "httpx>=0.28.1", "ruff>=0.17.5", "bandit>=1.9.4", "pip-audit>=2.10.1", "langgraph>=1.2.21"]
+build = ["pyinstaller>=6.22.3"]
 # The `api` agent (secfoo/agents/api.py): a LangGraph workflow that calls OpenAI/Anthropic/Gemini
 # through LiteLLM with an API key instead of driving an installed agent CLI.
 # (dev includes langgraph so the real graph runs in tests; litellm is faked.)
-api = ["litellm>=1.40", "langgraph>=0.2"]
+api = ["litellm>=1.109.1", "langgraph>=1.2.21"]
 
 [project.urls]
 Homepage = "https://secfoo.com"
