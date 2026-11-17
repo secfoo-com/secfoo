@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-17T07:51:46Z",
+  "generated_at": "2026-11-17T20:28:44Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -277,6 +277,31 @@
       "level": null
     },
     {
+      "login": "Arush-Banerjee",
+      "points": 6,
+      "counts": {
+        "hard": 0,
+        "medium": 1,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 138,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/138",
+          "issue": 132,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/132",
+          "issue_title": "Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard",
+          "contributor": "Arush-Banerjee",
+          "merged_at": "2026-11-17T20:28:33Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 5,
+      "level": null
+    },
+    {
       "login": "bfs2021",
       "points": 3,
       "counts": {
@@ -298,7 +323,7 @@
           "points": 3
         }
       ],
-      "rank": 5,
+      "rank": 6,
       "level": null
     },
     {
@@ -311,7 +336,7 @@
       },
       "merged_prs": 26,
       "awards": [],
-      "rank": 6,
+      "rank": 7,
       "level": null
     },
     {
@@ -324,7 +349,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 7,
+      "rank": 8,
       "level": null
     },
     {
@@ -337,7 +362,7 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 8,
+      "rank": 9,
       "level": null
     },
     {
@@ -350,7 +375,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 9,
+      "rank": 10,
       "level": null
     },
     {
@@ -363,11 +388,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 10,
+      "rank": 11,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 138,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/138",
+      "issue": 132,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/132",
+      "issue_title": "Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard",
+      "contributor": "Arush-Banerjee",
+      "merged_at": "2026-11-17T20:28:33Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 126,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/126",
