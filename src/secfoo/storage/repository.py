@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import uuid
@@ -7,6 +8,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from typing_extensions import Self
 
 from secfoo.config import DB_PATH, ensure_store_dirs
 
@@ -35,6 +38,21 @@ def use_db_path(path: Path):
         yield
     finally:
         _default_db_path.reset(token)
+from secfoo.report.sast import (
+    SKILL_ID as SAST_SKILL_ID,
+)
+from secfoo.report.sast import (
+    _normalize_path as _normalize_sast_path,
+)
+from secfoo.report.sast import (
+    locations_from_raw,
+)
+from secfoo.report.secret_scanning import (
+    SKILL_ID as SECRET_SKILL_ID,
+)
+from secfoo.report.secret_scanning import (
+    _normalize_secret_type,
+)
 from secfoo.report.severity import SeverityCounts, extract_overall_risk_rating
 from secfoo.storage.models import (
     AssessmentRecord,
@@ -91,6 +109,7 @@ _ASSESSMENTS_MIGRATIONS = {
 }
 
 _SAST_FINDINGS_MIGRATIONS = {
+    "locations": "ALTER TABLE sast_findings ADD COLUMN locations TEXT",
     "code_region_hash": "ALTER TABLE sast_findings ADD COLUMN code_region_hash TEXT",
     "language": "ALTER TABLE sast_findings ADD COLUMN language TEXT",
     "framework": "ALTER TABLE sast_findings ADD COLUMN framework TEXT",
@@ -102,6 +121,10 @@ _SAST_FINDINGS_MIGRATIONS = {
     "review_note": "ALTER TABLE sast_findings ADD COLUMN review_note TEXT",
     "reviewed_by": "ALTER TABLE sast_findings ADD COLUMN reviewed_by TEXT",
     "reviewed_at": "ALTER TABLE sast_findings ADD COLUMN reviewed_at TEXT",
+}
+
+_SECRET_FINDINGS_MIGRATIONS = {
+    "locations": "ALTER TABLE secret_findings ADD COLUMN locations TEXT",
 }
 
 SAST_REVIEW_STATUSES = ("confirmed", "false_positive", "accepted_risk")
@@ -133,6 +156,19 @@ RESPONSIBLE_AI_RISK_BY_RATING = {
     "medium": "moderate",
     "low": "low-risk",
 }
+
+
+def _decode_locations(raw: object) -> list[dict]:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except ValueError:
+            pass
+    return []
 
 
 class RunRepository:
@@ -176,8 +212,214 @@ class RunRepository:
         for column, ddl in _SAST_FINDINGS_MIGRATIONS.items():
             if column not in existing_sast_cols:
                 self._conn.execute(ddl)
+        existing_secret_cols = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(secret_findings)").fetchall()
+        }
+        for column, ddl in _SECRET_FINDINGS_MIGRATIONS.items():
+            if column not in existing_secret_cols:
+                self._conn.execute(ddl)
         self._conn.commit()
+        self._migrate_finding_locations()
         self._migrate_attachment_kind_check()
+
+    def _migrate_finding_locations(self) -> None:
+        """Backfill `locations` JSON, clean `location_file` / `location_line`
+        to the primary site, and recompute `fingerprint` to the primary-path hash
+        for pre-existing rows created before `#112`.
+
+        When two or more old rows collapse onto the same (project_id, CWE/secret_type,
+        primary_path), a deterministic collapse rule is applied:
+          1. The primary row chosen is the one with an active `review_status`,
+             breaking ties by `status == 'open'`, earliest `first_seen_at`, then `id`.
+          2. Any existing review status (review_status, review_note, reviewed_by,
+             reviewed_at) is preserved onto the primary row.
+          3. Secondary collapsed rows are closed and rekeyed to a non-colliding
+             tombstone fingerprint (`<fp>:merged:<id>`) so they never conflict
+             with subsequent scans or violate uniqueness constraints.
+        """
+        now = _now()
+        # 1. SAST findings
+        sast_rows = self._conn.execute(
+            "SELECT id, project_id, cwe, location_file, location_line, code_region_hash, "
+            "review_status, review_note, reviewed_by, reviewed_at, status, first_seen_at, closed_at "
+            "FROM sast_findings WHERE locations IS NULL"
+        ).fetchall()
+        if sast_rows:
+            groups: dict[tuple[int, str], list[dict]] = {}
+            for r in sast_rows:
+                sites = locations_from_raw(r["location_file"], r["location_line"])
+                if sites:
+                    first_file = str(sites[0]["path"])
+                    first_start = sites[0]["start_line"]
+                    first_line = str(first_start) if first_start is not None else None
+                else:
+                    first_file = r["location_file"]
+                    first_line = r["location_line"]
+                cwe = (r["cwe"] or "").strip().lower()
+                parts = [SAST_SKILL_ID, cwe, _normalize_sast_path(first_file)]
+                if r["code_region_hash"]:
+                    parts.append(r["code_region_hash"])
+                new_fp = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+                row_dict = dict(r)
+                row_dict["_first_file"] = first_file
+                row_dict["_first_line"] = first_line
+                row_dict["_sites"] = sites
+                row_dict["_new_fp"] = new_fp
+                groups.setdefault((r["project_id"], new_fp), []).append(row_dict)
+
+            for (project_id, new_fp), candidates in groups.items():
+                existing = self._conn.execute(
+                    "SELECT id, review_status, review_note, reviewed_by, reviewed_at "
+                    "FROM sast_findings WHERE project_id = ? AND fingerprint = ? AND locations IS NOT NULL",
+                    (project_id, new_fp),
+                ).fetchone()
+
+                if existing:
+                    primary_id = existing["id"]
+                    if not existing["review_status"]:
+                        for c in candidates:
+                            if c["review_status"]:
+                                self._conn.execute(
+                                    "UPDATE sast_findings SET review_status = ?, review_note = ?, "
+                                    "reviewed_by = ?, reviewed_at = ? WHERE id = ?",
+                                    (
+                                        c["review_status"], c["review_note"],
+                                        c["reviewed_by"], c["reviewed_at"], primary_id,
+                                    ),
+                                )
+                                break
+                    for c in candidates:
+                        merged_note = c["review_note"] or ""
+                        sep = "; " if merged_note else ""
+                        merged_note += f"{sep}Merged into finding #{primary_id} during location migration"
+                        self._conn.execute(
+                            "UPDATE sast_findings SET location_file = ?, location_line = ?, locations = ?, "
+                            "fingerprint = ?, status = 'closed', closed_at = coalesce(closed_at, ?), "
+                            "review_note = ? WHERE id = ?",
+                            (
+                                c["_first_file"], c["_first_line"], json.dumps(c["_sites"]),
+                                f"{new_fp}:merged:{c['id']}", now, merged_note, c["id"],
+                            ),
+                        )
+                else:
+                    def _sast_rank(c: dict):
+                        has_review = 1 if c.get("review_status") else 0
+                        is_open = 1 if c.get("status") == "open" else 0
+                        first_seen = c.get("first_seen_at") or ""
+                        cid = c.get("id") or 0
+                        return (-has_review, -is_open, first_seen, cid)
+
+                    candidates.sort(key=_sast_rank)
+                    primary = candidates[0]
+                    if not primary["review_status"]:
+                        for other in candidates[1:]:
+                            if other["review_status"]:
+                                primary["review_status"] = other["review_status"]
+                                primary["review_note"] = other["review_note"]
+                                primary["reviewed_by"] = other["reviewed_by"]
+                                primary["reviewed_at"] = other["reviewed_at"]
+                                break
+
+                    for sec in candidates[1:]:
+                        merged_note = sec["review_note"] or ""
+                        sep = "; " if merged_note else ""
+                        merged_note += f"{sep}Merged into finding #{primary['id']} during location migration"
+                        self._conn.execute(
+                            "UPDATE sast_findings SET location_file = ?, location_line = ?, locations = ?, "
+                            "fingerprint = ?, status = 'closed', closed_at = coalesce(closed_at, ?), "
+                            "review_note = ? WHERE id = ?",
+                            (
+                                sec["_first_file"], sec["_first_line"], json.dumps(sec["_sites"]),
+                                f"{new_fp}:merged:{sec['id']}", now, merged_note, sec["id"],
+                            ),
+                        )
+
+                    self._conn.execute(
+                        "UPDATE sast_findings SET location_file = ?, location_line = ?, locations = ?, "
+                        "fingerprint = ?, review_status = ?, review_note = ?, reviewed_by = ?, reviewed_at = ? "
+                        "WHERE id = ?",
+                        (
+                            primary["_first_file"], primary["_first_line"], json.dumps(primary["_sites"]),
+                            new_fp, primary["review_status"], primary["review_note"],
+                            primary["reviewed_by"], primary["reviewed_at"], primary["id"],
+                        ),
+                    )
+
+        # 2. Secret findings
+        secret_rows = self._conn.execute(
+            "SELECT id, project_id, secret_type, location_file, location_line, code_region_hash, "
+            "status, first_seen_at, closed_at "
+            "FROM secret_findings WHERE locations IS NULL"
+        ).fetchall()
+        if secret_rows:
+            groups = {}
+            for r in secret_rows:
+                sites = locations_from_raw(r["location_file"], r["location_line"])
+                if sites:
+                    first_file = str(sites[0]["path"])
+                    first_start = sites[0]["start_line"]
+                    first_line = str(first_start) if first_start is not None else None
+                else:
+                    first_file = r["location_file"]
+                    first_line = r["location_line"]
+                sec_type = _normalize_secret_type(r["secret_type"] or "")
+                parts = [SECRET_SKILL_ID, sec_type, _normalize_sast_path(first_file)]
+                if r["code_region_hash"]:
+                    parts.append(r["code_region_hash"])
+                new_fp = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+                row_dict = dict(r)
+                row_dict["_first_file"] = first_file
+                row_dict["_first_line"] = first_line
+                row_dict["_sites"] = sites
+                row_dict["_new_fp"] = new_fp
+                groups.setdefault((r["project_id"], new_fp), []).append(row_dict)
+
+            for (project_id, new_fp), candidates in groups.items():
+                existing = self._conn.execute(
+                    "SELECT id FROM secret_findings WHERE project_id = ? AND fingerprint = ? AND locations IS NOT NULL",
+                    (project_id, new_fp),
+                ).fetchone()
+
+                if existing:
+                    primary_id = existing["id"]
+                    for c in candidates:
+                        self._conn.execute(
+                            "UPDATE secret_findings SET location_file = ?, location_line = ?, locations = ?, "
+                            "fingerprint = ?, status = 'closed', closed_at = coalesce(closed_at, ?) WHERE id = ?",
+                            (
+                                c["_first_file"], c["_first_line"], json.dumps(c["_sites"]),
+                                f"{new_fp}:merged:{c['id']}", now, c["id"],
+                            ),
+                        )
+                else:
+                    def _secret_rank(c: dict):
+                        is_open = 1 if c.get("status") == "open" else 0
+                        first_seen = c.get("first_seen_at") or ""
+                        cid = c.get("id") or 0
+                        return (-is_open, first_seen, cid)
+
+                    candidates.sort(key=_secret_rank)
+                    primary = candidates[0]
+                    for sec in candidates[1:]:
+                        self._conn.execute(
+                            "UPDATE secret_findings SET location_file = ?, location_line = ?, locations = ?, "
+                            "fingerprint = ?, status = 'closed', closed_at = coalesce(closed_at, ?) WHERE id = ?",
+                            (
+                                sec["_first_file"], sec["_first_line"], json.dumps(sec["_sites"]),
+                                f"{new_fp}:merged:{sec['id']}", now, sec["id"],
+                            ),
+                        )
+
+                    self._conn.execute(
+                        "UPDATE secret_findings SET location_file = ?, location_line = ?, locations = ?, "
+                        "fingerprint = ? WHERE id = ?",
+                        (
+                            primary["_first_file"], primary["_first_line"], json.dumps(primary["_sites"]),
+                            new_fp, primary["id"],
+                        ),
+                    )
+
+        self._conn.commit()
 
     def _migrate_attachment_kind_check(self) -> None:
         """Widens assessment_attachments.attachment_kind's CHECK constraint
@@ -217,7 +459,7 @@ class RunRepository:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "RunRepository":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -1310,6 +1552,7 @@ class RunRepository:
     def _row_to_sast_finding(self, row: sqlite3.Row) -> SastFindingRecord:
         data = dict(row)
         project_display_name = data.pop("display_name", None)
+        data["locations"] = _decode_locations(data.get("locations"))
         return SastFindingRecord(project_display_name=project_display_name, **data)
 
     def upsert_sast_finding(
@@ -1328,6 +1571,7 @@ class RunRepository:
         cvss_vector: str | None,
         cvss_score: float | None,
         run_id: int,
+        locations: list[dict] | None = None,
         description: str | None = None,
         recommendation: str | None = None,
         code_region_hash: str | None = None,
@@ -1343,17 +1587,20 @@ class RunRepository:
         first-seen date rather than looking like a brand-new finding.
         """
         now = _now()
+        resolved_locations = locations if locations is not None else locations_from_raw(location_file, location_line)
+        locations_json = json.dumps(resolved_locations)
         self._conn.execute(
             "INSERT INTO sast_findings (project_id, fingerprint, current_ref, title, severity, cwe, "
-            "owasp, verdict, location_file, location_line, code_region_hash, language, framework, construct, "
+            "owasp, verdict, location_file, location_line, locations, code_region_hash, language, framework, construct, "
             "cvss_vector, cvss_score, "
             "description, recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, "
             "last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
             "ON CONFLICT(project_id, fingerprint) DO UPDATE SET "
             "current_ref = excluded.current_ref, title = excluded.title, severity = excluded.severity, "
             "cwe = excluded.cwe, owasp = excluded.owasp, verdict = excluded.verdict, "
             "location_file = excluded.location_file, location_line = excluded.location_line, "
+            "locations = excluded.locations, "
             "code_region_hash = excluded.code_region_hash, "
             "language = excluded.language, framework = excluded.framework, construct = excluded.construct, "
             "cvss_vector = excluded.cvss_vector, cvss_score = excluded.cvss_score, "
@@ -1362,7 +1609,7 @@ class RunRepository:
             "closed_in_run_id = NULL, closed_at = NULL",
             (
                 project_id, fingerprint, current_ref, title, severity, cwe, owasp, verdict,
-                location_file, location_line, code_region_hash, language, framework, construct,
+                location_file, location_line, locations_json, code_region_hash, language, framework, construct,
                 cvss_vector, cvss_score, description, recommendation, run_id, now, run_id, now,
             ),
         )
@@ -1518,6 +1765,7 @@ class RunRepository:
         location_file: str,
         severity: str,
         location_line: str | None = None,
+        locations: list[dict] | None = None,
         code_region_hash: str | None = None,
         source: str | None = None,
         validity: str | None = None,
@@ -1528,6 +1776,7 @@ class RunRepository:
         framework: str | None = None,
         construct: str | None = None,
     ) -> None:
+        resolved_locations = locations if locations is not None else locations_from_raw(location_file, location_line)
         self._upsert_finding(
             "secret_findings",
             project_id=project_id,
@@ -1535,7 +1784,8 @@ class RunRepository:
             run_id=run_id,
             fields={
                 "current_ref": current_ref, "secret_type": secret_type, "location_file": location_file,
-                "location_line": location_line, "code_region_hash": code_region_hash, "source": source,
+                "location_line": location_line, "locations": json.dumps(resolved_locations),
+                "code_region_hash": code_region_hash, "source": source,
                 "validity": validity, "severity": severity, "evidence": evidence, "exposure": exposure,
                 "remediation": remediation, "language": language, "framework": framework,
                 "construct": construct,
@@ -1576,6 +1826,8 @@ class RunRepository:
     def _row_to_finding(record_cls, row: sqlite3.Row):
         data = dict(row)
         project_display_name = data.pop("display_name", None)
+        if "locations" in data:
+            data["locations"] = _decode_locations(data["locations"])
         return record_cls(project_display_name=project_display_name, **data)
 
     def list_structured_findings(
@@ -1595,7 +1847,10 @@ class RunRepository:
             if skill_ids and skill_id not in skill_ids:
                 continue
             for row in self._list_findings(table, project_id=project_id, status=status, limit=limit):
-                result.append((skill_id, dict(row)))
+                data = dict(row)
+                if "locations" in data:
+                    data["locations"] = _decode_locations(data["locations"])
+                result.append((skill_id, data))
         return result
 
     def review_sast_finding(
@@ -1655,10 +1910,10 @@ class RunRepository:
         if search:
             query += (
                 " AND (sast_findings.title LIKE ? OR sast_findings.cwe LIKE ? "
-                "OR sast_findings.location_file LIKE ?)"
+                "OR sast_findings.location_file LIKE ? OR sast_findings.locations LIKE ?)"
             )
             like = f"%{search}%"
-            params.extend([like, like, like])
+            params.extend([like, like, like, like])
         query += " ORDER BY sast_findings.cvss_score DESC, sast_findings.last_seen_at DESC LIMIT ?"
         params.append(limit)
         rows = self._conn.execute(query, params).fetchall()

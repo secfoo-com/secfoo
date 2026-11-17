@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -174,6 +174,7 @@ class SastFindingRecord:
     reviewed_by: str | None = None
     reviewed_at: str | None = None
     project_display_name: str | None = None
+    locations: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -232,6 +233,7 @@ class SecretFindingRecord:
     closed_in_run_id: int | None
     closed_at: str | None
     project_display_name: str | None = None
+    locations: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

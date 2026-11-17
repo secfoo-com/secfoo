@@ -13,6 +13,7 @@ import hashlib
 from collections import Counter
 from dataclasses import dataclass, field
 
+from secfoo.report.sast import locations_to_dicts, parse_locations
 from secfoo.report.secret_scanning import SKILL_ID, findings_with_narrative
 from secfoo.storage.repository import RunRepository
 from secfoo.web.dashboard_common import read_report
@@ -24,10 +25,7 @@ _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 def _strip_inline_code(value: str) -> str:
     """Remove Markdown backticks from a table cell value."""
-    value = value.strip()
-    if len(value) >= 2 and value[0] == "`" and value[-1] == "`":
-        return value[1:-1]
-    return value
+    return value.strip().replace("`", "")
 
 
 def _key(project_id: int, finding_id: str, secret_type: str, location: str) -> str:
@@ -50,6 +48,7 @@ class SecretFinding:
     evidence: str = ""
     exposure: str = ""
     remediation: str = ""
+    locations: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -75,6 +74,7 @@ def build(repo: RunRepository) -> SecretScanningDashboard:
             continue
         for row in findings_with_narrative(text):
             location = _strip_inline_code(row["location"])
+            locations = locations_to_dicts(parse_locations(row["location"]))
             finding = SecretFinding(
                 key=_key(project["project_id"], row["id"], row["secret_type"], location),
                 finding_id=row["id"],
@@ -88,6 +88,7 @@ def build(repo: RunRepository) -> SecretScanningDashboard:
                 evidence=row["evidence"],
                 exposure=row["exposure"],
                 remediation=row["remediation"],
+                locations=locations,
             )
             findings.append(finding)
 

@@ -64,9 +64,18 @@ _RECOMMENDATION_FIELD_RE = re.compile(r"\*\*Recommendation:\*\*\s*([^\n]+)")
 # contract field.
 _CONSTRUCT_FIELD_RE = re.compile(r"\*\*Construct:\*\*\s*([^\n]+)")
 
-# "`app/db.py:42`" -> ("app/db.py", "42"); the line group is optional since
-# a location without one ("`app/db.py`") should still parse.
-_LOCATION_RE = re.compile(r"`?(?P<file>[^:`]+?)(?::(?P<line>\d+))?`?\s*$")
+# Bare line or range token without a file path (e.g. "61" or "61-65" in
+# "`artifacts/db-reset.js:18,27,35`"), which inherits the previous site's path.
+_BARE_SPAN_RE = re.compile(
+    r"^(?:[Ll](?:ine)?s?\s*)?(?P<start>[0-9]+)(?:\s*(?:[-–—]|\.\.\.?)\s*(?:[Ll](?:ine)?s?\s*)?(?P<end>[0-9]+))?$"
+)
+
+# Trailing `:line` or `:start-end` suffix on a path (including bare `:61`
+# where the prefix before `:` is empty, and chained `:line:col` suffixes).
+_TRAILING_SPAN_RE = re.compile(
+    r":\s*(?:[Ll](?:ine)?s?\s*)?(?P<neg>[-–—])?\s*(?P<start>\d+)"
+    r"(?:\s*(?:[-–—]|\.\.\.?)\s*(?:[Ll](?:ine)?s?\s*)?(?P<end>\d*)(?:\s*[-–—]\s*\d+)*)?\s*$"
+)
 
 
 def extract_findings_register_rows(report_markdown: str) -> list[dict[str, str]]:
@@ -127,20 +136,148 @@ def extract_construct_by_id(report_markdown: str) -> dict[str, str]:
     return result
 
 
-def parse_location(location: str) -> tuple[str, str | None]:
-    """"`app/db.py:42`" -> ("app/db.py", "42"); a location with no line
-    number, or text that doesn't cleanly split into a single file:line
-    (e.g. a finding spanning several call sites, like
-    "`app.py:35`, `cli.py:308`"), degrades to (location_stripped, None)
-    rather than raising or silently dropping part of it -- backticks are
-    stripped either way since they're Markdown code-span syntax, never
-    part of a real path.
+def _parse_line_span(
+    start_text: str | None,
+    end_text: str | None = None,
+    *,
+    negative: bool = False,
+) -> tuple[int | None, int | None]:
+    """Normalize parsed start/end strings into 1-based `(start_line, end_line)`."""
+    if negative or not start_text or not (start_text.isascii() and start_text.isdigit()):
+        return None, None
+    start = int(start_text)
+    if start < 1:
+        return None, None
+    end: int | None = None
+    if end_text and end_text.isascii() and end_text.isdigit():
+        parsed_end = int(end_text)
+        if parsed_end >= 1 and parsed_end != start:
+            if parsed_end < start:
+                start, end = parsed_end, start
+            else:
+                end = parsed_end
+    return start, end
+
+
+def parse_locations(location: str) -> list[tuple[str, int | None, int | None]]:
+    """Parse a Markdown Location cell into `(path, start_line, end_line)` sites.
+
+    Handles `path:line`, `path:start-end`, `path:line,line`, backticked spans,
+    comma/semicolon-separated multi-file lists, bare `:61` continuations that
+    inherit the previous path, and trailing ellipsis markers (`...` / `…`).
     """
-    stripped = location.strip()
-    match = _LOCATION_RE.match(stripped)
-    if not match:
-        return stripped.replace("`", ""), None
-    return match.group("file").strip(), match.group("line")
+    cleaned = location.replace("`", "")
+    sites: list[tuple[str, int | None, int | None]] = []
+    prev_path: str | None = None
+
+    for raw_token in re.split(r"[,;]", cleaned):
+        token = raw_token.strip()
+        if not token or token in {"...", "…"}:
+            continue
+
+        if prev_path is not None:
+            bare_match = _BARE_SPAN_RE.fullmatch(token)
+            if bare_match:
+                start, end = _parse_line_span(bare_match.group("start"), bare_match.group("end"))
+                if start is not None:
+                    sites.append((prev_path, start, end))
+                    continue
+
+        path_part = token
+        peeled: list[tuple[str | None, str, str | None]] = []
+        while True:
+            trimmed = path_part.rstrip()
+            if trimmed.endswith(":"):
+                path_part = trimmed.rstrip(":").rstrip()
+                continue
+            span_match = _TRAILING_SPAN_RE.search(path_part)
+            if not span_match:
+                break
+            peeled.append((span_match.group("neg"), span_match.group("start"), span_match.group("end")))
+            path_part = path_part[: span_match.start()].rstrip()
+
+        start_line: int | None = None
+        end_line: int | None = None
+        if peeled:
+            neg, start_raw, end_raw = peeled[-1]
+            start_line, end_line = _parse_line_span(start_raw, end_raw, negative=bool(neg))
+
+        path_part = path_part.strip()
+        if not path_part:
+            if prev_path is not None and start_line is not None:
+                sites.append((prev_path, start_line, end_line))
+            continue
+
+        if path_part in {"...", "…"}:
+            continue
+
+        prev_path = path_part
+        sites.append((path_part, start_line, end_line))
+
+    return sites
+
+
+def locations_to_dicts(
+    sites: list[tuple[str, int | None, int | None]],
+) -> list[dict[str, str | int | None]]:
+    """Serialize `(path, start_line, end_line)` tuples for JSON storage/export."""
+    return [
+        {"path": path, "start_line": start_line, "end_line": end_line}
+        for path, start_line, end_line in sites
+    ]
+
+
+def locations_from_raw(
+    location_file: str | None,
+    location_line: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    """Derive structured `locations` dicts from stored `(location_file, location_line)`."""
+    if not location_file or not location_file.strip():
+        return []
+    sites = parse_locations(location_file)
+    if not sites:
+        return []
+    if location_line is not None and len(sites) == 1 and sites[0][1] is None:
+        line_token = location_line.strip().lstrip(":").strip()
+        span_match = _BARE_SPAN_RE.fullmatch(line_token)
+        if span_match:
+            start, end = _parse_line_span(span_match.group("start"), span_match.group("end"))
+            if start is not None:
+                sites = [(sites[0][0], start, end)]
+    return locations_to_dicts(sites)
+
+
+def format_location_site(site: dict[str, object] | tuple[str, int | None, int | None]) -> str:
+    """Render one location site as `path`, `path:line`, or `path:start-end`."""
+    if isinstance(site, tuple):
+        path, start, end = site
+    else:
+        path = str(site.get("path") or "")
+        start = site.get("start_line")  # type: ignore[assignment]
+        end = site.get("end_line")  # type: ignore[assignment]
+    if not path:
+        return ""
+    if isinstance(start, int) and not isinstance(start, bool) and start > 0:
+        if isinstance(end, int) and not isinstance(end, bool) and end > start:
+            return f"{path}:{start}-{end}"
+        return f"{path}:{start}"
+    return path
+
+
+def parse_location(location: str) -> tuple[str, str | None]:
+    """Return `(first_path, first_start_line)` from a Markdown Location cell.
+
+    Multi-site cells (`server.js:135-137, app/views/layout.html:75`) and line
+    ranges (`config/env/all.js:8-9`) resolve to their primary site (`("server.js",
+    "135")`, `("config/env/all.js", "8")`) so fingerprinting and `hash_code_region`
+    operate on a real file path and integer start line; callers that need every
+    site use `parse_locations`.
+    """
+    sites = parse_locations(location)
+    if not sites:
+        return "", None
+    first_path, first_start, _first_end = sites[0]
+    return first_path, (str(first_start) if first_start is not None else None)
 
 
 def _normalize_path(file_path: str) -> str:
@@ -174,7 +311,7 @@ def findings_with_fingerprints(
     report_markdown: str,
     *,
     workdir: Path | None = None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, object]]:
     """One dict per Findings Register row, joined with its Detailed
     Findings block (description/recommendation) and its fingerprint --
     computed with the per-run collision guard: only rows that share both
@@ -192,16 +329,24 @@ def findings_with_fingerprints(
     # Group indices by (cwe, file) to detect same-run collisions before
     # computing any fingerprint.
     groups: dict[tuple[str, str], list[int]] = {}
+    parsed_sites_per_row: list[list[tuple[str, int | None, int | None]]] = []
     parsed_locations: list[tuple[str, str | None]] = []
     for row in rows:
-        file_path, line = parse_location(row["location"])
+        sites = parse_locations(row["location"])
+        parsed_sites_per_row.append(sites)
+        if sites:
+            file_path = sites[0][0]
+            line = str(sites[0][1]) if sites[0][1] is not None else None
+        else:
+            file_path, line = "", None
         parsed_locations.append((file_path, line))
         key = (row.get("cwe", "").strip().lower(), _normalize_path(file_path))
         groups.setdefault(key, []).append(len(parsed_locations) - 1)
 
-    results = []
+    results: list[dict[str, object]] = []
     for index, row in enumerate(rows):
         file_path, line = parsed_locations[index]
+        sites = parsed_sites_per_row[index]
         key = (row.get("cwe", "").strip().lower(), _normalize_path(file_path))
         region_hash = None
         if workdir is not None and line is not None:
@@ -218,6 +363,7 @@ def findings_with_fingerprints(
                 **row,
                 "location_file": file_path,
                 "location_line": line,
+                "locations": locations_to_dicts(sites),
                 "code_region_hash": region_hash,
                 "fingerprint": fingerprint,
                 "legacy_fingerprint": legacy_fingerprint,

@@ -13,7 +13,7 @@
 </div>
 <p class="ds-body u-color-text-muted">
   {{ finding.cwe or "unverified" }}{% if finding.owasp and finding.owasp != "unverified" %} &middot; {{ finding.owasp }}{% endif %}
-  &middot; <code>{{ finding.location_file }}{% if finding.location_line %}:{{ finding.location_line }}{% endif %}</code>
+  &middot; {% if finding.locations %}{% for loc in finding.locations %}<code>{{ loc | fmt_location }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<code>{{ finding.location_file }}{% if finding.location_line %}:{{ finding.location_line }}{% endif %}</code>{% endif %}
 </p>
 
 <div class="u-d-grid u-cols-2fr-1fr u-gap-6 u-mt-6">

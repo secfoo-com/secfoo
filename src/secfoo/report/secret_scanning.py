@@ -14,7 +14,7 @@ from pathlib import Path
 
 from secfoo.report.architecture import _extract_section
 from secfoo.report.code_region import hash_code_region
-from secfoo.report.sast import _normalize_path, parse_location
+from secfoo.report.sast import _normalize_path, locations_to_dicts, parse_locations
 
 SKILL_ID = "secret-scanning"
 
@@ -161,20 +161,24 @@ def fingerprint_for_row(
 
 def findings_with_fingerprints(
     report_markdown: str, *, workdir: Path | None = None
-) -> list[dict[str, str | None]]:
-    """findings_with_narrative() plus parsed location, re-redacted
+) -> list[dict[str, object]]:
+    """findings_with_narrative() plus parsed locations, re-redacted
     evidence, construct, and a fingerprint -- what
     runner.update_secret_findings persists."""
     constructs = extract_construct_by_id(report_markdown)
     rows = findings_with_narrative(report_markdown)
-    parsed = [parse_location(row["location"]) for row in rows]
+    parsed_sites = [parse_locations(row["location"]) for row in rows]
+    parsed = [
+        (sites[0][0], str(sites[0][1]) if sites[0][1] is not None else None) if sites else ("", None)
+        for sites in parsed_sites
+    ]
     groups: dict[tuple[str, str], int] = {}
     for row, (file_path, _line) in zip(rows, parsed):
         key = (_normalize_secret_type(row["secret_type"]), _normalize_path(file_path))
         groups[key] = groups.get(key, 0) + 1
 
-    results = []
-    for row, (file_path, line) in zip(rows, parsed):
+    results: list[dict[str, object]] = []
+    for row, sites, (file_path, line) in zip(rows, parsed_sites, parsed):
         key = (_normalize_secret_type(row["secret_type"]), _normalize_path(file_path))
         region_hash = None
         if workdir is not None and line is not None and row.get("source", "").lower() != "history":
@@ -188,6 +192,7 @@ def findings_with_fingerprints(
                 "evidence": redact_evidence(row.get("evidence")),
                 "location_file": file_path,
                 "location_line": line,
+                "locations": locations_to_dicts(sites),
                 "code_region_hash": region_hash,
                 "construct": constructs.get(row["id"], ""),
                 "fingerprint": fingerprint_for_row(

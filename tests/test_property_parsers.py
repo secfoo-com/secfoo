@@ -9,9 +9,12 @@ put in.
 
 from __future__ import annotations
 
+import re
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from secfoo.report.sast import parse_location, parse_locations
 from secfoo.report.severity import (
     SeverityCounts,
     count_severities,
@@ -138,3 +141,91 @@ def test_normalize_severity_is_total_and_idempotent(value):
 @given(st.sampled_from(sorted(_VALID_SEVERITIES) + ["informational"]), st.text(alphabet=" \t", max_size=4))
 def test_normalize_severity_ignores_case_and_padding(word, pad):
     assert normalize_severity(pad + word.upper() + pad) == normalize_severity(word)
+
+
+# --------------------------------------------------------------------------- #
+# report/sast.py location parser
+# --------------------------------------------------------------------------- #
+
+_TRAILING_RANGE_RE = re.compile(r":\s*(?:[Ll](?:ine)?s?\s*)?[-–—]?\s*\d+(?:\s*[-–—]\s*\d*)?\s*$")
+
+clean_segment = st.from_regex(r"[A-Za-z0-9_.\-]{1,12}", fullmatch=True).filter(
+    lambda seg: seg not in {"...", "."} and not seg.isdigit()
+)
+clean_path = st.lists(clean_segment, min_size=1, max_size=4).map("/".join)
+line_num = st.integers(min_value=1, max_value=9999)
+
+
+@st.composite
+def location_site_strategy(draw):
+    path = draw(clean_path)
+    kind = draw(st.sampled_from(["none", "single", "range"]))
+    if kind == "none":
+        return (path, None, None)
+    start = draw(line_num)
+    if kind == "single":
+        return (path, start, None)
+    end = draw(st.integers(min_value=start + 1, max_value=start + 500))
+    return (path, start, end)
+
+
+@given(st.text())
+@settings(max_examples=500)
+def test_parse_location_never_returns_delimiters_backticks_or_trailing_range(text):
+    path, line = parse_location(text)
+    assert "," not in path
+    assert ";" not in path
+    assert "`" not in path
+    assert not _TRAILING_RANGE_RE.search(path)
+    if line is not None:
+        assert line.isascii() and line.isdigit() and int(line) >= 1
+
+    for site_path, start_line, end_line in parse_locations(text):
+        assert site_path
+        assert "," not in site_path
+        assert ";" not in site_path
+        assert "`" not in site_path
+        assert not _TRAILING_RANGE_RE.search(site_path)
+        if start_line is None:
+            assert end_line is None
+        else:
+            assert start_line >= 1
+            if end_line is not None:
+                assert end_line > start_line
+
+
+@given(
+    sites=st.lists(location_site_strategy(), min_size=1, max_size=6),
+    separators=st.lists(st.sampled_from([", ", "; ", ",", ";"]), min_size=5, max_size=5),
+    backtick_each=st.booleans(),
+    use_bare_continuation=st.booleans(),
+)
+def test_parse_locations_round_trips_structured_sites(
+    sites, separators, backtick_each, use_bare_continuation
+):
+    tokens = []
+    expected = []
+    prev_path = None
+    for idx, (path, start, end) in enumerate(sites):
+        if use_bare_continuation and prev_path is not None and start is not None and idx % 2 == 1:
+            actual_path = prev_path
+            rendered = f":{start}-{end}" if end is not None else f":{start}"
+        else:
+            actual_path = path
+            if start is None:
+                rendered = path
+            elif end is None:
+                rendered = f"{path}:{start}"
+            else:
+                rendered = f"{path}:{start}-{end}"
+        prev_path = actual_path
+        expected.append((actual_path, start, end))
+        tokens.append(f"`{rendered}`" if backtick_each else rendered)
+
+    joined = tokens[0]
+    for idx, token in enumerate(tokens[1:]):
+        joined += separators[idx] + token
+
+    assert parse_locations(joined) == expected
+    first_path, first_start, _ = expected[0]
+    assert parse_location(joined) == (first_path, str(first_start) if first_start is not None else None)

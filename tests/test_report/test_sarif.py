@@ -95,3 +95,91 @@ def test_cwe_tags_are_normalized_deduplicated_and_unknown_values_ignored():
     rules = run["tool"]["driver"]["rules"]
     assert rules[0]["properties"]["tags"] == ["security", "external/cwe/cwe-79", "external/cwe/cwe-89"]
     assert rules[1]["properties"]["tags"] == ["security"]
+
+
+def test_multi_site_and_range_locations_emit_per_site_sarif_regions():
+    records = [
+        {
+            "skill_id": "sast",
+            "severity": "High",
+            "cwe": "CWE-79",
+            "title": "Autoescape disabled",
+            "location_file": "server.js",
+            "location_line": "135",
+            "locations": [
+                {"path": "server.js", "start_line": 135, "end_line": 137},
+                {"path": "app/views/layout.html", "start_line": 75, "end_line": None},
+            ],
+        },
+        {
+            "skill_id": "secret-scanning",
+            "severity": "Medium",
+            "secret_type": "Seeded passwords",
+            "location_file": "artifacts/db-reset.js",
+            "location_line": "18",
+            "locations": [
+                {"path": "artifacts/db-reset.js", "start_line": 18, "end_line": None},
+                {"path": "test/e2e/fixtures/users/*.json", "start_line": None, "end_line": None},
+            ],
+        },
+    ]
+    run = validate_sarif(findings_to_sarif(records))
+    assert run["results"][0]["locations"] == [
+        {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "server.js"},
+                "region": {"startLine": 135, "endLine": 137},
+            }
+        },
+        {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "app/views/layout.html"},
+                "region": {"startLine": 75},
+            }
+        },
+    ]
+    assert run["results"][1]["locations"] == [
+        {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "artifacts/db-reset.js"},
+                "region": {"startLine": 18},
+            }
+        },
+        {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "test/e2e/fixtures/users/%2A.json"},
+            }
+        },
+    ]
+
+
+def test_nodegoat_sample_sarif_validates_and_every_result_has_a_real_uri():
+    sample_dir = Path(__file__).parents[2] / "examples" / "sample-output" / "nodegoat"
+    sarif_doc = json.loads((sample_dir / "findings.sarif").read_text(encoding="utf-8"))
+    run = validate_sarif(sarif_doc)
+    assert len(run["results"]) == 18
+
+    for result in run["results"]:
+        assert result.get("locations"), f"missing locations on {result['ruleId']}"
+        for loc in result["locations"]:
+            physical = loc["physicalLocation"]
+            uri = physical["artifactLocation"]["uri"]
+            assert uri
+            assert "%3A" not in uri
+            assert "%2C" not in uri
+            assert "%3B" not in uri
+            assert "`" not in uri
+            assert "," not in uri
+            assert ";" not in uri
+
+    jsonl_records = [
+        json.loads(line)
+        for line in (sample_dir / "findings.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(jsonl_records) == 18
+    for record in jsonl_records:
+        assert record["locations"], f"missing locations in JSONL record {record['current_ref']}"
+        assert all(ch not in record["location_file"] for ch in (",", ";", "`", ":"))
+    rebuilt_run = validate_sarif(findings_to_sarif(jsonl_records))
+    assert [r["locations"] for r in rebuilt_run["results"]] == [r["locations"] for r in run["results"]]

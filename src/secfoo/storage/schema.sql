@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS sast_findings (
     verdict           TEXT,
     location_file     TEXT NOT NULL,
     location_line     TEXT,
+    locations         TEXT,            -- JSON list of {path, start_line, end_line} sites
     code_region_hash  TEXT,
     -- Stack + code-free construct description (see stack.py and the
     -- `**Construct:**` contract field): the fields that make a finding
@@ -287,6 +288,7 @@ CREATE TABLE IF NOT EXISTS secret_findings (
     secret_type       TEXT NOT NULL,
     location_file     TEXT NOT NULL,
     location_line     TEXT,
+    locations         TEXT,            -- JSON list of {path, start_line, end_line} sites
     code_region_hash  TEXT,
     source            TEXT,            -- code / config / history / docs
     validity          TEXT,            -- Looks live / Unclear / Placeholder
