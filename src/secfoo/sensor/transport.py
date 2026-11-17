@@ -148,6 +148,12 @@ class SocketTransport(_StreamTransport):
         finally:
             if self._conn is not None:
                 self._conn.settimeout(SOCKET_TIMEOUT_SECONDS)
+        if not data:
+            # Peer closed the connection (EOF). Close our end so the next
+            # send() drops and tries to reconnect instead of writing into a
+            # half-closed socket until the OS eventually signals EPIPE.
+            self.close()
+            return
         for raw in data.splitlines():
             try:
                 message = json.loads(raw)
