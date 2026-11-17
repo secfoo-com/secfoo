@@ -115,7 +115,7 @@
     <thead><tr><th>File</th><th>Kind</th><th>Uploaded</th></tr></thead>
     <tbody>
       {% for att in attachments %}
-      <tr><td>{{ att.original_name }}</td><td>{{ att.attachment_kind }}</td><td>{{ att.uploaded_at | fmt_time }}</td></tr>
+      <tr><td><a href="/assessments/{{ assessment.id }}/attachments/{{ att.id }}/download">{{ att.original_name }}</a></td><td>{{ att.attachment_kind }}</td><td>{{ att.uploaded_at | fmt_time }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

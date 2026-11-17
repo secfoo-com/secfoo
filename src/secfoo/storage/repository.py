@@ -894,6 +894,13 @@ class RunRepository:
         ).fetchall()
         return [AttachmentRecord(**dict(row)) for row in rows]
 
+    def get_attachment(self, attachment_id: int) -> AttachmentRecord | None:
+        row = self._conn.execute(
+            "SELECT * FROM assessment_attachments WHERE id = ?",
+            (attachment_id,),
+        ).fetchone()
+        return AttachmentRecord(**dict(row)) if row is not None else None
+
     def add_ai_bom_items(self, attachment_id: int, items: list[dict[str, str | None]]) -> None:
         if not items:
             return

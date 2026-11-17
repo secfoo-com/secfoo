@@ -9,6 +9,7 @@ plaintext is shown once and never logged.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -81,17 +82,21 @@ def revoke_key(conn: sqlite3.Connection, key_id: int) -> bool:
 
 
 def verify_key(conn: sqlite3.Connection, key: str) -> ApiKey | None:
-    """The active key record for `key`, or None (unknown or revoked)."""
+    """The active key record for `key`, or None (unknown or revoked). Constant-time check (#118)."""
     if not key or not key.startswith(KEY_PREFIX):
         return None
-    row = conn.execute(
-        f"SELECT {_COLUMNS} FROM runtime_api_keys WHERE key_hash = ?", (hash_key(key),)  # nosec B608
-    ).fetchone()
-    if row is None:
+    candidate_hash = hash_key(key)
+    rows = conn.execute(
+        f"SELECT {_COLUMNS}, key_hash FROM runtime_api_keys WHERE key_prefix = ? AND revoked_at IS NULL",  # nosec B608
+        (key[:10],),
+    ).fetchall()
+    matched = None
+    for row in rows:
+        stored_hash = row[-1]
+        if hmac.compare_digest(stored_hash, candidate_hash):
+            matched = _row(row[:-1])
+    if matched is None:
         return None
-    record = _row(row)
-    if not record.active:
-        return None
-    conn.execute("UPDATE runtime_api_keys SET last_used_at = ? WHERE id = ?", (_now(), record.id))
+    conn.execute("UPDATE runtime_api_keys SET last_used_at = ? WHERE id = ?", (_now(), matched.id))
     conn.commit()
-    return record
+    return matched

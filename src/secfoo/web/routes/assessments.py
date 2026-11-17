@@ -8,7 +8,7 @@ from typing import Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from secfoo import docext
 from secfoo.agents.registry import ADAPTERS, get_adapter
@@ -28,6 +28,9 @@ from secfoo.web.third_party_dashboard import SKILL_ID as THIRD_PARTY_RISK_SKILL_
 router = APIRouter()
 
 _ACTIVE_RUN_STATUSES = {"pending", "running"}
+ALLOWED_ATTACHMENT_EXTENSIONS = frozenset(
+    {".pdf", ".docx", ".pptx", ".md", ".html", ".htm", ".txt", ".json", ".yaml", ".yml", ".csv"}
+)
 
 
 def _extracted_text_path(file_path: Path) -> Path:
@@ -399,19 +402,41 @@ def assessment_upload(assessment_id: int, file: UploadFile):
         filename = Path(file.filename or "upload").name
         if not filename or filename in (".", ".."):
             raise HTTPException(status_code=400, detail="Invalid filename")
+
+        ext = Path(filename).suffix.lower()
+        if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type '{ext}'. Allowed types: {', '.join(sorted(ALLOWED_ATTACHMENT_EXTENSIONS))}",
+            )
+
         kind = infer_attachment_kind(filename)
         dest_dir = attachment_dir(assessment_id)
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / filename
         if dest.resolve().parent != dest_dir.resolve():
             raise HTTPException(status_code=400, detail="Invalid filename")
-        with dest.open("wb") as fh:
-            shutil.copyfileobj(file.file, fh)
 
-        if kind == "vendor_doc" and dest.stat().st_size > docext.MAX_UPLOAD_BYTES:
-            dest.unlink(missing_ok=True)
-            max_mb = docext.MAX_UPLOAD_BYTES // (1024 * 1024)
-            raise HTTPException(status_code=413, detail=f"File too large (max {max_mb}MB)")
+        # Stream chunk-by-chunk to enforce size limit before writing entire file to disk (#118)
+        bytes_written = 0
+        chunk_size = 64 * 1024
+        max_bytes = docext.MAX_UPLOAD_BYTES
+        try:
+            with dest.open("wb") as fh:
+                while True:
+                    chunk = file.file.read(chunk_size)
+                    if not chunk:
+                        break
+                    bytes_written += len(chunk)
+                    if bytes_written > max_bytes:
+                        dest.unlink(missing_ok=True)
+                        max_mb = max_bytes // (1024 * 1024)
+                        raise HTTPException(status_code=413, detail=f"File too large (max {max_mb}MB)")
+                    fh.write(chunk)
+        except Exception:
+            if dest.exists() and bytes_written > max_bytes:
+                dest.unlink(missing_ok=True)
+            raise
 
         new_attachment_id = repo.add_attachment(
             assessment_id=assessment_id, file_path=str(dest), original_name=filename, attachment_kind=kind
@@ -464,3 +489,27 @@ def assessment_delete(assessment_id: int):
             raise HTTPException(status_code=404, detail="Assessment not found")
         repo.delete_assessment(assessment_id)
     return {"ok": True}
+
+
+@router.get("/assessments/{assessment_id}/attachments/{attachment_id}/download")
+def assessment_attachment_download(assessment_id: int, attachment_id: int):
+    with RunRepository() as repo:
+        attachment = repo.get_attachment(attachment_id)
+        if attachment is None or attachment.assessment_id != assessment_id:
+            raise HTTPException(status_code=404, detail="Attachment not found")
+        path = Path(attachment.file_path)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Attachment file not found")
+        expected_dir = attachment_dir(assessment_id).resolve()
+        if not path.resolve().is_relative_to(expected_dir):
+            raise HTTPException(status_code=403, detail="Invalid attachment path")
+        filename = Path(attachment.original_name).name
+        return FileResponse(
+            path=path,
+            media_type="application/octet-stream",
+            filename=filename,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )

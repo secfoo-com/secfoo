@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import PlainTextResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from secfoo.config import STORE_DIR
 from secfoo.runtime import api as runtime_api
@@ -17,6 +17,11 @@ from secfoo.web.routes import (
     responsible_ai,
     runs,
     third_party,
+)
+from secfoo.web.security import (
+    LOOPBACK_HOSTS,
+    CrossSiteProtectionMiddleware,
+    SecurityHeadersMiddleware,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -35,12 +40,28 @@ def mermaid_bundle_available() -> bool:
     return MERMAID_BUNDLE.is_file()
 
 
-def create_app(*, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = False) -> FastAPI:
+def create_app(
+    *,
+    bind_host: str = "127.0.0.1",
+    allow_insecure_runtime: bool = False,
+    allowed_hosts: list[str] | None = None,
+) -> FastAPI:
     app = FastAPI(title="secfoo dashboard")
     # Read by the runtime ingest API (#66): on a non-loopback bind it refuses
     # API keys over plain HTTP unless the operator opted in.
     app.state.bind_host = bind_host
     app.state.allow_insecure_runtime = allow_insecure_runtime
+
+    # Host allowlisting for DNS rebinding protection (#118)
+    hosts = list(LOOPBACK_HOSTS)
+    if bind_host and bind_host not in hosts:
+        hosts.append(bind_host)
+    if allowed_hosts:
+        hosts = list(allowed_hosts)
+
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CrossSiteProtectionMiddleware, allowed_hostnames=set(hosts))
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     @app.middleware("http")
     async def revalidate_static(request, call_next):

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from secfoo.docext import extract_text, is_extractable
 
 # A minimal, hand-built, genuinely valid single-page PDF (not a mock/stub)
@@ -123,3 +126,16 @@ def test_extract_text_returns_empty_string_for_malformed_pptx_rather_than_raisin
     path = tmp_path / "corrupt.pptx"
     path.write_bytes(b"this is not a zip file at all")
     assert extract_text(path) == ""
+
+
+@settings(max_examples=50, deadline=None)
+@given(
+    ext=st.sampled_from([".pdf", ".docx", ".pptx"]),
+    data=st.binary(min_size=0, max_size=10240),
+)
+def test_extract_text_fuzz_never_raises(ext, data, tmp_path_factory):
+    tmp_dir = tmp_path_factory.mktemp("fuzz")
+    fuzz_file = tmp_dir / f"fuzz{ext}"
+    fuzz_file.write_bytes(data)
+    result = extract_text(fuzz_file)
+    assert isinstance(result, str)
