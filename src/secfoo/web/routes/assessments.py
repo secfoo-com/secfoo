@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import tempfile
 import threading
@@ -399,7 +400,9 @@ def assessment_upload(assessment_id: int, file: UploadFile):
         # using the raw filename directly here would be a path-traversal /
         # arbitrary-file-write bug (confirmed by a real threat-assessment
         # run against this exact route).
-        filename = Path(file.filename or "upload").name
+        raw_name = Path(file.filename or "upload").name
+        clean_name = re.sub(r"[^\w.-]", "_", raw_name).strip("._")
+        filename = clean_name or "upload"
         if not filename or filename in (".", ".."):
             raise HTTPException(status_code=400, detail="Invalid filename")
 
@@ -411,10 +414,10 @@ def assessment_upload(assessment_id: int, file: UploadFile):
             )
 
         kind = infer_attachment_kind(filename)
-        dest_dir = attachment_dir(assessment_id)
+        dest_dir = attachment_dir(assessment_id).resolve()
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / filename
-        if dest.resolve().parent != dest_dir.resolve():
+        dest = (dest_dir / filename).resolve()
+        if not dest.is_relative_to(dest_dir) or dest.parent != dest_dir:
             raise HTTPException(status_code=400, detail="Invalid filename")
 
         # Stream chunk-by-chunk to enforce size limit before writing entire file to disk (#118)
@@ -497,15 +500,15 @@ def assessment_attachment_download(assessment_id: int, attachment_id: int):
         attachment = repo.get_attachment(attachment_id)
         if attachment is None or attachment.assessment_id != assessment_id:
             raise HTTPException(status_code=404, detail="Attachment not found")
-        path = Path(attachment.file_path)
-        if not path.is_file():
-            raise HTTPException(status_code=404, detail="Attachment file not found")
         expected_dir = attachment_dir(assessment_id).resolve()
-        if not path.resolve().is_relative_to(expected_dir):
+        raw_path = Path(attachment.file_path).resolve()
+        if not raw_path.is_relative_to(expected_dir):
             raise HTTPException(status_code=403, detail="Invalid attachment path")
+        if not raw_path.is_file():
+            raise HTTPException(status_code=404, detail="Attachment file not found")
         filename = Path(attachment.original_name).name
         return FileResponse(
-            path=path,
+            path=raw_path,
             media_type="application/octet-stream",
             filename=filename,
             headers={
