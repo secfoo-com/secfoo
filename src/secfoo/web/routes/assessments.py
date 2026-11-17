@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import tempfile
@@ -23,7 +24,12 @@ from secfoo.skills.renderer import merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
 from secfoo.web.run_status import assessment_pipeline
-from secfoo.web.templating import SIDEBAR_ACTIVITY_IDS, ordered_skills, severity_rows, templates
+from secfoo.web.templating import (
+    SIDEBAR_ACTIVITY_IDS,
+    ordered_skills,
+    severity_rows,
+    templates,
+)
 from secfoo.web.third_party_dashboard import SKILL_ID as THIRD_PARTY_RISK_SKILL_ID
 
 router = APIRouter()
@@ -400,9 +406,9 @@ def assessment_upload(assessment_id: int, file: UploadFile):
         # using the raw filename directly here would be a path-traversal /
         # arbitrary-file-write bug (confirmed by a real threat-assessment
         # run against this exact route).
-        raw_name = Path(file.filename or "upload").name
+        raw_name = os.path.basename(file.filename or "upload")
         clean_name = re.sub(r"[^\w.-]", "_", raw_name).strip("._")
-        filename = clean_name or "upload"
+        filename = os.path.basename(clean_name or "upload")
         if not filename or filename in (".", ".."):
             raise HTTPException(status_code=400, detail="Invalid filename")
 
@@ -414,35 +420,43 @@ def assessment_upload(assessment_id: int, file: UploadFile):
             )
 
         kind = infer_attachment_kind(filename)
-        dest_dir = attachment_dir(assessment_id).resolve()
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = (dest_dir / filename).resolve()
-        if not dest.is_relative_to(dest_dir) or dest.parent != dest_dir:
+        safe_assessment_id = int(assessment_id)
+        if safe_assessment_id <= 0:
+            raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+        dest_dir = attachment_dir(safe_assessment_id)
+        dest_dir_str = os.path.realpath(os.path.normpath(str(dest_dir)))
+        os.makedirs(dest_dir_str, exist_ok=True)
+        dest_path_str = os.path.realpath(os.path.normpath(os.path.join(dest_dir_str, filename)))
+        if not dest_path_str.startswith(dest_dir_str + os.sep):
             raise HTTPException(status_code=400, detail="Invalid filename")
+
+        dest = Path(dest_path_str)
 
         # Stream chunk-by-chunk to enforce size limit before writing entire file to disk (#118)
         bytes_written = 0
         chunk_size = 64 * 1024
         max_bytes = docext.MAX_UPLOAD_BYTES
         try:
-            with dest.open("wb") as fh:
+            with open(dest_path_str, "wb") as fh:
                 while True:
                     chunk = file.file.read(chunk_size)
                     if not chunk:
                         break
                     bytes_written += len(chunk)
                     if bytes_written > max_bytes:
-                        dest.unlink(missing_ok=True)
+                        if os.path.exists(dest_path_str):
+                            os.unlink(dest_path_str)
                         max_mb = max_bytes // (1024 * 1024)
                         raise HTTPException(status_code=413, detail=f"File too large (max {max_mb}MB)")
                     fh.write(chunk)
         except Exception:
-            if dest.exists() and bytes_written > max_bytes:
-                dest.unlink(missing_ok=True)
+            if os.path.exists(dest_path_str) and bytes_written > max_bytes:
+                os.unlink(dest_path_str)
             raise
 
         new_attachment_id = repo.add_attachment(
-            assessment_id=assessment_id, file_path=str(dest), original_name=filename, attachment_kind=kind
+            assessment_id=assessment_id, file_path=dest_path_str, original_name=filename, attachment_kind=kind
         )
 
         if kind == "ai_bom":
@@ -496,19 +510,26 @@ def assessment_delete(assessment_id: int):
 
 @router.get("/assessments/{assessment_id}/attachments/{attachment_id}/download")
 def assessment_attachment_download(assessment_id: int, attachment_id: int):
+    safe_assessment_id = int(assessment_id)
+    safe_attachment_id = int(attachment_id)
+    if safe_assessment_id <= 0 or safe_attachment_id <= 0:
+        raise HTTPException(status_code=400, detail="Invalid ID")
+
     with RunRepository() as repo:
-        attachment = repo.get_attachment(attachment_id)
-        if attachment is None or attachment.assessment_id != assessment_id:
+        attachment = repo.get_attachment(safe_attachment_id)
+        if attachment is None or attachment.assessment_id != safe_assessment_id:
             raise HTTPException(status_code=404, detail="Attachment not found")
-        expected_dir = attachment_dir(assessment_id).resolve()
-        raw_path = Path(attachment.file_path).resolve()
-        if not raw_path.is_relative_to(expected_dir):
+
+        expected_dir_str = os.path.realpath(os.path.normpath(str(attachment_dir(safe_assessment_id))))
+        target_file_str = os.path.realpath(os.path.normpath(str(attachment.file_path)))
+        if not target_file_str.startswith(expected_dir_str + os.sep):
             raise HTTPException(status_code=403, detail="Invalid attachment path")
-        if not raw_path.is_file():
+        if not os.path.isfile(target_file_str):
             raise HTTPException(status_code=404, detail="Attachment file not found")
-        filename = Path(attachment.original_name).name
+
+        filename = os.path.basename(attachment.original_name)
         return FileResponse(
-            path=raw_path,
+            path=target_file_str,
             media_type="application/octet-stream",
             filename=filename,
             headers={

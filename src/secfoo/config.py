@@ -32,4 +32,7 @@ def run_dir(run_uuid: str) -> Path:
 
 
 def attachment_dir(assessment_id: int) -> Path:
-    return ATTACHMENTS_DIR / str(assessment_id)
+    safe_id = int(assessment_id)
+    if safe_id <= 0:
+        raise ValueError(f"Invalid assessment_id: {assessment_id}")
+    return ATTACHMENTS_DIR / str(safe_id)
