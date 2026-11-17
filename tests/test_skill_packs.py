@@ -66,6 +66,7 @@ def test_default_pack_name_variants():
     assert default_pack_name("https://github.com/acme/appsec-skills") == "acme-appsec-skills"
     assert default_pack_name("https://github.com/acme/appsec-skills.git") == "acme-appsec-skills"
     assert default_pack_name("git@github.com:acme/appsec-skills.git") == "acme-appsec-skills"
+    assert default_pack_name(r"C:\Users\alice\acme\appsec-skills") == "acme-appsec-skills"
 
 
 # ---------- install / update / remove / list ----------

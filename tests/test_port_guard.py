@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import subprocess
+import sys
 
 import pytest
 
@@ -94,6 +95,7 @@ def test_find_owner_returns_none_when_lsof_is_missing(monkeypatch):
 # ---------- stop_gracefully ----------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Tests POSIX SIGTERM signaling; Windows uses taskkill")
 def test_stop_gracefully_succeeds_after_sigterm(monkeypatch):
     killed = []
     alive = {"value": True}
@@ -110,6 +112,7 @@ def test_stop_gracefully_succeeds_after_sigterm(monkeypatch):
     assert killed == [port_guard.signal.SIGTERM]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Tests POSIX SIGKILL fallback; Windows uses taskkill /F")
 def test_stop_gracefully_falls_back_to_sigkill_when_sigterm_is_ignored(monkeypatch):
     signals_sent = []
     alive = {"value": True}
@@ -127,8 +130,27 @@ def test_stop_gracefully_falls_back_to_sigkill_when_sigterm_is_ignored(monkeypat
     assert signals_sent == [port_guard.signal.SIGTERM, port_guard.signal.SIGKILL]
 
 
+def test_stop_gracefully_uses_taskkill_on_windows(monkeypatch):
+    calls: list[list[str]] = []
+    alive = {"value": True}
+
+    def _fake_run(args, *, timeout):
+        calls.append(args)
+        if "/F" in args:
+            alive["value"] = False
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(port_guard.sys, "platform", "win32")
+    monkeypatch.setattr(port_guard, "_run", _fake_run)
+    monkeypatch.setattr(port_guard, "_process_alive", lambda pid: alive["value"])
+
+    owner = PortOwner(pid=4242, command="secfoo serve")
+    assert stop_gracefully(owner, timeout=0.3) is True
+    assert calls == [["taskkill", "/PID", "4242"], ["taskkill", "/F", "/PID", "4242"]]
+
+
 def test_stop_gracefully_gives_up_if_the_process_never_dies(monkeypatch):
-    monkeypatch.setattr(port_guard.os, "kill", lambda pid, sig: None)
+    monkeypatch.setattr(port_guard, "_signal", lambda pid, *, force: None)
     monkeypatch.setattr(port_guard, "_process_alive", lambda pid: True)
 
     owner = PortOwner(pid=4242, command="secfoo serve")

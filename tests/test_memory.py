@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import stat
+import sys
 import urllib.error
 from io import BytesIO
 
@@ -45,7 +46,8 @@ def test_save_and_load_round_trip_with_private_permissions(tmp_path):
     path = tmp_path / "m.toml"
     memory.save_memory_config(memory.MemoryConfig(api_key='k"ey', url="https://x"), path)
     assert memory.load_memory_config(path) == memory.MemoryConfig(api_key='k"ey', url="https://x")
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    if sys.platform != "win32":  # Windows NTFS does not enforce POSIX 0o600 mode bits
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 def test_load_returns_none_without_a_file_and_rejects_a_keyless_one(tmp_path):
@@ -122,7 +124,8 @@ def test_claude_command_includes_memory_server_and_writes_a_private_config(
     assert cmd[cmd.index("--mcp-config") + 1] == str(config_path)
     payload = json.loads(config_path.read_text())
     assert payload["mcpServers"]["secfoo-memory"]["headers"] == {"Authorization": "Bearer sfm_free_test"}
-    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+    if sys.platform != "win32":  # Windows NTFS does not enforce POSIX 0o600 mode bits
+        assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
 # ---------- prompt guidance ----------

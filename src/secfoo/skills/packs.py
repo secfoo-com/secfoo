@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -65,14 +66,32 @@ def default_pack_name(url: str) -> str:
     """`https://github.com/acme/appsec-skills(.git)` -> `acme-appsec-skills`,
     the example name from the issue. Falls back to asking for `--name`
     rather than guessing at something unreadable."""
-    trimmed = url.rstrip("/").removesuffix(".git")
-    parts = [part for part in re.split(r"[/:]", trimmed) if part]
+    trimmed = url.rstrip("/\\").removesuffix(".git")
+    parts = [part for part in re.split(r"[/\\:]", trimmed) if part]
     tail = parts[-2:] if len(parts) >= 2 else parts
     name = re.sub(r"[^a-z0-9-]+", "-", "-".join(tail).lower()).strip("-")
     name = re.sub(r"-+", "-", name)
     if not name:
         raise PackError(f"{url}: could not derive a pack name from this URL; pass --name")
     return name
+
+
+def _rmtree(path: Path) -> None:
+    """Remove a directory tree, clearing Windows read-only attributes on .git objects."""
+    if not path.exists():
+        return
+
+    def _make_writable(func, target, _exc):
+        try:
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_make_writable)
+    else:
+        shutil.rmtree(path, onerror=_make_writable)
 
 
 def _toml_escape(value: str) -> str:
@@ -159,7 +178,7 @@ def install_pack(
             _run_git(["checkout", "--quiet", "--detach", ref], cwd=target, timeout=timeout)
         commit = _run_git(["rev-parse", "HEAD"], cwd=target, timeout=timeout)
     except PackError:
-        shutil.rmtree(target, ignore_errors=True)
+        _rmtree(target)
         raise
     pack = Pack(name=resolved_name, url=url, ref=ref or "HEAD", commit=commit)
     packs[resolved_name] = pack
@@ -197,7 +216,7 @@ def remove_pack(name: str) -> None:
     pack = packs.pop(name, None)
     if pack is None:
         raise PackError(f"no installed pack named {name!r} (see `secfoo skills list`)")
-    shutil.rmtree(pack.path, ignore_errors=True)
+    _rmtree(pack.path)
     save_lock(packs)
 
 
