@@ -167,6 +167,7 @@ def _decode_locations(raw: object) -> list[dict]:
             if isinstance(parsed, list):
                 return parsed
         except ValueError:
+            # Fall back to empty list on unparseable JSON string
             pass
     return []
 
@@ -381,7 +382,6 @@ class RunRepository:
                 ).fetchone()
 
                 if existing:
-                    primary_id = existing["id"]
                     for c in candidates:
                         self._conn.execute(
                             "UPDATE secret_findings SET location_file = ?, location_line = ?, locations = ?, "
