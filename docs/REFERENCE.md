@@ -998,8 +998,10 @@ Repository text is untrusted evidence, including files named `AGENTS.md`,
 `CLAUDE.md` and `.cursorrules`. Secfoo's review brief rejects instructions to
 suppress findings, change severity, copy fabricated reports, or execute
 commands from the target. The API adapter separates the brief into a system
-message and JSON-quotes source records. Severity counting ignores headings
-inside Markdown code fences and blockquotes.
+message, quotes filenames, and preserves source lines inside random per-file
+boundaries. Report consumers share a Markdown heading/section iterator.
+Fenced and quoted examples are ignored; unclosed fences and malformed finding
+headings fail the run instead of passing severity gates with zero findings.
 
 These controls do not establish that a malicious repository cannot influence
 an agent. Tool grants are not an operating-system sandbox, and model behavior
@@ -1008,7 +1010,7 @@ documents eight paired fixture techniques, offline regression replay,
 opt-in live measurements and the limits of the metrics. Synthetic replay
 results are not live security results.
 
-The [2026-11-16 live record](evaluations/2026-11-16/README.md) reports Claude
+The earlier, labeled SQL-only corpus in the [2026-11-16 live record](evaluations/2026-11-16/README.md) reports Claude
 Sonnet 4.6 retaining the real finding in all 16 baseline and all 16 hardened
 reviews. The local Qwen3 4B Instruct API comparison retained it in 7/8 baseline
 attacks versus 8/8 hardened attacks, and 8/8 controls in both phases. The
@@ -1018,5 +1020,8 @@ guarantee. All 32 local API reports failed the evaluator's format check.
 Only the separately captured Claude tool-request pair has complete tool
 telemetry, under the same restricted tool set in both phases. A malicious
 repository can still influence model text; tool restrictions and source
-quoting reduce specific attack surfaces but do not prove isolation or immunity.
+boundaries reduce specific attack surfaces but do not prove isolation or immunity.
+These historical runs do not measure the revised eight-defect corpus. Original
+API tool lists were not observed and now replay as unknown; complete historical
+Claude tool streams measure only the narrower grants used for those runs.
 

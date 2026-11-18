@@ -22,6 +22,7 @@ import sys
 import atheris
 
 with atheris.instrument_imports():
+    from secfoo.report.markdown import MalformedReportError
     from secfoo.report.severity import count_severities, extract_overall_risk_rating
     from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
     from secfoo.web.finding_filters import normalize_severity
@@ -31,11 +32,14 @@ def test_one_input(data: bytes) -> None:
     provider = atheris.FuzzedDataProvider(data)
     text = provider.ConsumeUnicodeNoSurrogates(4096)
 
-    # Report parsers must accept any text and never raise.
-    counts = count_severities(text)
-    assert counts.total == counts.critical + counts.high + counts.medium + counts.low + counts.info
-    rating = extract_overall_risk_rating(text)
-    assert rating is None or rating == rating.lower()
+    # Report parsers may reject malformed structure only with the typed error.
+    try:
+        counts = count_severities(text)
+        assert counts.total == counts.critical + counts.high + counts.medium + counts.low + counts.info
+        rating = extract_overall_risk_rating(text)
+        assert rating is None or rating == rating.lower()
+    except MalformedReportError:
+        pass  # malformed reports are deliberately rejected, never a zero-count pass
 
     # Frontmatter parsing may reject input, but only with SkillLoadError.
     try:

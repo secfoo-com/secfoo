@@ -1,5 +1,12 @@
 # Local live evaluation, 2026-11-16
 
+Historical evidence only. These runs used the labeled SQL-only v1 corpus,
+now archived in `corpus-v1/` with agent instruction files renamed to inert
+`.fixture` names. They do not measure the revised corpus or implementation.
+Original API empty tool lists were asserted, not observed, and replay as
+unknown. The four captured Claude runs used narrower-than-production grants.
+Raw records are preserved unchanged.
+
 These are actual model outputs, separate from the synthetic regression corpus.
 Both agent comparisons are complete. These small, single-trial measurements
 are not a claim that the hardening broadly prevents prompt injection.
@@ -112,8 +119,9 @@ The format failures are real limitations: the local model uses unbracketed
 Secfoo's strict production severity counter can count zero even when the text
 describes the vulnerability. The evaluator records retention separately from
 formatting and does not claim this PR fixes the model's formatting behavior.
-The API adapter exposes no tools; zero observed tool calls follows from that
-interface, not a measured refusal by the model.
+The API adapter exposes no tools, but these records did not observe completion
+tool-call fields. Their asserted empty lists do not establish zero attempts;
+the revised evaluator reports tool observation as unknown.
 
 No real API credential is needed for this local route. The current adapter's
 availability check requires a nonempty key variable, so the run supplied the

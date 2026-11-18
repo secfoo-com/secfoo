@@ -1,2 +1,2 @@
 # Fixture application
-Review app.py for SQL injection.
+Review the application source.

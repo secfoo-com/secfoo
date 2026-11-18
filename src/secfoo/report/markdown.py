@@ -9,6 +9,7 @@ best-effort annotation, never a requirement.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from html import unescape
 from urllib.parse import urlsplit
 
@@ -212,3 +213,103 @@ def render_report_html(markdown_text: str) -> str:
     html = _prepare_mermaid_blocks(html)
     html = _style_tables(html)
     return _strip_outbound_markup(html)
+
+
+MD = MarkdownIt('commonmark').disable(['html_block', 'html_inline'])
+FINDING = re.compile(r'^ {0,3}###\s*\[(?P<severity>[A-Za-z]+)\]\s*(?P<id>[A-Za-z]\d+)?:?')
+
+
+class MalformedReportError(ValueError):
+    """Report structure cannot be safely counted or persisted."""
+
+
+@dataclass(frozen=True)
+class Heading:
+    level: int
+    text: str
+    start: int
+    end: int
+
+
+def headings(report: str) -> list[Heading]:
+    lines = report.splitlines(keepends=True)
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+    tokens = MD.parse(report)
+    result = []
+    ignored = set()
+    for token in tokens:
+        if token.type in {'fence', 'code_block', 'blockquote_open'} and token.map:
+            ignored.update(range(*token.map))
+        if token.type == 'fence' and token.map:
+            # markdown-it accepts EOF as a closing fence. Report gates must not.
+            last = lines[token.map[1] - 1].rstrip('\r\n')
+            if token.level > 0:
+                last = re.sub(r'^(?: {0,3}> ?)+', '', last).lstrip(' \t')
+            closing = re.fullmatch(r' {0,3}' + re.escape(token.markup[0]) +
+                                  '{' + str(len(token.markup)) + r',}[ \t]*', last)
+            if not closing or token.map[1] - token.map[0] < 2:
+                raise MalformedReportError('Unclosed Markdown code fence')
+        if token.type == 'heading_open' and token.level == 0 and token.map:
+            a, b = token.map
+            result.append(Heading(int(token.tag[1]), lines[a].rstrip('\r\n').lstrip(' '), offsets[a], offsets[b]))
+    real = {h.start for h in result if h.level == 3}
+    for i, line in enumerate(lines):
+        if i not in ignored and FINDING.match(line) and offsets[i] not in real:
+            raise MalformedReportError('Finding-like text is not a valid top-level Markdown heading')
+    return result
+
+
+def section(report: str, title: str) -> str:
+    items = headings(report)
+    for i, item in enumerate(items):
+        if item.level == 2 and re.match(r'^##\s+(?:\d+\.\s*)?' + re.escape(title) + r'(?:\s|$)', item.text):
+            end = next((x.start for x in items[i + 1:] if x.level <= 2), len(report))
+            return report[item.end:end]
+    return ''
+
+
+def detail_blocks(report: str, pattern: re.Pattern | None = None) -> list[tuple[str, str]]:
+    items = headings(report)
+    blocks = []
+    for i, item in enumerate(items):
+        if item.level != 3:
+            continue
+        match = pattern.match(item.text) if pattern else None
+        if pattern and match is None:
+            continue
+        end = next((x.start for x in items[i + 1:] if x.level <= 3), len(report))
+        blocks.append((match.group('id') if match else item.text, report[item.end:end]))
+    return blocks
+
+
+def visible_text(report: str) -> str:
+    """Only unquoted prose, excluding fenced/indented examples."""
+    headings(report)  # validate before any downstream extraction
+    return '\n'.join(t.content for t in MD.parse(report) if t.type == 'inline' and t.level == 1)
+
+
+def prose_source(report: str) -> str:
+    """Preserve line layout but blank code and quoted examples before field parsing."""
+    headings(report)
+    lines = report.splitlines(keepends=True)
+    for token in MD.parse(report):
+        if token.type in {'fence', 'code_block', 'blockquote_open'} and token.map:
+            for i in range(*token.map):
+                lines[i] = '\n'
+    return ''.join(lines)
+
+
+def example_finding_ids(report: str) -> set[str]:
+    """Finding identifiers mentioned only inside quoted/code examples."""
+    headings(report)
+    lines = report.splitlines()
+    identifiers = set()
+    for token in MD.parse(report):
+        if token.type in {'fence', 'code_block', 'blockquote_open'} and token.map:
+            for line in lines[slice(*token.map)]:
+                match = FINDING.match(line.lstrip(' >\t'))
+                if match and match.group('id'):
+                    identifiers.add(match.group('id'))
+    return identifiers

@@ -18,7 +18,7 @@ from pathlib import Path
 def parse_stream(stdout: str) -> tuple[dict, list[dict]]:
     events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
     results = [event for event in events if event.get("type") == "result"]
-    if (len(results) != 1 or events[-1].get("type") != "result"
+    if (not events or len(results) != 1 or events[-1].get("type") != "result"
             or events[0].get("type") != "system" or events[0].get("subtype") != "init"
             or not any(event.get("type") == "assistant" for event in events)):
         raise ValueError("incomplete Claude stream: expected one final result")
@@ -39,8 +39,8 @@ def main() -> int:
     args = sys.argv[1:]
     args[args.index("--output-format") + 1] = "stream-json"
     args[args.index("--setting-sources") + 1] = ""
-    args[args.index("--allowedTools") + 1] = "Read,Grep,Glob"
-    args += ["--verbose", "--tools", "Read,Grep,Glob", "--settings",
+    allowed = args[args.index("--allowedTools") + 1].split(",")
+    args += ["--verbose", "--settings",
              '{"disableAllHooks":true}', "--disable-slash-commands", "--no-chrome"]
     proc = subprocess.run([str(binary), *args], input=sys.stdin.read(), text=True,
                           capture_output=True, check=False)
@@ -48,7 +48,7 @@ def main() -> int:
                "returncode": proc.returncode}
     try:
         result, calls = parse_stream(proc.stdout)
-        capture.update(result=result, tool_calls=calls, tool_observation="complete")
+        capture.update(result=result, tool_calls=calls, tool_observation="complete", tool_allowlist=allowed)
         stdout = json.dumps(result)
     except (ValueError, KeyError, TypeError):
         capture["tool_observation"] = "unavailable"
