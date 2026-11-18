@@ -8,6 +8,7 @@ sends the model and what the findings lifecycle does with the result.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import types
@@ -66,7 +67,7 @@ def model(monkeypatch, tmp_path):
     def _completion(**kwargs):
         content = kwargs["messages"][-1]["content"]
         module.prompts.append(content)
-        rows = "".join(row for path, row in _ROWS.items() if f"===== FILE: {path} =====" in content)
+        rows = "".join(row for path, row in _ROWS.items() if f"===== FILE: {json.dumps(path)} =====" in content)
         report = _HEADER + rows + "\n**Overall risk rating:** High.\n"
         return types.SimpleNamespace(
             choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=report))],
@@ -118,8 +119,8 @@ def test_incremental_scan_keeps_findings_in_unchanged_files_open(repo, target, m
     _commit_all(target, "touch views only")
     _scan(repo, target)
 
-    assert "===== FILE: app/views.py" in model.prompts[-1]
-    assert "===== FILE: app/db.py" not in model.prompts[-1]  # really incremental
+    assert '===== FILE: "app/views.py"' in model.prompts[-1]
+    assert '===== FILE: "app/db.py"' not in model.prompts[-1]  # really incremental
     # db.py was neither changed nor scanned, so its finding must stay open.
     assert _status(repo) == {"app/db.py": "open", "app/views.py": "open"}
     last_run = repo.list_runs()[0]
@@ -169,7 +170,7 @@ def test_commit_with_no_scannable_files_falls_back_to_a_full_scan(repo, target, 
     _scan(repo, target)
 
     assert "incremental scan" not in model.prompts[-1]
-    assert "===== FILE: app/db.py" in model.prompts[-1]
+    assert '===== FILE: "app/db.py"' in model.prompts[-1]
     assert _status(repo) == {"app/db.py": "open", "app/views.py": "open"}
     assert repo.list_runs()[0].scan_scope is None
 
@@ -185,9 +186,9 @@ def test_uncommitted_and_untracked_changes_are_sent(repo, target, model):
     _scan(repo, target)
 
     prompt = model.prompts[-1]
-    assert "===== FILE: app/views.py" in prompt
-    assert "===== FILE: app/new.py" in prompt
-    assert "===== FILE: app/db.py" not in prompt
+    assert '===== FILE: "app/views.py"' in prompt
+    assert '===== FILE: "app/new.py"' in prompt
+    assert '===== FILE: "app/db.py"' not in prompt
 
 
 def test_git_changed_files_covers_commits_working_tree_and_untracked(target):
@@ -373,7 +374,7 @@ def test_an_incremental_run_never_closes_sca_findings(repo):
 
 def test_collect_files_is_unchanged_for_callers(tmp_path):
     (tmp_path / "a.py").write_text("print(1)\n")
-    assert "===== FILE: a.py =====" in api.collect_files(tmp_path)
+    assert '===== FILE: "a.py" =====' in api.collect_files(tmp_path)
 
 
 def test_collect_files_never_follows_symlinks(tmp_path):
@@ -388,6 +389,6 @@ def test_collect_files_never_follows_symlinks(tmp_path):
 
     text = api.collect_files(target)
 
-    assert "===== FILE: app.py =====" in text
+    assert '===== FILE: "app.py" =====' in text
     assert "PRIVATE KEY MATERIAL" not in text
     assert "gone.py" not in text

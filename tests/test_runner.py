@@ -891,3 +891,30 @@ def test_runner_applies_and_persists_selected_model(tmp_path, monkeypatch):
     assert observed == ["chosen-model"]
     assert repo.get_run(outcomes[0].run_uuid).model == "chosen-model"
     repo.close()
+
+
+def test_malformed_report_is_failed_not_a_successful_zero_finding_run(tmp_path, monkeypatch):
+    import pytest
+
+    from secfoo.report.markdown import MalformedReportError
+
+    _patch_runner(monkeypatch, tmp_path)
+    target = tmp_path / 'target'
+    target.mkdir()
+
+    class MalformedAdapter(_SleepyAdapter):
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
+            return AgentResult(agent='fake', exit_code=0, stdout='', stderr='',
+                               duration_seconds=0, timed_out=False, status='success',
+                               raw_report='# Report\n```\n### [High] F1: hidden\n')
+
+    monkeypatch.setattr('secfoo.runner.get_adapter', lambda agent_id: MalformedAdapter())
+    repo = RunRepository(db_path=tmp_path / 'db.sqlite')
+    try:
+        with pytest.raises(MalformedReportError):
+            execute_runs(skill_ids=['sast'], target=str(target), confluence_urls=[],
+                         agent_id='claude', repo=repo)
+        assert repo.list_runs()[0].status == 'failed'
+        assert repo.list_sast_findings() == []
+    finally:
+        repo.close()

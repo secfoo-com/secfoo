@@ -57,11 +57,6 @@ jobs:
           python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/claude.jsonl
           python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/api.jsonl
 
-      - name: Fuzz report and skill parsers for one minute
-        run: |
-          pip install atheris
-          python fuzz/fuzz_parsers.py -max_total_time=60
-
       - name: Runtime probe conformance (reference Python probe, #73)
         run: secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
 

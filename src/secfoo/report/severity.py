@@ -3,8 +3,7 @@ report's raw Markdown, so they can be persisted as queryable columns
 instead of only living inside report text. Operates on the same
 `### [SEVERITY] Title` finding-heading shape and `**Overall risk rating:**`
 line that skills/renderer.py's output contracts require every skill to
-produce -- best-effort only, a report that doesn't match still stores as
-all-zero counts / no rating rather than raising.
+produce -- malformed Markdown raises rather than silently passing a severity gate.
 """
 
 from __future__ import annotations
@@ -12,9 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from markdown_it import MarkdownIt
-
-_md = MarkdownIt("commonmark").disable(["html_block", "html_inline"])
+from secfoo.report.markdown import headings, visible_text
 
 _FINDING_HEADING_RE = re.compile(r"^###\s*\[(?P<severity>[A-Za-z]+)\]", re.MULTILINE)
 _RISK_RATING_RE = re.compile(r"\*\*Overall risk rating:\*\*\s*([A-Za-z]+)", re.IGNORECASE)
@@ -49,13 +46,10 @@ class SeverityCounts:
 
 def count_severities(report_markdown: str) -> SeverityCounts:
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-    lines = report_markdown.splitlines()
-    # Only actual top-level Markdown headings count. A quoted finding or
-    # heading inside a fenced/indented source excerpt is evidence, not a finding.
-    for token in _md.parse(report_markdown):
-        if token.type != "heading_open" or token.tag != "h3" or token.level != 0 or token.map is None:
+    for heading in headings(report_markdown):
+        if heading.level != 3:
             continue
-        match = _FINDING_HEADING_RE.match(lines[token.map[0]])
+        match = _FINDING_HEADING_RE.match(heading.text)
         if match is None:
             continue
         tier = _TIER_ALIASES.get(match.group("severity").lower())
@@ -65,7 +59,9 @@ def count_severities(report_markdown: str) -> SeverityCounts:
 
 
 def extract_overall_risk_rating(report_markdown: str) -> str | None:
-    match = _RISK_RATING_RE.search(report_markdown)
+    if report_markdown.lstrip().startswith(("{", "[", '"')):
+        return None
+    match = _RISK_RATING_RE.search(visible_text(report_markdown))
     if match is None:
         return None
     return match.group(1).strip().lower()

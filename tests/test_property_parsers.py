@@ -12,6 +12,7 @@ from __future__ import annotations
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from secfoo.report.markdown import MalformedReportError
 from secfoo.report.severity import (
     SeverityCounts,
     count_severities,
@@ -68,21 +69,34 @@ def test_count_severities_counts_exactly_the_recognised_headings(headings, fille
 
 @given(st.text())
 @settings(max_examples=300)
-def test_count_severities_never_raises(text):
-    counts = count_severities(text)
+def test_count_severities_only_rejects_malformed_reports(text):
+    try:
+        counts = count_severities(text)
+    except MalformedReportError:
+        return
     assert counts.total >= 0
 
 
-@given(word=st.one_of(tier_word, unknown_word), before=st.text(max_size=80), after=st.text(max_size=80))
+@given(word=st.one_of(tier_word, unknown_word), before=one_line, after=one_line)
 def test_overall_risk_rating_round_trips(word, before, after):
     # The marker is matched case-insensitively and the rating is lowercased.
-    report = f"{before}\n**Overall risk rating:** {word}\n{after}"
-    assert extract_overall_risk_rating(report) == word.lower()
+    report = f"{before}\n\n**Overall risk rating:** {word}\n\n{after}"
+    try:
+        rating = extract_overall_risk_rating(report)
+    except MalformedReportError:
+        return
+    if before.lstrip().startswith(("{", "[", '\"')):
+        assert rating is None
+    else:
+        assert rating == word.lower()
 
 
 @given(st.text())
-def test_overall_risk_rating_never_raises(text):
-    rating = extract_overall_risk_rating(text)
+def test_overall_risk_rating_only_rejects_malformed_reports(text):
+    try:
+        rating = extract_overall_risk_rating(text)
+    except MalformedReportError:
+        return
     assert rating is None or rating == rating.lower()
 
 

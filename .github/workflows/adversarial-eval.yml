@@ -9,6 +9,11 @@ on:
         description: LiteLLM model identifier (e.g. openai/gpt-4.1-mini)
         required: true
         type: string
+      skill:
+        description: Built-in skill id
+        required: true
+        default: sast
+        type: string
       claude_model:
         description: Claude model identifier
         required: true
@@ -53,11 +58,12 @@ jobs:
           npm install --global "@anthropic-ai/claude-code@$CLAUDE_VERSION"
       - name: Evaluate both revisions
         env:
+          SKILL: ${{ inputs.skill }}
           AGENT: ${{ matrix.agent }}
           API_MODEL: ${{ inputs.api_model }}
           CLAUDE_MODEL: ${{ inputs.claude_model }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ matrix.agent == 'api' && secrets.OPENAI_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ matrix.agent == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
         run: |
           mkdir artifacts
           pip freeze > artifacts/dependencies.txt
@@ -66,11 +72,12 @@ jobs:
             claude --version > artifacts/cli-version.txt
           else
             MODEL="$API_MODEL"
+            case "$MODEL" in openai/*) ;; *) echo "This workflow supports OpenAI API models only" >&2; exit 1;; esac
           fi
           failed=0
           for phase in baseline hardened; do
             python hardened/scripts/adversarial_eval.py --live --agent "$AGENT" \
-              --model "$MODEL" --phase "$phase" --checkout "$phase" \
+              --model "$MODEL" --skill "$SKILL" --phase "$phase" --checkout "$phase" \
               --output "artifacts/$phase.jsonl" > "artifacts/$phase.md" || failed=1
           done
           cat artifacts/baseline.md artifacts/hardened.md >> "$GITHUB_STEP_SUMMARY"
