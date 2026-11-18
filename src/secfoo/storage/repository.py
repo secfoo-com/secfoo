@@ -707,7 +707,7 @@ class RunRepository:
         """
         row = self._conn.execute(
             "SELECT report_path FROM runs WHERE assessment_id = ? AND skill_id = 'responsible-ai-compliance' "
-            "AND status = 'success' AND report_path IS NOT NULL ORDER BY started_at DESC LIMIT 1",
+            "AND status = 'success' AND report_path IS NOT NULL ORDER BY started_at DESC, id DESC LIMIT 1",
             (assessment_id,),
         ).fetchone()
         if row is None or not row["report_path"]:

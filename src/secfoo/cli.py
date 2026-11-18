@@ -1075,8 +1075,10 @@ def assessment_list(
     table.add_column("Application ID")
     table.add_column("Security Assessment Request")
     table.add_column("Findings")
+    table.add_column("Responsible AI")
     for a in assessments:
         findings = f"{a.critical_count}C {a.high_count}H {a.medium_count}M {a.low_count}L {a.info_count}I"
+        responsible_ai = f"{a.responsible_ai_risk} ({a.responsible_ai_status})" if a.responsible_ai_risk else "-"
         table.add_row(
             str(a.id),
             a.project_display_name or "",
@@ -1085,6 +1087,7 @@ def assessment_list(
             a.application_id or "-",
             a.sar_number or "-",
             findings,
+            responsible_ai,
         )
     console.print(table)
 
