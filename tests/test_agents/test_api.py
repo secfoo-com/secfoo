@@ -227,7 +227,9 @@ def test_run_without_litellm_installed_says_how_to_install_it(tmp_path, monkeypa
     result = ApiAdapter().run("prompt", workdir=tmp_path)
 
     assert result.status == "failed"
-    assert "secfoo[api]" in result.stderr
+    assert "pip install" in result.stderr
+    assert "secfoo" in result.stderr
+    assert "secfoo[api]" not in result.stderr
 
 
 def test_incomplete_report_is_reformatted_once_without_resending_source(tmp_path, monkeypatch):

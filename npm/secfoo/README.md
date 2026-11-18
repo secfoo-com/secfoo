@@ -9,4 +9,4 @@ npm install -g @rakfortltd/secfoo
 secfoo run --skill security-architecture-review --agent claude
 ```
 
-Full documentation: https://github.com/rakfortltd/secfoo
+Full documentation: https://github.com/secfoo-com/secfoo

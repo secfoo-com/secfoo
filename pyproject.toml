@@ -69,10 +69,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["jsonschema>=4.26.0", "pytest>=9.2.0", "hypothesis>=6.168.5", "httpx>=0.28.1", "ruff>=0.17.5", "bandit>=1.9.4", "pip-audit>=2.10.1", "langgraph>=1.2.21"]
 build = ["pyinstaller>=6.22.3"]
-# The `api` agent (secfoo/agents/api.py): a LangGraph workflow that calls OpenAI/Anthropic/Gemini
-# through LiteLLM with an API key instead of driving an installed agent CLI.
-# (dev includes langgraph so the real graph runs in tests; litellm is faked.)
-api = ["litellm>=1.109.1", "langgraph>=1.2.21"]
 
 [project.urls]
 Homepage = "https://secfoo.com"

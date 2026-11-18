@@ -183,12 +183,12 @@ including merge-request rules and a container-image variant:
 The image on GHCR has secfoo and git, nothing else:
 
 ```bash
-docker run --rm -e OPENAI_API_KEY -v "$PWD:/workspace" ghcr.io/rakfortltd/secfoo \
+docker run --rm -e OPENAI_API_KEY -v "$PWD:/workspace" ghcr.io/secfoo-com/secfoo \
   run --agent api --target /workspace --depth quick --json --rescan --skill sast --fail-on high
 ```
 
 No agent CLI is installed in the image, so `--agent api` is the practical
-choice; build `FROM ghcr.io/rakfortltd/secfoo` and `npm install -g
+choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 @anthropic-ai/claude-code` (or another CLI) if you want one. The store is
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.

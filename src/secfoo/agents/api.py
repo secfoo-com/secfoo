@@ -295,7 +295,9 @@ class ApiAdapter(AgentAdapter):
             from langgraph.graph import END, START, StateGraph
         except ImportError:
             return self._result(
-                "failed", started, stderr='litellm/langgraph are not installed. Run: pip install "secfoo[api]"'
+                "failed",
+                started,
+                stderr="litellm/langgraph are not installed. Reinstall secfoo: pip install --force-reinstall secfoo",
             )
         try:
             final = build_graph(litellm, StateGraph, START, END).invoke({

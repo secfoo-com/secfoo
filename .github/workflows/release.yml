@@ -197,5 +197,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/rakfortltd/secfoo:${{ needs.check-version.outputs.version }}
-            ghcr.io/rakfortltd/secfoo:latest
+            ghcr.io/secfoo-com/secfoo:${{ needs.check-version.outputs.version }}
+            ghcr.io/secfoo-com/secfoo:latest

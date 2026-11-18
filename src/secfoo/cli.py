@@ -39,7 +39,10 @@ from secfoo.skills.renderer import merge_excludes as _merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
 
-app = typer.Typer(name="secfoo", help="Context-based security architectural assessment.")
+app = typer.Typer(
+    name="secfoo",
+    help="AI security review CLI: SAST, secret scanning, SCA, threat modeling, and architecture review.",
+)
 mcp_app = typer.Typer(name="mcp", help="Manage MCP servers configured in ~/.secfoo/config.toml.")
 config_app = typer.Typer(name="config", help="Manage ~/.secfoo/config.toml.")
 assessment_app = typer.Typer(name="assessment", help="Manage assessment case files.")
@@ -83,7 +86,7 @@ def _root(
         typer.Option("--version", "-V", is_eager=True, callback=_show_version, help="Show the installed version and exit."),
     ] = False,
 ) -> None:
-    """Context-based security architectural assessment."""
+    """AI security review CLI: SAST, secret scanning, SCA, threat modeling, and architecture review."""
 
 
 @app.command()

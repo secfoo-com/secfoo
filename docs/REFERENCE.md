@@ -721,16 +721,16 @@ pipx install secfoo
 npm install -g @rakfortltd/secfoo
 
 # Universal installer script (macOS/Linux, no Python or Node needed)
-curl -fsSL https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.sh | sh
 
 # Windows (PowerShell), no Python or Node needed
-irm https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.ps1 | iex
 
 # Docker (nothing installed on the host at all)
-docker run --rm ghcr.io/rakfortltd/secfoo --help
+docker run --rm ghcr.io/secfoo-com/secfoo --help
 
 # Or grab a binary directly for your platform from the Releases page:
-# https://github.com/rakfortltd/secfoo/releases
+# https://github.com/secfoo-com/secfoo/releases
 ```
 
 Developing on this repo instead? `pip install -e ".[dev]"`.
@@ -949,20 +949,20 @@ Every install channel above is built on the same foundation: standalone,
 self-contained binaries (bundled Python interpreter + all dependencies —
 nothing needs to be pre-installed) for macOS (arm64/x64), Linux
 (x64/arm64), and Windows (x64), built by CI (`.github/workflows/release.yml`)
-on every `vX.Y.Z` tag push and attached to the matching GitHub Release
-along with a `SHA256SUMS` file.
+via manual `workflow_dispatch` for an existing `vX.Y.Z` tag and attached to
+the matching GitHub Release along with a `SHA256SUMS` file.
 
 - **pip**: the "real"/native path — a normal Python sdist+wheel, published
   to PyPI as usual.
-- **npm**: `@rakfortltd/secfoo` is a tiny meta-package whose
-  `optionalDependencies` are 5 per-platform packages
+- **npm**: `@rakfortltd/secfoo` (published under RakFort's npm scope) is a
+  tiny meta-package whose `optionalDependencies` are 5 per-platform packages
   (`@rakfortltd/secfoo-darwin-arm64`, etc.), each containing just that
   platform's binary. npm installs only the one matching your machine —
   no `postinstall` network fetch, which is what makes this safe to use
   behind a locked-down corporate npm/Artifactory mirror.
 - **install.sh / install.ps1**: detect your OS/arch, download the matching
   binary from the latest GitHub Release, verify its SHA256, install it.
-- **Docker**: `ghcr.io/rakfortltd/secfoo`, built from the PyPI package on
+- **Docker**: `ghcr.io/secfoo-com/secfoo`, built from the PyPI package on
   a slim Python base (simplest, most robust route for a container image —
   no cross-platform concern since the image itself is the platform).
   **Note**: none of the agent CLIs listed in the
@@ -977,7 +977,7 @@ along with a `SHA256SUMS` file.
 
   ```bash
   docker run --rm -p 8787:8787 -v ~/.secfoo:/root/.secfoo \
-    ghcr.io/rakfortltd/secfoo serve --host 0.0.0.0 --port 8787
+    ghcr.io/secfoo-com/secfoo serve --host 0.0.0.0 --port 8787
   ```
 
 - **GitHub Action**: `uses: secfoo-com/secfoo@main` (composite action in

@@ -55,3 +55,36 @@ jobs:
       - name: Validate example custom skills
         # Same check a team's own skills repo would run (docs/SKILLS.md).
         run: secfoo skills validate examples/skills
+
+      - name: Check __about__.py version is >= latest PyPI release
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+          from packaging.version import Version
+          from secfoo import __version__
+
+          try:
+              with urllib.request.urlopen("https://pypi.org/pypi/secfoo/json", timeout=15) as resp:
+                  pypi_version = json.loads(resp.read().decode("utf-8"))["info"]["version"]
+          except (urllib.error.URLError, TimeoutError) as exc:
+              print(f"Skipping PyPI version comparison (network unavailable): {exc}")
+          else:
+              print(f"Local __version__: {__version__}, PyPI latest: {pypi_version}")
+              assert Version(__version__) >= Version(pypi_version), (
+                  f"src/secfoo/__about__.py ({__version__}) is behind PyPI ({pypi_version})"
+              )
+          PY
+
+  docs-links:
+    name: Docs link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Check links in README.md and docs/
+        uses: lycheeverse/lychee-action@82202e5e9c2f4ef1a55a3d02563e1cb6041e5332 # v2.4.1
+        with:
+          args: --verbose --no-progress --accept 200..=299,429 README.md docs/
+          fail: true

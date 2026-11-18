@@ -37,7 +37,7 @@ secfoo:
 # secfoo-docker:
 #   stage: test
 #   image:
-#     name: ghcr.io/rakfortltd/secfoo:latest
+#     name: ghcr.io/secfoo-com/secfoo:latest
 #     entrypoint: [""]
 #   script:
 #     - secfoo run --agent api --target . --depth quick --json --rescan --skill sast --fail-on high > secfoo-result.json

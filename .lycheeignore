@@ -1,0 +1,15 @@
+# Placeholder / example URLs used in documentation snippets
+^https://github\.com/org/
+^https://github\.com/acme/
+^https://raw\.githubusercontent\.com/acme/
+^https://gitlab\.com/group/
+^https://bitbucket\.org/workspace/
+^https://yourcompany\.atlassian\.net/
+^https://mcp\.example\.com/
+^https://memory\.internal\.example
+^https://secfoo\.internal
+^https://\.\.\./
+# Authenticated MCP endpoint returns 401/403 without OAuth token
+^https://mcp\.atlassian\.com/v1/mcp/authv2
+# Localhost / loopback examples
+^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?
