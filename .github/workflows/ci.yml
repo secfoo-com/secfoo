@@ -45,7 +45,10 @@ jobs:
         run: bandit -r src/secfoo -c .bandit -ll
 
       - name: Dependency audit (pip-audit)
+        # Run on Python 3.12 where patched transitive wheels (pillow/filelock/setuptools)
+        # are published; Python 3.10 cannot resolve >=3.11-only security releases.
         # Add accepted advisories as `--ignore-vuln CVE-...  # YYYY-MM-DD: reason`
+        if: matrix.python-version == '3.12'
         run: pip-audit
 
       - name: Test (secfoo core)
