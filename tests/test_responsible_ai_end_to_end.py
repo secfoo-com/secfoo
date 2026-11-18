@@ -19,11 +19,10 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from typer.testing import CliRunner
-
 from secfoo.cli import app
 from secfoo.storage.repository import RunRepository
 from secfoo.web.app import create_app
+from typer.testing import CliRunner
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "reports"
 SKILL_ID = "responsible-ai-compliance"
@@ -33,6 +32,7 @@ TIERS = {
     "low": ("responsible-ai-compliance.md", "low-risk", "badge--success", (0, 0, 0, 6, 0)),
     "medium": ("responsible-ai-compliance-medium.md", "moderate", "badge--warning", (0, 0, 2, 4, 0)),
     "high": ("responsible-ai-compliance-high.md", "high-risk", "badge--error", (0, 2, 2, 2, 0)),
+    "critical": ("responsible-ai-compliance-critical.md", "high-risk", "badge--error", (1, 2, 2, 1, 0)),
 }
 
 cli_runner = CliRunner()
@@ -85,7 +85,12 @@ def _show(assessment_id: int) -> str:
 
 def _stat(html: str, label: str) -> str:
     """The number printed on the stat card with this label."""
-    match = re.search(rf'stat-card__value">\s*([^<\s]+)\s*</span>\s*<span class="stat-card__label">{re.escape(label)}<', html)
+    stripped = re.sub(r'<details class="info-tip\b.*?</details>', "", html, flags=re.DOTALL)
+    match = re.search(
+        rf'stat-card__value[^"]*">\s*([^<\s]+)\s*</span>\s*<span class="stat-card__label[^"]*">\s*{re.escape(label)}\s*<',
+        stripped,
+        re.DOTALL,
+    )
     assert match, f"no stat card labelled {label!r}"
     return match.group(1)
 
@@ -139,16 +144,37 @@ def test_each_rating_gets_its_own_tier(fake_popen, target_dir):
     assert len(set(seen.values())) == 3
 
 
+def test_overall_rating_is_independent_of_worst_finding(fake_popen, target_dir):
+    """Tier must come from `**Overall risk rating:**`, not from the worst finding."""
+    stdout = (FIXTURE_DIR / "responsible-ai-compliance-medium-with-high-finding.md").read_text(encoding="utf-8")
+    result = _run_skill(fake_popen, target_dir, returncode=0, stdout=stdout)
+
+    assert result.exit_code == 0, result.output
+    [run] = json.loads(result.stdout)["runs"]
+    assert run["severity"] == {"critical": 0, "high": 1, "medium": 1, "low": 4, "info": 0}
+
+    [assessment] = _all_assessments()
+    assert assessment.high_count == 1
+    assert assessment.responsible_ai_risk == "moderate"
+    assert "Responsible AI: moderate (provisional)" in _show(assessment.id)
+
+
 def test_assessment_list_shows_the_auto_created_case_file_with_its_findings(fake_popen, target_dir):
     assert _run_skill(fake_popen, target_dir, tier="low").exit_code == 0
+    unrated_target = target_dir / "unrated-app"
+    unrated_target.mkdir()
+    _create_assessment_for(unrated_target)
 
     # Wide enough that rich does not wrap the table cells.
-    result = cli_runner.invoke(app, ["assessment", "list"], env={"COLUMNS": "200"})
+    result = cli_runner.invoke(app, ["assessment", "list"], env={"COLUMNS": "240"})
 
     assert result.exit_code == 0, result.output
     flat = " ".join(result.stdout.split())
+    assert "Responsible AI" in flat
     assert "openai-quickstart-python" in flat
     assert "0C 0H 0M 6L 0I" in flat
+    assert "low-risk (provisional)" in flat
+    assert re.search(r"unrated-app\s+│\s+internal\s+│\s+ready\s+│\s+-\s+│\s+-\s+│\s+0C 0H 0M 0L 0I\s+│\s+-", flat)
 
 
 # ---------- the dashboard on the same store ----------
@@ -171,17 +197,29 @@ def test_responsible_ai_page_shows_the_tier_badge_and_counts(fake_popen, target_
     assert f'badge {badge_class}">{risk}<' in html
     assert 'badge badge--neutral">provisional<' in html
     assert _stat(html, "Assessments with a risk rating") == "1"
-    assert _stat(html, "High-risk") == ("1" if tier == "high" else "0")
+    assert _stat(html, "High-risk") == ("1" if risk == "high-risk" else "0")
     assert _stat(html, "Provisional") == "1"
 
 
-def test_assessment_pages_show_the_tier_badge(client, low_rated_assessment):
-    detail = client.get(f"/assessments/{low_rated_assessment}").text
+@pytest.mark.parametrize("tier", list(TIERS))
+def test_assessment_pages_show_the_tier_badge(fake_popen, target_dir, client, tier):
+    _, risk, badge_class, _ = TIERS[tier]
+    assert _run_skill(fake_popen, target_dir, tier=tier).exit_code == 0
+    [assessment] = _all_assessments()
+
+    detail = client.get(f"/assessments/{assessment.id}").text
     listing = client.get("/assessments").text
 
+    expected_badge = f'badge {badge_class}">{risk}<'
+    all_badges = {
+        'badge badge--success">low-risk<',
+        'badge badge--warning">moderate<',
+        'badge badge--error">high-risk<',
+    }
     for html in (detail, listing):
-        assert 'badge--success">low-risk<' in html
-        assert "moderate" not in html
+        assert expected_badge in html
+        for other_badge in all_badges - {expected_badge}:
+            assert other_badge not in html
 
 
 def test_overview_counts_the_rated_assessment(client, low_rated_assessment):
@@ -221,9 +259,20 @@ def test_cli_status_update_confirms_the_rating(low_rated_assessment):
 
 
 def test_reopening_a_completed_assessment_makes_the_rating_provisional_again(client, low_rated_assessment):
-    client.post("/assessments/bulk-status", data={"ids": [str(low_rated_assessment)], "new_status": "completed"})
-    client.post("/assessments/bulk-status", data={"ids": [str(low_rated_assessment)], "new_status": "in_progress"})
+    confirm_resp = client.post(
+        "/assessments/bulk-status",
+        data={"ids": [str(low_rated_assessment)], "new_status": "completed"},
+        follow_redirects=False,
+    )
+    assert confirm_resp.status_code == 303
+    assert "Responsible AI: low-risk (confirmed)" in _show(low_rated_assessment)
 
+    reopen_resp = client.post(
+        "/assessments/bulk-status",
+        data={"ids": [str(low_rated_assessment)], "new_status": "in_progress"},
+        follow_redirects=False,
+    )
+    assert reopen_resp.status_code == 303
     assert "Responsible AI: low-risk (provisional)" in _show(low_rated_assessment)
 
 
@@ -252,6 +301,19 @@ def test_the_badge_follows_the_newest_successful_run(fake_popen, target_dir, fir
     assert result.exit_code == 0, result.output
     [assessment] = _all_assessments()
     assert assessment.responsible_ai_risk == expected
+
+
+def test_the_badge_breaks_equal_timestamp_ties_in_favor_of_the_latest_run(fake_popen, target_dir, monkeypatch):
+    monkeypatch.setattr("secfoo.storage.repository._now", lambda: "2026-11-15T12:00:00+00:00")
+    assert _run_skill(fake_popen, target_dir, tier="low").exit_code == 0
+    [assessment] = _all_assessments()
+    assert assessment.responsible_ai_risk == "low-risk"
+
+    result = _run_skill(fake_popen, target_dir, tier="high", extra=["--assessment", str(assessment.id)])
+
+    assert result.exit_code == 0, result.output
+    [assessment] = _all_assessments()
+    assert assessment.responsible_ai_risk == "high-risk"
 
 
 def test_a_failed_newer_run_does_not_change_the_badge(fake_popen, target_dir):
