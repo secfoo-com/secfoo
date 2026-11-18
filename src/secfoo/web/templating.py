@@ -299,7 +299,7 @@ def active_run_count() -> int:
     try:
         with RunRepository() as repo:
             return len(repo.list_runs(status="running", limit=100))
-    except Exception:
+    except Exception:  # noqa: BLE001 -- top-bar live indicator must never break page rendering
         return 0
 
 

@@ -21,7 +21,12 @@ from datetime import datetime, timezone
 from secfoo import cvss
 from secfoo.report.architecture import _extract_section, extract_threat_register_rows
 from secfoo.storage.repository import RunRepository
-from secfoo.web import sast_dashboard, sca_dashboard, secret_scanning_dashboard, third_party_dashboard
+from secfoo.web import (
+    sast_dashboard,
+    sca_dashboard,
+    secret_scanning_dashboard,
+    third_party_dashboard,
+)
 from secfoo.web.dashboard_common import read_report
 
 _SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}

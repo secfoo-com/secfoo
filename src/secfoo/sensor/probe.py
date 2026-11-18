@@ -24,6 +24,7 @@ from __future__ import annotations
 import atexit
 import importlib.abc
 import json
+import logging
 import os
 import sys
 import sysconfig
@@ -38,6 +39,7 @@ DEFAULT_FLUSH_SECONDS = 10.0
 WATCHLIST_RECHECK_SECONDS = 30.0
 MAX_STACK_FRAMES = 10
 _TOOL_NAME = "secfoo-sensor"
+_log = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -126,8 +128,8 @@ class Probe:
                 sys.setprofile(None)
                 threading.setprofile(None)  # type: ignore[arg-type]
             self.transport.close()
-        except Exception:  # noqa: BLE001, S110 -- shutting down; never raise into the app
-            pass
+        except Exception:  # noqa: BLE001 -- shutting down; log at debug and never raise into the app
+            _log.debug("secfoo sensor shutdown error", exc_info=True)
 
     def _after_fork(self) -> None:
         """A forked worker (gunicorn, multiprocessing) is its own session."""
@@ -154,7 +156,7 @@ class Probe:
                 sys.setprofile(None)
             print(f"secfoo sensor: disabled after an internal error ({exc.__class__.__name__}); "
                   "the app is unaffected", file=sys.stderr)
-        except Exception:  # noqa: BLE001, S110 -- never raise into the app
+        except Exception:  # noqa: BLE001, S110  # nosec B110 -- last-resort fail-open guard inside error handler
             pass
 
     # ---------- watchlist ----------
@@ -342,7 +344,8 @@ class Probe:
                         _VERSIONS[dist] = version(dist)
                     loads.append({"type": "load", "session": self.session_id, "ecosystem": "PyPI",
                                   "package": dist, "version": _VERSIONS[dist], "first_seen": self.started_at})
-                except Exception:  # noqa: BLE001, S112 -- broken package metadata: skip it
+                except Exception:  # noqa: BLE001 -- broken package metadata: log at debug and skip it
+                    _log.debug("skipping broken package metadata for %s", dist, exc_info=True)
                     continue
         return loads
 

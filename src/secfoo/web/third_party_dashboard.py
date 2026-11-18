@@ -15,7 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from secfoo.report.architecture import CCM_DOMAINS, conformance_to_score, extract_ccm_conformance
+from secfoo.report.architecture import (
+    CCM_DOMAINS,
+    conformance_to_score,
+    extract_ccm_conformance,
+)
 from secfoo.storage.repository import RunRepository
 from secfoo.web.dashboard_common import read_report
 

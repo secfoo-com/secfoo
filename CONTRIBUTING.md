@@ -17,12 +17,16 @@ Requires Python 3.10+.
 
 ## Running the tests
 
+Run the full pre-PR checklist before opening a pull request:
+
 ```sh
 pytest tests
 ruff check .
+bandit -r src/secfoo -c .bandit -ll
+pip-audit
 ```
 
-CI runs both on every push and PR, on Python 3.10 and 3.12.
+CI runs all four blocking on every push and PR, on Python 3.10 and 3.12.
 
 The text parsers (report severities, skill frontmatter, severity filters)
 also have property-based tests in `tests/test_property_parsers.py`

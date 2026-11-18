@@ -39,12 +39,14 @@ jobs:
         run: secfoo vendor mermaid
 
       - name: Lint (ruff)
-        # Non-blocking for now: 102 pre-existing findings (mostly Optional[X]
-        # vs X | None style, plus a few unused test fixtures) predate this
-        # workflow. Reporting them here for visibility without turning every
-        # unrelated PR red; flip to a hard failure once that backlog is
-        # cleared (tracked separately from this CI/CD setup).
-        run: ruff check . || true
+        run: ruff check .
+
+      - name: Security scan (bandit)
+        run: bandit -r src/secfoo -c .bandit -ll
+
+      - name: Dependency audit (pip-audit)
+        # Add accepted advisories as `--ignore-vuln CVE-...  # YYYY-MM-DD: reason`
+        run: pip-audit
 
       - name: Test (secfoo core)
         run: pytest tests

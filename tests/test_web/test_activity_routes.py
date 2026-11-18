@@ -108,7 +108,7 @@ def test_sidebar_marks_exactly_the_active_activity(client):
 
     resp = client.get("/activities/sast")
     # Links lead with an inline <svg> icon, so match through to </a>.
-    links = re.findall(r'<a class="sidebar__link".*?</a>', resp.text, re.S)
+    links = re.findall(r'<a class="sidebar__link".*?</a>', resp.text, re.DOTALL)
     active = [re.sub(r"\s+", " ", link) for link in links if "aria-current" in link]
     assert len(active) == 1, f"expected exactly one active link, got {active}"
     assert 'href="/activities/sast"' in active[0]
@@ -279,11 +279,11 @@ def test_architecture_activity_page_shows_one_diagram_at_a_time_with_a_project_s
 
 
 def test_architecture_activity_page_diagram_selector_switches_on_query_param(client, tmp_path):
-    _, run_a = _seed_run_with_report(
+    _seed_run_with_report(
         tmp_path, skill_id="security-architecture-review", project_name="acme/app-a",
         report_text=ARCHITECTURE_REPORT,
     )
-    project_b, run_b = _seed_run_with_report(
+    project_b, _run_b = _seed_run_with_report(
         tmp_path, skill_id="security-architecture-review", project_name="acme/app-b",
         report_text=SECOND_ARCHITECTURE_REPORT,
     )

@@ -8,7 +8,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from secfoo.config import STORE_DIR
 from secfoo.report.markdown import render_report_html
 from secfoo.storage.repository import RunRepository
-from secfoo.web.run_status import ACTIVE_STATUSES, blocked_hint, elapsed_seconds, run_steps
+from secfoo.web.run_status import (
+    ACTIVE_STATUSES,
+    blocked_hint,
+    elapsed_seconds,
+    run_steps,
+)
 from secfoo.web.templating import templates
 
 router = APIRouter()

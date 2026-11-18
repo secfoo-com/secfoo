@@ -16,8 +16,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from secfoo import osv
-from secfoo.report.sca import SKILL_ID
 from secfoo.report.sca import (
+    SKILL_ID,
     extract_cve_by_dependency_id,
     extract_narrative_by_dependency_id,
     extract_risk_register_rows,

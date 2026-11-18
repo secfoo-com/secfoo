@@ -52,7 +52,7 @@ def extract_text(path: Path) -> str:
             return _extract_docx(path)
         if suffix == ".pptx":
             return _extract_pptx(path)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- third-party PDF/DOCX/PPTX parsers raise arbitrary errors; callers treat "" as non-extractable
         return ""
     return ""
 

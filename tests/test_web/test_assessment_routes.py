@@ -409,7 +409,7 @@ def test_create_then_run_flow_end_to_end(client, tmp_path):
 
 
 def test_trigger_run_calls_execute_runs_with_expected_args(monkeypatch, client):
-    project_id, assessment_id = _create_assessment()
+    _project_id, assessment_id = _create_assessment()
     monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
 
     captured = {}

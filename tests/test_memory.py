@@ -7,6 +7,7 @@ import json
 import stat
 import urllib.error
 from io import BytesIO
+from typing import ClassVar
 
 import pytest
 
@@ -165,7 +166,7 @@ class _CapturingAdapter(AgentAdapter):
     name = "fake"
     binary = "fake-binary"
     default_timeout_seconds = 30
-    prompts: list[str] = []
+    prompts: ClassVar[list[str]] = []
 
     def build_command(self, prompt, *, workdir):
         return ["fake-binary"]

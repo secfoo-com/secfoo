@@ -66,7 +66,7 @@ def test_overview_empty_state(client):
 
 
 def test_overview_lists_recent_assessment(client, tmp_path):
-    project_id, run_uuid = _seed_run(tmp_path)
+    project_id, _run_uuid = _seed_run(tmp_path)
     repo = RunRepository()
     repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
     repo.close()

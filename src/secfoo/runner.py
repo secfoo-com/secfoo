@@ -53,10 +53,11 @@ def _git_head_commit(path: Path) -> str | None:
     try:
         result = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         )
         return result.stdout.strip() if result.returncode == 0 else None
     except Exception:
+        logger.debug("could not read git HEAD commit for %s", path, exc_info=True)
         return None
 
 
@@ -129,8 +130,7 @@ class RunOutcome:
 def _project_display_name(resolved: ResolvedTarget) -> str:
     if resolved.is_temporary:
         cleaned = resolved.display_name.rstrip("/")
-        if cleaned.endswith(".git"):
-            cleaned = cleaned[: -len(".git")]
+        cleaned = cleaned.removesuffix(".git")
         match = re.search(r"(?:https?://[^/]+/|git@[^:]+:)(.+)$", cleaned)
         return match.group(1) if match else cleaned
     return Path(resolved.display_name).name or resolved.display_name
@@ -148,7 +148,7 @@ def _try_cloud_sync(repo: RunRepository, run_uuid: str) -> None:
             return
         cloud.sync_run(repo, run_uuid, config)
     except Exception:
-        pass
+        logger.debug("best-effort cloud sync failed for run %s", run_uuid, exc_info=True)
 
 
 def _try_osv_enrich(repo: RunRepository, report_text: str) -> None:
@@ -165,7 +165,7 @@ def _try_osv_enrich(repo: RunRepository, report_text: str) -> None:
         if keys:
             osv.enrich_lookups(repo, list(keys))
     except Exception:
-        pass
+        logger.debug("best-effort OSV enrichment failed", exc_info=True)
 
 
 def _stack_fields(stack: Stack | None, language: str | None) -> dict[str, str | None]:
@@ -411,7 +411,8 @@ def _target_workdir(resolved: ResolvedTarget) -> Iterator[Path]:
         with clone_forge(resolved.display_name, kind=resolved.kind) as tmp_dir:
             yield tmp_dir
     else:
-        assert resolved.path is not None
+        if resolved.path is None:
+            raise RuntimeError(f"Local target {resolved.display_name!r} has no resolved path")
         yield resolved.path
 
 

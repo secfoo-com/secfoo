@@ -24,7 +24,11 @@ from secfoo.report.architecture import (
     extract_threat_register_rows,
 )
 from secfoo.storage.repository import RunRepository
-from secfoo.web.dashboard_common import append_boundary_changed_projects, percentile, read_report
+from secfoo.web.dashboard_common import (
+    append_boundary_changed_projects,
+    percentile,
+    read_report,
+)
 
 SKILL_ID = "threat-modeling"
 

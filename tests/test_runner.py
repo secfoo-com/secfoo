@@ -636,7 +636,6 @@ def test_execute_runs_enriches_osv_cache_for_sca_reachability_runs(tmp_path, mon
 
 def test_execute_runs_does_not_enrich_osv_for_non_sca_skills(tmp_path, monkeypatch):
     _patch_runner(monkeypatch, tmp_path)
-    calls = []
     monkeypatch.setattr(
         "secfoo.osv.urllib.request.urlopen",
         lambda request, timeout=None: (_ for _ in ()).throw(AssertionError("must not call OSV for non-SCA skills")),

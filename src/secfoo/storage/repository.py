@@ -217,7 +217,7 @@ class RunRepository:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "RunRepository":
+    def __enter__(self) -> RunRepository:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -556,7 +556,7 @@ class RunRepository:
             "project": "projects.display_name",
         }[group_by]
         query = (
-            f"SELECT {group_sql} AS label, COUNT(*) AS runs, "
+            f"SELECT {group_sql} AS label, COUNT(*) AS runs, "  # nosec B608 -- group_sql from fixed dict above
             # No COALESCE here: SQLite's SUM() already returns NULL (not 0)
             # when every value in the group is NULL, and that distinction is
             # exactly "unknown" vs "zero" -- collapsing it to 0 is SECFOO-34.
