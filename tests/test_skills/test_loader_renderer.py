@@ -382,6 +382,34 @@ def test_responsible_ai_compliance_has_a_severity_anchor(tmp_path):
     assert "**Low**" in prompt
 
 
+RESPONSIBLE_AI_DIMENSIONS = [
+    "Documentation",
+    "Bias & fairness",
+    "Human oversight",
+    "Transparency to end users",
+    "Data provenance & consent",
+    "Framework alignment",
+    "Auditability & recourse",
+]
+
+
+def test_responsible_ai_compliance_brief_carries_all_seven_dimensions_and_the_rubric(tmp_path):
+    """A later edit of the skill file must not silently drop a dimension
+    or weaken the rubric that drives the assessment's risk rating."""
+    prompt = _flat(_prompt_for("responsible-ai-compliance", tmp_path))
+
+    for number, dimension in enumerate(RESPONSIBLE_AI_DIMENSIONS, start=1):
+        assert f"{number}. **{dimension}.**" in prompt
+    assert "this drives the assessment's overall risk rating" in prompt
+    assert (
+        "**High** = the system makes or materially influences a high-stakes, irreversible, "
+        "or rights-affecting decision about a person"
+    ) in prompt
+    assert "AND at least one of human oversight, transparency to the affected person, or auditability/recourse" in prompt
+    assert "**Medium** = a high-stakes use case exists but the missing pieces above are partial, not absent" in prompt
+    assert "**Low** = no high-stakes or rights-affecting decision is made by the system" in prompt
+
+
 def test_sca_contract_is_dependency_centric_with_reachability(tmp_path):
     prompt = _prompt_for("sca-reachability", tmp_path)
     assert "# SCA Report" in prompt

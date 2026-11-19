@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typer.testing import CliRunner
-
 from secfoo.cli import app
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
@@ -26,7 +25,7 @@ def test_assessment_create_and_list(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "Created assessment 1" in result.stdout
 
-    result = runner.invoke(app, ["assessment", "list"])
+    result = runner.invoke(app, ["assessment", "list"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
     assert "APP-1" in result.stdout
     assert "myproject" in result.stdout
@@ -43,7 +42,7 @@ def test_assessment_create_with_custom_name_overrides_auto_derived(monkeypatch, 
     )
     assert result.exit_code == 0
 
-    result = runner.invoke(app, ["assessment", "list"])
+    result = runner.invoke(app, ["assessment", "list"], env={"COLUMNS": "200"})
     # Rich wraps/truncates long cell text, so check fragments rather than
     # the literal joined string.
     assert "Friendly" in result.stdout
@@ -64,7 +63,7 @@ def test_assessment_create_accepts_public_github_url(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "Created assessment 1" in result.stdout
 
-    result = runner.invoke(app, ["assessment", "list"])
+    result = runner.invoke(app, ["assessment", "list"], env={"COLUMNS": "200"})
     # Rich truncates long cell text with an ellipsis in the CLI's compact
     # table width, so check a safe prefix rather than the literal string.
     assert "octocat/H" in result.stdout
