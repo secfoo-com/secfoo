@@ -65,6 +65,9 @@ class Probe:
         self.backend = backend or ("monitoring" if hasattr(sys, "monitoring") else "profile")
         self._excluded_dirs = _stdlib_and_site_dirs()
         self._lock = threading.Lock()
+        # Serialises flushes: stop()'s final flush and the flusher thread
+        # must never share the transport's socket at the same moment.
+        self._flush_lock = threading.Lock()
         self._active = False
         self._broken = False
         self._reset_session()
@@ -76,6 +79,7 @@ class Probe:
         self._seen_app_code: set = set()
         self._app_code_cache: dict = {}  # code object -> is app code
         self._tool_id: int | None = None
+        self._watcher: _ImportWatcher | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -95,7 +99,8 @@ class Probe:
                 self._start_monitoring()
             else:
                 self._start_profile()
-            sys.meta_path.insert(0, _ImportWatcher(self))
+            self._watcher = _ImportWatcher(self)
+            sys.meta_path.insert(0, self._watcher)
             self._active = True
             self._resolve_pending()
             self._start_flusher()
@@ -111,21 +116,30 @@ class Probe:
             self._disable(exc)
 
     def stop(self) -> None:
-        if not self._active:
-            return
+        """Final flush (only while healthy), then release every hook. A probe
+        that `_disable`d itself still holds its sys.monitoring tool id, its
+        import watcher and its transport, so those are released either way;
+        stopping twice is a no-op."""
+        was_active = self._active
         self._stop.set()
-        self.flush()
+        if was_active:
+            self.flush()
         self._active = False
         try:
+            if self._watcher is not None:
+                if self._watcher in sys.meta_path:
+                    sys.meta_path.remove(self._watcher)
+                self._watcher = None
             if self._tool_id is not None:
                 sys.monitoring.register_callback(self._tool_id, sys.monitoring.events.PY_START, None)
                 sys.monitoring.set_events(self._tool_id, 0)
                 sys.monitoring.free_tool_id(self._tool_id)
                 self._tool_id = None
-            elif self.backend == "profile":
+            elif was_active and self.backend == "profile":
                 sys.setprofile(None)
                 threading.setprofile(None)  # type: ignore[arg-type]
-            self.transport.close()
+            if was_active or self._broken:
+                self.transport.close()
         except Exception:  # noqa: BLE001, S110 -- shutting down; never raise into the app
             pass
 
@@ -133,6 +147,7 @@ class Probe:
         """A forked worker (gunicorn, multiprocessing) is its own session."""
         try:
             self._lock = threading.Lock()
+            self._flush_lock = threading.Lock()  # the parent's flusher may have held it at fork
             self._reset_session()
             self._stop = threading.Event()
             self.transport = self.transport.reopen()
@@ -347,15 +362,22 @@ class Probe:
         return loads
 
     def flush(self) -> None:
+        """One batch of running totals. Serialised: when stop()'s final flush
+        overlapped the flusher thread's, the transport's non-blocking control
+        read made the other thread's sendall fail, the socket was closed as
+        "sensor gone", and the final session line was lost."""
         if self._broken:
             return
-        try:
-            self._load_watchlist()
-            self._resolve_pending()
-            if not self.transport.send(self.snapshot()):
-                self.dropped += 1
-        except Exception as exc:  # noqa: BLE001
-            self._disable(exc)
+        with self._flush_lock:
+            if self._broken:
+                return
+            try:
+                self._load_watchlist()
+                self._resolve_pending()
+                if not self.transport.send(self.snapshot()):
+                    self.dropped += 1
+            except Exception as exc:  # noqa: BLE001
+                self._disable(exc)
 
     def _interval(self) -> float:
         """The sensor's `welcome` interval if it sent one, doubled while it

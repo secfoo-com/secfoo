@@ -26,6 +26,7 @@ import urllib.request
 PROTOCOL_VERSION = 1
 DIRECT_TIMEOUT_SECONDS = 0.2  # #73: a cold start or shutdown never waits on the network
 SOCKET_TIMEOUT_SECONDS = 1.0
+CLOSE_DRAIN_SECONDS = 0.2  # bounded: shutdown never waits on the sensor longer than this
 
 
 class TransportError(ValueError):
@@ -159,6 +160,24 @@ class SocketTransport(_StreamTransport):
                 self.slow = True
 
     flush_interval: float | None = None
+
+    def close(self) -> None:
+        """Graceful close. Closing a socket with unread data in its receive
+        buffer (a `welcome` the probe never got to read) sends RST instead of
+        FIN, and the sensor then discards lines it had received but not yet
+        read -- the final flush's session line among them. So: send FIN,
+        drain what the sensor wrote back (bounded by CLOSE_DRAIN_SECONDS),
+        then close."""
+        conn = self._conn
+        if conn is not None:
+            try:
+                conn.shutdown(socket.SHUT_WR)
+                conn.settimeout(CLOSE_DRAIN_SECONDS)
+                while conn.recv(65536):
+                    pass
+            except OSError:
+                pass
+        super().close()
 
     def _connect(self):
         family = socket.AF_INET6 if self.scheme == "tcp" and ":" in self.target[0] else socket.AF_INET
