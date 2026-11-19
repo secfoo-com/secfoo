@@ -218,3 +218,38 @@ def test_case_insensitive_target_overlap_is_rejected(tmp_path):
     doc.write_text("design", encoding="utf-8")
     with pytest.raises(ContextSourceError, match="inside the scanned target"):
         _resolve(context=[str(doc)], target=target)
+
+
+
+def test_symlinked_folder_inside_target_is_rejected(tmp_path):
+    """A folder symlink planted in the untrusted target (docs -> ~/Documents)
+    must not let the scanned repo choose which local files are inlined."""
+    target = tmp_path / "repo"
+    target.mkdir()
+    private = tmp_path / "Documents"
+    private.mkdir()
+    (private / "secret.md").write_text("LEAKED", encoding="utf-8")
+    link = target / "docs"
+    try:
+        link.symlink_to(private, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported in this environment")
+    with pytest.raises(ContextSourceError, match="inside the scanned target"):
+        _resolve(context=[str(link)], target=target)
+    with pytest.raises(ContextSourceError, match="inside the scanned target"):
+        _resolve(context=[str(link / "secret.md")], target=target)
+
+
+def test_a_symlink_outside_the_target_is_still_allowed(tmp_path):
+    target = tmp_path / "repo"
+    target.mkdir()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("ok", encoding="utf-8")
+    link = tmp_path / "docs-link"
+    try:
+        link.symlink_to(docs, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported in this environment")
+    [source] = _resolve(context=[str(link)], target=target)
+    assert source.kind == "directory"

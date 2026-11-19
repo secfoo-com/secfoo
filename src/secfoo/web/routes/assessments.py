@@ -16,7 +16,7 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.config import attachment_dir
 from secfoo.context_run import resolve_run_context
-from secfoo.context_sources import ContextSourceError
+from secfoo.context_sources import ContextSourceError, looks_like_url
 from secfoo.runner import _project_display_name, execute_runs
 from secfoo.settings import ConfigError, load_config
 from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill
@@ -381,6 +381,20 @@ def assessment_trigger_run(
 
     confluence_values = [line.strip() for line in confluence.splitlines() if line.strip()]
     context_values = [line.strip() for line in context.splitlines() if line.strip()]
+    # The dashboard has no cross-site request protection yet (#118), so a
+    # page in the user's browser could post this form. Only https URLs are
+    # accepted here; local files and folders come from the CLI or from the
+    # user's own [defaults].context, never from a form field.
+    for value in confluence_values + context_values:
+        if not looks_like_url(value):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{value!r}: the dashboard accepts only https:// URLs as context. "
+                    "Add local files or folders with `secfoo run --context` or [defaults].context "
+                    "in ~/.secfoo/config.toml."
+                ),
+            )
     try:
         run_context = resolve_run_context(
             defaults_context=config_context,

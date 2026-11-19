@@ -36,6 +36,10 @@ class ContextSource:
     raw: str  # as the user wrote it, for display
     kind: SourceKind
     location: str  # the cleaned URL, or the resolved absolute path
+    # The absolute path as written, before symlinks are followed. A symlink
+    # planted inside the scanned target resolves outside it, so the target
+    # check must look at this as well as at `location`.
+    written: str | None = None
 
 
 def looks_like_url(value: str) -> bool:
@@ -73,13 +77,14 @@ def _parse_url(value: str) -> ContextSource:
 
 def _parse_path(value: str) -> ContextSource:
     try:
+        written = os.path.abspath(Path(value).expanduser())
         path = Path(value).expanduser().resolve()
         is_directory = path.is_dir()
         is_file = path.is_file()
     except (OSError, ValueError) as exc:
         raise ContextSourceError(f"not a usable path: {exc}") from exc
     if is_directory:
-        return ContextSource(raw=value, kind="directory", location=str(path))
+        return ContextSource(raw=value, kind="directory", location=str(path), written=written)
     if not is_file:
         raise ContextSourceError("no such file or folder (a URL needs the https:// prefix)")
     if path.suffix.lower() not in SUPPORTED_LOCAL_EXTENSIONS:
@@ -87,7 +92,7 @@ def _parse_path(value: str) -> ContextSource:
         raise ContextSourceError(
             f"unsupported file type {path.suffix or '(none)'!r}, supported: {supported}"
         )
-    return ContextSource(raw=value, kind="file", location=str(path))
+    return ContextSource(raw=value, kind="file", location=str(path), written=written)
 
 
 def parse_context_source(value: str) -> ContextSource:
@@ -130,7 +135,8 @@ def _reject_overlap_with_target(source: ContextSource, target_dir: Path | None) 
     if source.kind == "url" or target_dir is None:
         return
     source_path = Path(source.location)
-    if _is_same_or_inside(source_path, target_dir):
+    paths = [source_path] + ([Path(source.written)] if source.written else [])
+    if any(_is_same_or_inside(path, target_dir) for path in paths):
         raise ContextSourceError(
             "it is inside the scanned target, which is untrusted; "
             "context must be your own documents"

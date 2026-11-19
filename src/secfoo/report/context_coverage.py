@@ -178,7 +178,7 @@ def parse_documentation_coverage(report_markdown: str) -> list[CoverageRecord]:
             elif (
                 r_lower.startswith(("yes", "true", "reached"))
                 or bool(re.match(r"^y([^a-z]|$)", r_lower))
-                or ("\u2713" in reached_cell or "\u2705" in reached_cell)
+                or any(mark in reached_cell for mark in ("\u2713", "\u2714", "\u2705", "\u2611"))
             ):
                 reached = True
             else:
@@ -209,6 +209,21 @@ def _normalize_key(s: str) -> str:
         s = s[1:-1].strip()
     s = s.replace("\\", "/")
     return s.rstrip("/")
+
+
+def _primary_keys(source_cell: str) -> set[str]:
+    """What the row is about: the whole cell, the cell without a trailing
+    parenthetical, a leading Markdown link, or a leading https:// URL. Other
+    URLs later in the cell (\"child of …\") are only secondary keys."""
+    keys = {_normalize_key(source_cell), _normalize_key(_TRAILING_PAREN_RE.sub("", source_cell))}
+    stripped = source_cell.strip().lstrip("<`*").strip()
+    link = _MARKDOWN_LINK_RE.match(stripped)
+    if link:
+        keys |= {_normalize_key(link.group(1)), _normalize_key(link.group(2))}
+    token = _HTTPS_TOKEN_RE.match(stripped)
+    if token:
+        keys.add(_normalize_key(token.group(0).rstrip(".,;:")))
+    return {k for k in keys if k}
 
 
 def _row_keys(source_cell: str) -> set[str]:
@@ -249,20 +264,26 @@ def coverage_for_run(
     used_row_indices: set[int] = set()
     matched_rows: dict[int, int] = {}
 
+    primary_keys = [_primary_keys(row.source) for row in rows]
     row_keys_list = [_row_keys(row.source) for row in rows]
 
-    # Exact matching only: match entries in order; each row is used at most once
-    for index, entry in enumerate(brief.entries):
-        norm_label = _normalize_key(entry.label)
-        if not norm_label:
-            continue
-        for r_idx, keys in enumerate(row_keys_list):
-            if r_idx in used_row_indices:
+    # Exact matching only; each row is used at most once. Pass 1 matches a
+    # source to the row that is *about* it (its leading label); pass 2 then
+    # allows a URL mentioned anywhere in a still-unused row.
+    for keyset in (primary_keys, row_keys_list):
+        for index, entry in enumerate(brief.entries):
+            if index in matched_rows:
                 continue
-            if norm_label in keys:
-                matched_rows[index] = r_idx
-                used_row_indices.add(r_idx)
-                break
+            norm_label = _normalize_key(entry.label)
+            if not norm_label:
+                continue
+            for r_idx, keys in enumerate(keyset):
+                if r_idx in used_row_indices:
+                    continue
+                if norm_label in keys:
+                    matched_rows[index] = r_idx
+                    used_row_indices.add(r_idx)
+                    break
 
     records: list[CoverageRecord] = []
     for index, entry in enumerate(brief.entries):
@@ -286,7 +307,13 @@ def coverage_for_run(
                 rec_notes = entry.note or "not read by secfoo"
             else:
                 rec_reached = True
-                rec_notes = row.notes if (row is not None and row.notes) else entry.note
+                # secfoo's own note (e.g. "truncated: 5 more files not read")
+                # is a fact about what the agent was given; keep it.
+                agent_notes = row.notes if row is not None else ""
+                if entry.note and agent_notes:
+                    rec_notes = f"{entry.note}; agent: {agent_notes}"
+                else:
+                    rec_notes = entry.note or agent_notes
 
         records.append(
             CoverageRecord(

@@ -497,7 +497,9 @@ def test_trigger_run_invalid_context_source_returns_400(client):
     assert "plain http://" in resp.json()["detail"]
 
 
-def test_trigger_run_context_inside_target_returns_400(client, tmp_path):
+def test_trigger_run_rejects_local_paths_from_the_form(client, tmp_path):
+    """Until the dashboard has cross-site protection (#118), a form field
+    must never make secfoo read a local file: only https URLs are accepted."""
     target_dir = tmp_path / "app_repo"
     target_dir.mkdir()
     repo = RunRepository()
@@ -518,7 +520,17 @@ def test_trigger_run_context_inside_target_returns_400(client, tmp_path):
         },
     )
     assert resp.status_code == 400
-    assert "inside the scanned target" in resp.json()["detail"]
+    assert "only https:// URLs" in resp.json()["detail"]
+
+    outside_doc = tmp_path / "outside.md"
+    outside_doc.write_text("notes", encoding="utf-8")
+    for field in ("context", "confluence"):
+        resp = client.post(
+            f"/assessments/{assessment_id}/runs",
+            data={"skill": ["security-architecture-review"], "agent": "claude", "depth": "quick",
+                  field: str(outside_doc)},
+        )
+        assert resp.status_code == 400 and "only https:// URLs" in resp.json()["detail"]
 
 
 def test_trigger_run_merges_config_defaults_context(client, monkeypatch):
