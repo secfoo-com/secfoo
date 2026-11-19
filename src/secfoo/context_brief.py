@@ -61,16 +61,14 @@ class ContextBrief:
 
 
 def host_matches(hostname: str, patterns: Sequence[str]) -> bool:
-    """True when hostname matches pattern (exact match, or *.domain matching subdomains and root domain)."""
+    """True when hostname matches pattern (exact match, or *.domain matching subdomains only)."""
     h = hostname.lower()
     for pat in patterns:
         p = pat.lower()
         if h == p:
             return True
-        if p.startswith("*."):
-            root = p[2:]
-            if h == root or h.endswith("." + root):
-                return True
+        if p.startswith("*.") and h.endswith(p[1:]) and len(h) > len(p[1:]):
+            return True
     return False
 
 

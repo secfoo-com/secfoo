@@ -441,11 +441,13 @@ def test_folder_truncation_with_post_truncation_cap(tmp_path: Path, monkeypatch:
 
 def test_host_matches() -> None:
     assert host_matches("sub.example.com", ["*.example.com"])
-    assert host_matches("example.com", ["*.example.com"])
+    assert not host_matches("example.com", ["*.example.com"])
     assert not host_matches("other.org", ["*.example.com"])
     assert not host_matches("fakeexample.com", ["*.example.com"])
     assert host_matches("example.com", ["example.com"])
     assert not host_matches("sub.example.com", ["example.com"])
+    assert host_matches("example.com", ["example.com", "*.example.com"])
+    assert host_matches("sub.example.com", ["example.com", "*.example.com"])
 
 
 def test_classify_url_with_mcp_server_hosts() -> None:

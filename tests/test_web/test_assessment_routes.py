@@ -572,6 +572,68 @@ def test_trigger_run_legacy_confluence_and_context_combined(client, monkeypatch)
     assert [s.location for s in captured["context_sources"]] == [url_confluence, url_context]
 
 
+def test_trigger_run_context_with_blank_lines(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": "https://a.example/x\n\n   \nhttps://b.example/y\n",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert len(captured["context_sources"]) == 2
+    assert [s.location for s in captured["context_sources"]] == ["https://a.example/x", "https://b.example/y"]
+
+
+def test_trigger_run_legacy_confluence_with_blank_lines(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "confluence": "https://a.example/x\n\n   \nhttps://b.example/y\n",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert captured["confluence_urls"] == ["https://a.example/x", "https://b.example/y"]
+    assert len(captured["context_sources"]) == 2
+
+
+def test_trigger_run_context_whitespace_only_accepted_as_no_context(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": "   \n\n  \t  \n",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert captured["context_sources"] == []
+
+
 def test_trigger_run_unknown_skill_returns_400(client):
     _, assessment_id = _create_assessment()
     resp = client.post(

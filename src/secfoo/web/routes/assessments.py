@@ -366,6 +366,8 @@ def assessment_trigger_run(
         config_context = config.defaults.context
         config_mcp_servers = config.mcp_servers
     except ConfigError:
+        # A malformed config shouldn't block a run from the UI -- the CLI
+        # surfaces the error loudly, and exclusions and default context are conveniences.
         config_excludes = []
         config_context = []
         config_mcp_servers = []
@@ -377,11 +379,13 @@ def assessment_trigger_run(
     except TargetResolutionError:
         scanned_dir = None
 
+    confluence_values = [line.strip() for line in confluence.splitlines() if line.strip()]
+    context_values = [line.strip() for line in context.splitlines() if line.strip()]
     try:
         run_context = resolve_run_context(
             defaults_context=config_context,
-            confluence_values=confluence.splitlines(),
-            context_values=context.splitlines(),
+            confluence_values=confluence_values,
+            context_values=context_values,
             target_dir=scanned_dir,
             mcp_servers=config_mcp_servers,
         )

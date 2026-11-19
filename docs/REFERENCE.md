@@ -937,7 +937,7 @@ args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
 hosts = ["wiki.internal.example", "*.atlassian.net"]
 ```
 
-The optional `hosts` array specifies hostnames or domain patterns served by this MCP server (e.g. `["wiki.internal.example", "*.atlassian.net"]`). Wildcards starting with `*.` match subdomains as well as the root domain itself. secfoo uses `hosts` to route URL context sources to their likely MCP readers and classify internal enterprise Confluence / Jira URLs.
+The optional `hosts` array specifies hostnames or domain patterns served by this MCP server (e.g. `["wiki.internal.example", "*.atlassian.net"]`). A `*.` pattern matches subdomains only; list the bare domain too if needed. secfoo uses `hosts` to route URL context sources to their likely MCP readers and classify internal enterprise Confluence / Jira URLs.
 
 CLI flags always override `[defaults]`. See
 [`src/secfoo/config.example.toml`](../src/secfoo/config.example.toml) for the
