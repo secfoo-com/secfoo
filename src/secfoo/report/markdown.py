@@ -377,27 +377,48 @@ def example_finding_ids(report: str) -> set[str]:
     return identifiers
 
 
-def has_json_draft(report: str) -> bool:
-    """A JSON draft envelope (`{"draft_report": "..."}`) returned instead of
-    a report: after a prose preamble, in a code fence, or bare.
-
-    Only when the text has no Markdown structure of its own. A report with
-    real headings that *quotes* such an envelope (a finding about a reformat
-    step, an example) is a report, not an echo; inside the envelope the
-    report's newlines are JSON-escaped, so an echo never parses as headings."""
-    report = parse_report(report)
-    if headings(report):
-        return False
+def _json_draft_ranges(report: str) -> list[tuple[int, int]]:
     text = str(report)
     decoder = json.JSONDecoder()
-    for match in re.finditer(r'\{', text):
+    ranges = []
+    for match in re.finditer(r'[\{"]', text):
         try:
-            value, _ = decoder.raw_decode(text, match.start())
+            value, end = decoder.raw_decode(text, match.start())
         except ValueError:
             continue
-        if isinstance(value, dict) and isinstance(value.get('draft_report'), str):
-            return True
-    return False
+        envelope = isinstance(value, dict) and isinstance(value.get('draft_report'), str)
+        serialized_report = (isinstance(value, str) and '\n' in value and
+                             re.search(r'(?:^|\n)#{1,6}\s|\*\*Overall risk rating:', value))
+        if envelope or serialized_report:
+            ranges.append((match.start(), end))
+    return ranges
+
+
+def text_without_json_drafts(report: str) -> str:
+    """JSON examples cannot supply the report's own risk rating."""
+    chars = list(report)
+    for start, end in _json_draft_ranges(report):
+        for i in range(start, end):
+            if chars[i] != '\n':
+                chars[i] = ' '
+    return ''.join(chars)
+
+
+def has_json_draft(report: str) -> bool:
+    """Reject an envelope masquerading as a report, even with a fake title.
+
+    A real finding or independent report rating distinguishes a report that
+    discusses JSON from an echoed draft with only a Markdown heading added.
+    """
+    report = parse_report(report)
+    if not _json_draft_ranges(report):
+        return False
+    items = headings(report)
+    if any(h.level == 3 and FINDING.match(h.text) for h in items):
+        return False
+    own_text = text_without_json_drafts(text_outside_code(report))
+    own_rating = re.search(r'\*\*Overall risk rating:\*\*\s*[A-Za-z]+', own_text, re.IGNORECASE)
+    return not (items and own_rating)
 
 
 def read_stored_report(path: str | Path | None, *, errors: list[str] | None = None) -> str:

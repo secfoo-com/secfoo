@@ -330,3 +330,26 @@ def test_stored_reports_are_read_once_until_they_change(tmp_path, monkeypatch):
     assert len(reads) == 1
     path.write_text('# Report\n\n**Overall risk rating:** High!\n')  # new size and mtime
     assert extract_overall_risk_rating(markdown.read_stored_report(path)) == 'high'
+
+
+@pytest.mark.parametrize('heading', ['# SAST Report', '## Summary'])
+def test_markdown_title_does_not_turn_json_echo_into_zero_finding_success(heading):
+    blob = json.dumps({'draft_report': '# SAST Report\n**Overall risk rating:** Critical\n### [Critical] F1: RCE'})
+    report = heading + '\n\n' + blob
+    assert extract_overall_risk_rating(report) is None
+    with pytest.raises(MalformedReportError):
+        count_severities(report)
+
+
+def test_real_finding_cannot_take_its_rating_from_a_json_example():
+    blob = json.dumps({'draft_report': '**Overall risk rating:** Low'})
+    report = '# SAST Report\n### [High] F1: Reformat vulnerability\nThe wrapper is ' + blob
+    assert count_severities(report).high == 1
+    assert extract_overall_risk_rating(report) is None
+
+
+def test_markdown_title_cannot_hide_a_serialized_report_string():
+    report = '# SAST Report\n\n' + json.dumps('# SAST Report\n**Overall risk rating:** Critical\n### [Critical] F1: RCE')
+    assert extract_overall_risk_rating(report) is None
+    with pytest.raises(MalformedReportError):
+        count_severities(report)

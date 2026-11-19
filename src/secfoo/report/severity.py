@@ -17,6 +17,7 @@ from secfoo.report.markdown import (
     has_json_draft,
     headings,
     text_outside_code,
+    text_without_json_drafts,
     visible_text,
 )
 
@@ -85,7 +86,7 @@ def extract_overall_risk_rating(report_markdown: str) -> str | None:
     if has_json_draft(report_markdown) or _is_json_document(report_markdown):
         return None
     for text in (visible_text(report_markdown), text_outside_code(report_markdown)):
-        match = _RISK_RATING_RE.search(text)
+        match = _RISK_RATING_RE.search(text_without_json_drafts(text))
         if match is not None:
             return match.group(1).strip().lower()
     return None
