@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-19T20:55:42Z",
+  "generated_at": "2026-11-19T21:14:28Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -313,6 +313,31 @@
       "level": null
     },
     {
+      "login": "saryeljaramany",
+      "points": 6,
+      "counts": {
+        "hard": 0,
+        "medium": 1,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 146,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/146",
+          "issue": 125,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/125",
+          "issue_title": "`--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one",
+          "contributor": "saryeljaramany",
+          "merged_at": "2026-11-19T21:14:16Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 6,
+      "level": null
+    },
+    {
       "login": "bfs2021",
       "points": 3,
       "counts": {
@@ -334,7 +359,7 @@
           "points": 3
         }
       ],
-      "rank": 6,
+      "rank": 7,
       "level": null
     },
     {
@@ -347,7 +372,7 @@
       },
       "merged_prs": 26,
       "awards": [],
-      "rank": 7,
+      "rank": 8,
       "level": null
     },
     {
@@ -360,7 +385,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 8,
+      "rank": 9,
       "level": null
     },
     {
@@ -373,7 +398,7 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 9,
+      "rank": 10,
       "level": null
     },
     {
@@ -386,7 +411,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 10,
+      "rank": 11,
       "level": null
     },
     {
@@ -399,7 +424,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 11,
+      "rank": 12,
       "level": null
     },
     {
@@ -412,11 +437,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 12,
+      "rank": 13,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 146,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/146",
+      "issue": 125,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/125",
+      "issue_title": "`--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one",
+      "contributor": "saryeljaramany",
+      "merged_at": "2026-11-19T21:14:16Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 148,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/148",

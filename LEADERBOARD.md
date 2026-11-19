@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-19 20:55:42 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-19 21:14:28 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -11,7 +11,8 @@ _Updated 2026-11-19 20:55:42 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 4 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
 | 5 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
-| 6 | [@bfs2021](https://github.com/bfs2021) | **3** | — | 0 | 0 | 1 | 1 |
+| 6 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
+| 7 | [@bfs2021](https://github.com/bfs2021) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@AmirNCI](https://github.com/AmirNCI), [@Varunpoojari](https://github.com/Varunpoojari), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
@@ -37,6 +38,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-19 | [@saryeljaramany](https://github.com/saryeljaramany) | [#146](https://github.com/secfoo-com/secfoo/pull/146) | [#125](https://github.com/secfoo-com/secfoo/issues/125) `--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one | medium | +6 |
 | 2026-11-19 | [@karthickmk2001](https://github.com/karthickmk2001) | [#148](https://github.com/secfoo-com/secfoo/pull/148) | [#115](https://github.com/secfoo-com/secfoo/issues/115) Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI | medium | +6 |
 | 2026-11-17 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | [#138](https://github.com/secfoo-com/secfoo/pull/138) | [#132](https://github.com/secfoo-com/secfoo/issues/132) Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard | medium | +6 |
 | 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
