@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from secfoo import mcp as mcp_module
 from secfoo.cli import app
+from secfoo.report.context_coverage import CoverageRecord
 from secfoo.runner import RunOutcome
 from secfoo.settings import Defaults, MCPServerConfig, SecfooConfig
 from secfoo.skills.loader import load_all_skills
@@ -15,7 +16,7 @@ from secfoo.storage.models import CostRow, ProjectRecord
 runner = CliRunner()
 
 
-def _outcome(status: str) -> RunOutcome:
+def _outcome(status: str, context_sources: tuple[CoverageRecord, ...] = ()) -> RunOutcome:
     return RunOutcome(
         run_uuid="u1",
         skill_id="security-architecture-review",
@@ -25,6 +26,7 @@ def _outcome(status: str) -> RunOutcome:
         exit_code=0 if status == "success" else 1,
         duration_seconds=1.2,
         report_path="/tmp/r.md",
+        context_sources=context_sources,
     )
 
 
@@ -553,6 +555,35 @@ def test_json_output_suppresses_interactive_prompts(monkeypatch):
     json.loads(result.stdout)
 
 
+def test_json_output_includes_context_sources(monkeypatch):
+    _no_config(monkeypatch)
+    rec = CoverageRecord(
+        source="https://example.com/api",
+        type="URL",
+        reached=True,
+        notes="ok",
+    )
+    monkeypatch.setattr(
+        "secfoo.cli.execute_runs",
+        lambda **kw: [_outcome("success", context_sources=(rec,))],
+    )
+    result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
+    assert result.exit_code == 0
+    doc = json.loads(result.stdout)
+    assert doc["runs"][0]["context_sources"] == [
+        {"source": "https://example.com/api", "type": "URL", "reached": True, "notes": "ok"}
+    ]
+
+
+def test_json_output_default_context_sources_empty(monkeypatch):
+    _no_config(monkeypatch)
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--json"])
+    assert result.exit_code == 0
+    doc = json.loads(result.stdout)
+    assert doc["runs"][0]["context_sources"] == []
+
+
 def test_config_init_refuses_to_overwrite_without_force(tmp_path, monkeypatch):
     config_path = tmp_path / "config.toml"
     config_path.write_text("# existing\n")
@@ -730,3 +761,92 @@ def test_run_without_a_tty_prints_each_line_once(monkeypatch):
     assert result.stdout.count("Running sast via claude...") == 1
     assert result.stdout.count("success — sast") == 1
     assert "⠋" not in result.stdout
+
+
+def test_run_context_url_forwarded_to_execute_runs(monkeypatch):
+    _no_config(monkeypatch)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", "https://wiki.example.com/p"])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == []
+    assert [s.location for s in captured["context_sources"]] == ["https://wiki.example.com/p"]
+
+    confluence_page = "https://acme.atlassian.net/wiki/spaces/SEC/pages/1"
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", confluence_page])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == [confluence_page]
+    assert [s.location for s in captured["context_sources"]] == [confluence_page]
+
+
+def test_run_confluence_alias_forwarded_to_execute_runs(monkeypatch):
+    _no_config(monkeypatch)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--confluence", "https://wiki.example.com/p"])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == ["https://wiki.example.com/p"]
+
+
+def test_run_context_insecure_http_rejected(monkeypatch):
+    _no_config(monkeypatch)
+    called = []
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: called.append(kw) or [_outcome("success")])
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", "http://wiki.example.com/p"])
+    assert result.exit_code == 2
+    assert "plain http://" in result.output
+    assert not called
+
+
+def test_run_context_merges_config_and_flag_in_order_deduped(monkeypatch):
+    url_a = "https://wiki.example.com/a"
+    url_b = "https://wiki.example.com/b"
+    url_c = "https://wiki.example.com/c"
+    monkeypatch.setattr(
+        "secfoo.cli.load_config",
+        lambda: SecfooConfig(defaults=Defaults(context=[url_a, url_b]), mcp_servers=[]),
+    )
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--context", url_a, "--context", url_c],
+    )
+    assert result.exit_code == 0
+    assert [s.location for s in captured["context_sources"]] == [url_a, url_b, url_c]
+    assert captured["confluence_urls"] == []
+
+
+def test_run_context_file_inside_target_rejected(tmp_path, monkeypatch):
+    _no_config(monkeypatch)
+    called = []
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: called.append(kw) or [_outcome("success")])
+    target_dir = tmp_path / "target_repo"
+    target_dir.mkdir()
+    doc = target_dir / "architecture.md"
+    doc.write_text("# Untrusted Context", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--target", str(target_dir), "--context", str(doc)],
+    )
+    assert result.exit_code == 2
+    assert "inside the scanned target" in " ".join(result.output.split())
+    assert not called
+
+
+def test_run_context_file_outside_target_accepted(tmp_path, monkeypatch):
+    _no_config(monkeypatch)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
+    target_dir = tmp_path / "target_repo"
+    target_dir.mkdir()
+    doc = tmp_path / "external_design.md"
+    doc.write_text("# Trusted External Doc", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["run", "--skill", "sast", "--target", str(target_dir), "--context", str(doc)],
+    )
+    assert result.exit_code == 0
+    assert len(captured["context_sources"]) == 1
+    assert captured["context_sources"][0].kind == "file"
+    assert isinstance(captured["mcp_servers"], list)

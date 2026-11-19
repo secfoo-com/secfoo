@@ -53,6 +53,17 @@ class RunRecord:
 
 
 @dataclass(frozen=True)
+class ContextSourceRecord:
+    id: int
+    run_id: int
+    position: int
+    source: str
+    type: str
+    reached: bool
+    notes: str
+
+
+@dataclass(frozen=True)
 class AssessmentRecord:
     id: int
     project_id: int

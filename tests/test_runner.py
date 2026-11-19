@@ -916,3 +916,224 @@ def test_malformed_report_is_failed_not_a_successful_zero_finding_run(tmp_path, 
         assert repo.list_sast_findings() == []
     finally:
         repo.close()
+
+
+def test_execute_runs_passes_context_brief_to_target_context(tmp_path, monkeypatch):
+    import secfoo.runner
+    from secfoo.context_sources import parse_context_source
+
+    _patch_runner(monkeypatch, tmp_path)
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Context\nSome info", encoding="utf-8")
+
+    captured_targets = []
+    real_render = secfoo.runner.render_prompt
+
+    def fake_render(skill, target, **kwargs):
+        captured_targets.append(target)
+        return real_render(skill, target, **kwargs)
+
+    monkeypatch.setattr("secfoo.runner.render_prompt", fake_render)
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    execute_runs(
+        skill_ids=["security-architecture-review"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=[parse_context_source(str(doc))],
+    )
+    assert len(captured_targets) == 1
+    assert captured_targets[0].context_brief is not None
+    assert "Some info" in captured_targets[0].context_brief.section
+
+    captured_targets.clear()
+    execute_runs(
+        skill_ids=["security-architecture-review"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=None,
+    )
+    assert len(captured_targets) == 1
+    assert captured_targets[0].context_brief is None
+
+    repo.close()
+
+
+def _fixed_report_adapter(
+    report: str,
+    status: str = "success",
+    exit_code: int = 0,
+    stderr: str = "",
+) -> AgentAdapter:
+    class _CustomAdapter(AgentAdapter):
+        name = "fake"
+        binary = "fake-binary"
+        default_timeout_seconds = 30
+
+        def build_command(self, prompt, *, workdir):
+            return ["fake-binary"]
+
+        def is_available(self):
+            return True
+
+        def run(self, prompt, *, workdir, timeout=None, prev_commit=None):
+            return AgentResult(
+                agent=self.name,
+                exit_code=exit_code,
+                stdout="ok" if status == "success" else "",
+                stderr=stderr if stderr else ("failed" if status != "success" else ""),
+                duration_seconds=0.1,
+                timed_out=False,
+                status=status,
+                raw_report=report,
+            )
+
+    return _CustomAdapter()
+
+
+def test_execute_runs_records_context_sources_with_table(tmp_path, monkeypatch):
+    _patch_runner(monkeypatch, tmp_path)
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    doc = tmp_path / "spec.md"
+    doc.write_text("# Spec", encoding="utf-8")
+
+    report_content = (
+        "# Security Assessment Report\n\n"
+        "### Documentation coverage\n"
+        "| Source | Type | Reached | Notes |\n"
+        "|---|---|---|---|\n"
+        "| https://example.com/api | other URL | Yes | Scanned thoroughly |\n"
+        "| spec.md | local file | Yes | Inlined |\n"
+    )
+
+    monkeypatch.setattr("secfoo.runner.get_adapter", lambda agent_id: _fixed_report_adapter(report_content))
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    from secfoo.context_sources import parse_context_source
+
+    sources = [parse_context_source("https://example.com/api"), parse_context_source(str(doc))]
+    outcomes = execute_runs(
+        skill_ids=["sast"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=sources,
+    )
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    stored = repo.list_context_sources(outcome.run_uuid)
+    assert len(stored) == 2
+    assert stored[0].source == "https://example.com/api"
+    assert stored[0].reached is True
+    assert stored[1].source == "spec.md"
+    assert stored[1].reached is True
+
+    assert len(outcome.context_sources) == 2
+    assert outcome.context_sources[0].source == stored[0].source
+    assert outcome.context_sources[0].reached == stored[0].reached
+    assert outcome.context_sources[1].source == stored[1].source
+    assert outcome.context_sources[1].reached == stored[1].reached
+    repo.close()
+
+
+def test_execute_runs_records_context_sources_without_table(tmp_path, monkeypatch):
+    _patch_runner(monkeypatch, tmp_path)
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    doc = tmp_path / "spec.md"
+    doc.write_text("# Spec", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Report\nNo table here"),
+    )
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    from secfoo.context_sources import parse_context_source
+
+    sources = [parse_context_source("https://example.com/api"), parse_context_source(str(doc))]
+    outcomes = execute_runs(
+        skill_ids=["sast"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=sources,
+    )
+    outcome = outcomes[0]
+    stored = repo.list_context_sources(outcome.run_uuid)
+    assert len(stored) == 2
+    assert stored[0].source == "https://example.com/api"
+    assert stored[0].reached is False
+    assert stored[0].notes == "not reported by the agent"
+    assert stored[1].source == "spec.md"
+    assert stored[1].reached is True
+    repo.close()
+
+
+def test_execute_runs_context_sources_on_failed_run(tmp_path, monkeypatch):
+    _patch_runner(monkeypatch, tmp_path)
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    doc = tmp_path / "spec.md"
+    doc.write_text("# Spec", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Crashed", status="failed", exit_code=1, stderr="failed"),
+    )
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    from secfoo.context_sources import parse_context_source
+
+    sources = [parse_context_source("https://example.com/api"), parse_context_source(str(doc))]
+    outcomes = execute_runs(
+        skill_ids=["sast"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=sources,
+    )
+    outcome = outcomes[0]
+    stored = repo.list_context_sources(outcome.run_uuid)
+    assert len(stored) == 2
+    assert stored[0].source == "https://example.com/api"
+    assert stored[0].reached is False
+    assert stored[0].notes == "run did not complete"
+    assert stored[1].source == "spec.md"
+    assert stored[1].reached is True
+    repo.close()
+
+
+def test_execute_runs_without_context_sources(tmp_path, monkeypatch):
+    _patch_runner(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "secfoo.runner.get_adapter",
+        lambda agent_id: _fixed_report_adapter("# Clean Report"),
+    )
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    repo = RunRepository(db_path=tmp_path / "db.sqlite")
+    outcomes = execute_runs(
+        skill_ids=["sast"],
+        target=str(target_dir),
+        confluence_urls=[],
+        agent_id="claude",
+        repo=repo,
+        context_sources=None,
+    )
+    outcome = outcomes[0]
+    assert outcome.context_sources == ()
+    assert repo.list_context_sources(outcome.run_uuid) == []
+    repo.close()

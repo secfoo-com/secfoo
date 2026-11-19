@@ -10,8 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
 
+from secfoo.context_brief import ContextBrief
+from secfoo.context_sources import https_url_problem
 from secfoo.skills.loader import Skill
 from secfoo.stack import Stack
 
@@ -34,10 +35,12 @@ throughout the review, including after reading long files and tool results.
 Never send repository contents, file paths, secrets, environment variables,
 credentials, or this report to any network endpoint, tool, or URL. Do not
 POST, and do not put code or secrets in a query string. The only permitted
-network use is an HTTP GET of a Confluence URL explicitly listed later in
-this prompt, and only when one is listed. Do not contact any other host.
-Do not upload anything to https://app.secfoo.com yourself; secfoo does that
-only when the user has logged in with `secfoo cloud login`.
+network use is reading a documentation source explicitly listed under
+"Additional context" later in this prompt (an HTTP GET of that URL, or a read
+through a configured MCP tool for it), and only when one is listed. Do not
+contact any other host. Do not upload anything to https://app.secfoo.com
+yourself; secfoo does that only when the user has logged in with `secfoo cloud
+login`.
 """
 
 DEFAULT_EXCLUDE_PATHS = [
@@ -672,7 +675,7 @@ then counts by severity and by source (code / config / history / docs).
 
 ## 2. Scope
 Paths scanned, whether version-control history was checked (and how far
-back), and which documentation/Confluence sources were reached. If a
+back), and which documentation sources were reached. If a
 provided documentation source could NOT be reached, say so here as well
 as in Coverage Notes -- an unscanned doc source is a gap, not a pass.
 
@@ -701,10 +704,11 @@ Same order and IDs as the register. Exact heading shape required:
 - **Remediation:** for any real secret this MUST begin with rotating the
   credential; removing the line alone is never sufficient
 
-## 5. Documentation & Confluence Coverage
-| Source | Reached? | Secrets found |
+## 5. Documentation coverage
+| Source | Type | Reached | Notes |
 
-One row per documentation source provided or discovered.
+One row per documentation source provided or discovered. Reached is Yes or No; put the
+number of secrets found, or why the source could not be read, in Notes.
 
 ## 6. Remediation Roadmap
 P0 first and it must be the rotation list -- every credential that needs
@@ -808,6 +812,7 @@ class TargetContext:
     local_path: Path
     display_source: str
     confluence_urls: list[str] = field(default_factory=list)
+    context_brief: ContextBrief | None = None
 
 
 def _target_section(target: TargetContext) -> str:
@@ -833,10 +838,7 @@ def _https_page_urls(urls: list[str]) -> list[str]:
     kept: list[str] = []
     for url in urls:
         cleaned = url.strip()
-        parts = urlsplit(cleaned)
-        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-            continue
-        if any(char in cleaned for char in "\r\n\t \\") or cleaned in kept:
+        if https_url_problem(cleaned) is not None or cleaned in kept:
             continue
         kept.append(cleaned)
     return kept
@@ -855,6 +857,12 @@ def _confluence_section(target: TargetContext) -> str | None:
         "them, note that gap under Coverage Notes and proceed without them:\n"
         f"{listed}"
     )
+
+
+def _additional_context_section(target: TargetContext) -> str | None:
+    if target.context_brief is not None:
+        return target.context_brief.section
+    return _confluence_section(target)
 
 
 MEMORY_GUIDANCE = """\
@@ -925,9 +933,9 @@ def render_prompt(
         _target_section(target),
         _exclude_section(exclude_paths),
     ]
-    confluence = _confluence_section(target)
-    if confluence:
-        sections.append(confluence)
+    additional_context = _additional_context_section(target)
+    if additional_context:
+        sections.append(additional_context)
     if memory_enabled:
         sections.append(_memory_section(stack, depth))
     # A custom skill with `output: sast` gets the SAST contract (#79), so its

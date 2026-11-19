@@ -12,6 +12,13 @@ from __future__ import annotations
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from secfoo.report.context_coverage import (
+    MAX_NOTES_CHARS,
+    MAX_ROWS,
+    MAX_SOURCE_CHARS,
+    MAX_TYPE_CHARS,
+    parse_documentation_coverage,
+)
 from secfoo.report.markdown import MalformedReportError
 from secfoo.report.severity import (
     SeverityCounts,
@@ -181,3 +188,20 @@ def test_normalize_severity_is_total_and_idempotent(value):
 @given(st.sampled_from(sorted(_VALID_SEVERITIES) + ["informational"]), st.text(alphabet=" \t", max_size=4))
 def test_normalize_severity_ignores_case_and_padding(word, pad):
     assert normalize_severity(pad + word.upper() + pad) == normalize_severity(word)
+
+
+# --------------------------------------------------------------------------- #
+# report/context_coverage.py
+# --------------------------------------------------------------------------- #
+
+
+@given(st.text())
+@settings(max_examples=300)
+def test_parse_documentation_coverage_never_raises(text):
+    rows = parse_documentation_coverage(text)
+    assert len(rows) <= MAX_ROWS
+    for row in rows:
+        assert len(row.source) <= MAX_SOURCE_CHARS
+        assert len(row.type) <= MAX_TYPE_CHARS
+        assert len(row.notes) <= MAX_NOTES_CHARS
+        assert isinstance(row.reached, bool)

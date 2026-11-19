@@ -22,6 +22,13 @@ import sys
 import atheris
 
 with atheris.instrument_imports():
+    from secfoo.report.context_coverage import (
+        MAX_NOTES_CHARS,
+        MAX_ROWS,
+        MAX_SOURCE_CHARS,
+        MAX_TYPE_CHARS,
+        parse_documentation_coverage,
+    )
     from secfoo.report.markdown import MalformedReportError
     from secfoo.report.severity import count_severities, extract_overall_risk_rating
     from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
@@ -40,6 +47,14 @@ def test_one_input(data: bytes) -> None:
         assert rating is None or rating == rating.lower()
     except MalformedReportError:
         pass  # malformed reports are deliberately rejected, never a zero-count pass
+    # The coverage-table parser must accept any text and never raise.
+    coverage_rows = parse_documentation_coverage(text)
+    assert len(coverage_rows) <= MAX_ROWS
+    for row in coverage_rows:
+        assert len(row.source) <= MAX_SOURCE_CHARS
+        assert len(row.type) <= MAX_TYPE_CHARS
+        assert len(row.notes) <= MAX_NOTES_CHARS
+        assert isinstance(row.reached, bool)
 
     # Frontmatter parsing may reject input, but only with SkillLoadError.
     try:
