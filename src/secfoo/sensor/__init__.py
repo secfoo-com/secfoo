@@ -28,14 +28,17 @@ def start_from_env():
         return _probe
     try:
         from secfoo.sensor.probe import DEFAULT_FLUSH_SECONDS, Probe
-        from secfoo.sensor.transport import from_env
+        from secfoo.sensor.transport import clamp_flush_interval, from_env
 
-        flush = float(os.environ.get("SECFOO_FLUSH_INTERVAL", DEFAULT_FLUSH_SECONDS))
+        raw = os.environ.get("SECFOO_FLUSH_INTERVAL")
+        flush = clamp_flush_interval(DEFAULT_FLUSH_SECONDS if raw is None else float(raw))
+        if flush is None:
+            raise ValueError(f"SECFOO_FLUSH_INTERVAL must be a finite number of seconds, got {raw!r}")
         _probe = Probe(
             watchlist_path=os.environ.get("SECFOO_WATCHLIST") or None,
             transport=from_env(),
             app_root=os.environ.get("SECFOO_APP_ROOT") or None,
-            flush_seconds=max(flush, 0.05),
+            flush_seconds=flush,
             backend=os.environ.get("SECFOO_SENSOR_BACKEND") or None,
         )
         _probe.start()
