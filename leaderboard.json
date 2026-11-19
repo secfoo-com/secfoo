@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-19T21:14:28Z",
+  "generated_at": "2026-11-19T21:52:30Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -263,6 +263,31 @@
       "level": null
     },
     {
+      "login": "oliarmak-web",
+      "points": 10,
+      "counts": {
+        "hard": 1,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 147,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/147",
+          "issue": 117,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/117",
+          "issue_title": "Adversarial validation: prompt injection from the repository being scanned",
+          "contributor": "oliarmak-web",
+          "merged_at": "2026-11-19T21:52:12Z",
+          "difficulty": "hard",
+          "points": 10
+        }
+      ],
+      "rank": 4,
+      "level": null
+    },
+    {
       "login": "AdithKB",
       "points": 6,
       "counts": {
@@ -284,7 +309,7 @@
           "points": 6
         }
       ],
-      "rank": 4,
+      "rank": 5,
       "level": null
     },
     {
@@ -309,7 +334,7 @@
           "points": 6
         }
       ],
-      "rank": 5,
+      "rank": 6,
       "level": null
     },
     {
@@ -334,7 +359,7 @@
           "points": 6
         }
       ],
-      "rank": 6,
+      "rank": 7,
       "level": null
     },
     {
@@ -359,7 +384,7 @@
           "points": 3
         }
       ],
-      "rank": 7,
+      "rank": 8,
       "level": null
     },
     {
@@ -372,7 +397,7 @@
       },
       "merged_prs": 26,
       "awards": [],
-      "rank": 8,
+      "rank": 9,
       "level": null
     },
     {
@@ -385,7 +410,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 9,
+      "rank": 10,
       "level": null
     },
     {
@@ -398,7 +423,7 @@
       },
       "merged_prs": 6,
       "awards": [],
-      "rank": 10,
+      "rank": 11,
       "level": null
     },
     {
@@ -411,7 +436,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 11,
+      "rank": 12,
       "level": null
     },
     {
@@ -424,7 +449,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 12,
+      "rank": 13,
       "level": null
     },
     {
@@ -437,11 +462,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 13,
+      "rank": 14,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 147,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/147",
+      "issue": 117,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/117",
+      "issue_title": "Adversarial validation: prompt injection from the repository being scanned",
+      "contributor": "oliarmak-web",
+      "merged_at": "2026-11-19T21:52:12Z",
+      "difficulty": "hard",
+      "points": 10
+    },
     {
       "pr": 146,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/146",
