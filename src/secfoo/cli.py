@@ -26,6 +26,7 @@ from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
 from secfoo.cost import format_cost, format_tokens, sum_optional
+from secfoo.report.jsonl import findings_to_jsonl
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
 from secfoo.settings import CONFIG_PATH, ConfigError, load_config
@@ -447,6 +448,14 @@ def run(
 
     if no_memory:
         memory_module.disable_for_this_process()
+
+    # config.toml names these as plain strings; an unknown one used to escape
+    # as a ValueError traceback from the enum (#121).
+    for key, value, choices in (("agent", file_defaults.agent, AgentId), ("depth", file_defaults.depth, DepthId)):
+        if value and value not in {c.value for c in choices}:
+            err_console.print(f"[red]Error in {CONFIG_PATH}:[/] defaults.{key} must be one of "
+                              f"{', '.join(c.value for c in choices)}, got {value!r}")
+            raise typer.Exit(code=1)
 
     if agent is None:
         if file_defaults.agent:
@@ -1860,8 +1869,7 @@ def findings_export(
     if format is FindingsFormat.SARIF:
         text = json.dumps(findings_to_sarif(records, runtime_priority=runtime_priority), indent=2, sort_keys=True) + "\n"
     else:
-        lines = [json.dumps(record, sort_keys=True) for record in records]
-        text = "\n".join(lines) + ("\n" if lines else "")
+        text = findings_to_jsonl(records)
     if output is None:
         sys.stdout.write(text)
         return

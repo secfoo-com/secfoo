@@ -1,0 +1,29 @@
+[defaults]
+agent = "claude"
+depth = "quick"
+exclude = ["vendor/", "some-cloned-repo/"]
+fail_on = "high"
+max_cost_usd = 2.00
+
+[agents.claude]
+model = "claude-sonnet-4-6"
+
+[agents.api]
+max_input_tokens = 150000
+
+[[mcp_servers]]
+name = "Atlassian-Rovo-MCP"
+command = "npx"
+args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+
+[[mcp_servers]]
+name = "wiki"
+url = "https://wiki.internal/mcp"
+transport = "http"
+headers = { Authorization = "Bearer x" }
+
+[skills]
+paths = ["~/team-skills"]
+
+[memory]
+enabled = false

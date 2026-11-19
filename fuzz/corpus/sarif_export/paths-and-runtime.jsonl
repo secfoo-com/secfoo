@@ -1,0 +1,4 @@
+{"skill_id": "sast", "severity": "High", "cwe": "CWE-89, CWE-564", "title": "SQL injection", "location_file": "C:\\work\\app db.py", "location_line": "12"}
+{"skill_id": "secret-scanning", "severity": "Critical", "secret_type": "AWS key", "location_file": "//server/share/ci.yml", "location_line": "0"}
+{"skill_id": "sca-reachability", "severity": "Medium", "issue": "CVE-2020-1747", "package": "pyyaml", "runtime": {"state": "reached", "routes": [{"route": "POST /upload"}, {"route": "GET /health"}]}}
+{"skill_id": "sast", "severity": "informational", "location_file": "/abs/a%b.py", "location_line": "7-9"}

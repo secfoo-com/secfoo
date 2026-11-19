@@ -31,9 +31,11 @@ def _location(record: dict) -> dict | None:
     else:
         uri = quote(path, safe="/")
     physical = {"artifactLocation": {"uri": uri}}
-    # Stored legacy/model-authored lines are not guaranteed to be numeric.
+    # Stored legacy/model-authored lines are not guaranteed to be numeric --
+    # or short: int() refuses more than 4300 digits (#121), and no source
+    # file has a billion lines.
     line = str(record.get("location_line") or "").strip()
-    if re.fullmatch(r"[0-9]+", line) and int(line) > 0:
+    if re.fullmatch(r"[0-9]{1,9}", line) and int(line) > 0:
         physical["region"] = {"startLine": int(line)}
     return {"physicalLocation": physical}
 

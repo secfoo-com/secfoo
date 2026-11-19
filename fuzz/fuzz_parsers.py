@@ -9,27 +9,26 @@ generation, which finds deeper paths.
 Run locally (Linux or macOS with clang):
 
     pip install atheris
-    python fuzz/fuzz_parsers.py -max_total_time=60
+    python fuzz/fuzz_parsers.py WORK fuzz/corpus/parsers -max_total_time=60
 
-Any crash is written to the current directory as crash-<sha1>; reproduce
-with `python fuzz/fuzz_parsers.py crash-<sha1>`.
+Any crash is written to the current directory as crash-<sha1>; reproduce it
+on any platform, with or without Atheris, with
+`python fuzz/fuzz_parsers.py crash-<sha1>`. See fuzz/_common.py.
 """
 
 from __future__ import annotations
 
-import sys
+from _common import main
 
-import atheris
-
-with atheris.instrument_imports():
-    from secfoo.report.severity import count_severities, extract_overall_risk_rating
-    from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
-    from secfoo.web.finding_filters import normalize_severity
+from secfoo.report.severity import count_severities, extract_overall_risk_rating
+from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
+from secfoo.web.finding_filters import normalize_severity
 
 
-def test_one_input(data: bytes) -> None:
-    provider = atheris.FuzzedDataProvider(data)
-    text = provider.ConsumeUnicodeNoSurrogates(4096)
+def check(data: bytes) -> None:
+    # The first 4096 characters, as atheris' ConsumeUnicodeNoSurrogates(4096)
+    # gave before; the corpus is real reports, so decode them as text.
+    text = data.decode("utf-8", errors="replace")[:4096]
 
     # Report parsers must accept any text and never raise.
     counts = count_severities(text)
@@ -51,10 +50,5 @@ def test_one_input(data: bytes) -> None:
     assert normalize_severity(normalised) == normalised
 
 
-def main() -> None:
-    atheris.Setup(sys.argv, test_one_input)
-    atheris.Fuzz()
-
-
 if __name__ == "__main__":
-    main()
+    main(check)

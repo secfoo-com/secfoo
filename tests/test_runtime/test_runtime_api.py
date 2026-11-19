@@ -85,6 +85,26 @@ def test_malformed_lines_are_reported_not_fatal(client, store):
     assert resp.json()["hits"] == 1 and resp.json()["skipped"][0]["line"] == 2
 
 
+@pytest.mark.parametrize(("bad_line", "reason"), [
+    ("[" * 20000 + "]" * 20000, "not valid JSON (RecursionError)"),
+    ('{"type":"hit","count":1' + "0" * 5000 + "}", "not valid JSON (ValueError)"),
+    (json.dumps({**SESSION, "id": "s-2", "app": "\ud800"}), "'app' must be valid Unicode text"),
+    (json.dumps({**HIT, "count": 2**64}), "'count' must be at most"),
+    (json.dumps({**HIT, "entry_frame": "app/\udcff.py:3"}), "'entry_frame' must be valid Unicode text"),
+], ids=["deep-nesting", "int-over-4300-digits", "lone-surrogate", "count-over-int64", "surrogate-frame"])
+def test_lines_that_used_to_500_are_skipped_and_the_rest_is_stored(client, store, bad_line, reason):
+    """#121: each of these escaped ingest_events as RecursionError, ValueError,
+    UnicodeEncodeError or OverflowError, rolling back the whole batch and
+    returning a 500. Now only that line is skipped."""
+    body = _ndjson(SESSION) + bad_line.encode() + b"\n" + _ndjson(HIT)
+    for params in ({"project": PROJECT}, {"project": PROJECT, "app": "payments-api"}):  # with and without _with_app_env
+        resp = client.post("/api/runtime/v1/events", params=params, content=body, headers=_auth(store["key"]))
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["sessions"] == 1 and resp.json()["hits"] == 1
+        [skipped] = resp.json()["skipped"]
+        assert skipped["line"] == 2 and skipped["reason"].startswith(reason)
+
+
 # ---------- auth and access ----------
 
 

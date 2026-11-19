@@ -24,18 +24,42 @@ ruff check .
 
 CI runs both on every push and PR, on Python 3.10 and 3.12.
 
-The text parsers (report severities, skill frontmatter, severity filters)
-also have property-based tests in `tests/test_property_parsers.py`
-(Hypothesis, run as part of `pytest tests`) and a coverage-guided fuzz
-harness in `fuzz/fuzz_parsers.py`:
+### Fuzzing
+
+Everything that parses untrusted input has a coverage-guided fuzz harness
+in `fuzz/`:
+
+| Harness | Target | Contract |
+| --- | --- | --- |
+| `fuzz_parsers.py` | report severities, skill frontmatter, severity filters | never raises |
+| `fuzz_sarif_export.py` | `findings export` (SARIF and JSONL) | valid SARIF 2.1.0; JSONL round-trips |
+| `fuzz_skill_loader.py` | skill files (`--skill-file`, folders, URLs) | a `Skill` or `SkillLoadError` |
+| `fuzz_config.py` | `~/.secfoo/config.toml` | correctly typed config or `ConfigError` |
+| `fuzz_docext.py` | uploaded PDF / DOCX / PPTX | text or `""`, within a time limit |
+| `fuzz_runtime_ingest.py` | runtime sensor NDJSON batches | every line stored or skipped, never a 500 |
+
+The `Fuzz` workflow runs each harness for 60 seconds on PRs that touch
+these parsers, and nightly. To run one locally (Linux or macOS):
 
 ```sh
 pip install atheris
-python fuzz/fuzz_parsers.py -max_total_time=60
+mkdir -p work
+python fuzz/fuzz_config.py work fuzz/corpus/config -max_total_time=60
 ```
 
-If you change one of those parsers, run the harness for a minute before
-opening the PR.
+Each harness's `check` function also runs on every platform in
+`pytest tests/test_property_fuzz_targets.py` (Hypothesis), which replays
+every file in `fuzz/corpus/`. Without Atheris, a harness replays the files
+or folders you pass, so a CI crash reproduces anywhere, Windows included:
+
+```sh
+python fuzz/fuzz_config.py crash-<sha1>
+```
+
+When you fix a crash, add its reproducer to `fuzz/corpus/<harness>/` as
+`crash-<what>.<ext>` (or in `fuzz/make_seed_corpus.py`, which writes the
+seed corpora) so it's replayed on every run. If you change one of these
+parsers, run its harness for a minute before opening the PR.
 
 ## Adding or changing a skill
 

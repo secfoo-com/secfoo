@@ -160,7 +160,7 @@ def _with_app_env(lines: list[str], app: str | None, env: str | None) -> list[st
     for line in lines:
         try:
             event = json.loads(line)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):  # JSONDecodeError, 4300+ digit ints, deep nesting (#121)
             out.append(line)  # ingest_events reports it with its line number
             continue
         if isinstance(event, dict) and event.get("type") == "session":
