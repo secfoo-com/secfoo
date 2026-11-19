@@ -214,6 +214,10 @@ def test_multiskill_cli_malformed_report_keeps_json_and_artifacts(monkeypatch, t
             assert row.report_path and Path(row.report_path).exists()
         failed = next(row for row in rows if row.status == 'failed')
         assert 'malformed report:' in failed.stderr_excerpt
+    # CI can tell a malformed report from an agent crash without opening the store.
+    failed_json = next(r for r in data['runs'] if r['status'] == 'failed')
+    assert failed_json['failure_reason'].startswith('malformed report:')
+    assert next(r for r in data['runs'] if r['status'] == 'success')['failure_reason'] is None
 
 
 def test_historical_malformed_reports_do_not_break_readers(tmp_path, caplog):
@@ -224,7 +228,8 @@ def test_historical_malformed_reports_do_not_break_readers(tmp_path, caplog):
     with RunRepository(db_path=tmp_path / 'db.sqlite') as repo:
         pid = repo.upsert_project(str(tmp_path), 'test', 'local')
         aid = repo.create_assessment(project_id=pid, assessment_type='internal', status='completed')
-        for skill in ['sca-reachability', 'secret-scanning', 'responsible-ai-compliance']:
+        for skill in ['sca-reachability', 'secret-scanning', 'responsible-ai-compliance',
+                      'security-architecture-review', 'threat-modeling']:
             uid = repo.create_run(project_id=pid, skill_id=skill, skill_name=skill, agent_id='claude', confluence_urls=[], assessment_id=aid)
             path = tmp_path / (uid + '.md')
             path.write_text('# Report\n**Overall risk rating:** High\n```bash\necho old')
@@ -233,6 +238,10 @@ def test_historical_malformed_reports_do_not_break_readers(tmp_path, caplog):
         secret_dash = secret_scanning_dashboard.build(repo)
         assert len(sca_dash.unparsable_reports) == 1
         assert len(secret_dash.unparsable_reports) == 1
+        # Every dashboard that reads stored reports says so, not only SCA and secrets.
+        from secfoo.web import architecture_dashboard, threat_modeling_dashboard
+        assert architecture_dashboard.build(repo).unparsable_reports
+        assert threat_modeling_dashboard.build(repo).unparsable_reports
         assert repo.list_assessments()[0].responsible_ai_risk is None
         assert _scanned(repo, pid) == {}
         assert 'Unparsable stored report' in caplog.text
@@ -254,3 +263,70 @@ def test_summary_keeps_trials_revisions_and_capture_profiles_separate():
     assert '9/9' not in summary
     assert 'legacy-read-grep-glob-only' in summary
     assert 'legacy-cli-result-envelope' in summary
+
+
+# ---------- review of #147 ----------
+
+def test_a_report_that_quotes_a_json_envelope_is_still_a_report():
+    report = ('# SAST Report\n\n**Overall risk rating:** High\n\n## 4. Detailed Findings\n\n'
+              '### [High] F1: Reformat echo\n**Description:** The reformat step sends '
+              '`{"draft_report": "<model output>"}` back to the model.\n')
+    assert count_severities(report).high == 1
+    assert extract_overall_risk_rating(report) == 'high'
+
+
+@pytest.mark.parametrize('wrapper', ['```json\n{}\n```\n', '~~~\n{}\n~~~\n', '> {}\n', 'Here it is:\n\n{}\n'])
+def test_a_json_echo_is_rejected_wherever_it_is_wrapped(wrapper):
+    blob = json.dumps({'draft_report': '# SAST Report\n**Overall risk rating:** High\n### [High] F1: SQLi'})
+    with pytest.raises(MalformedReportError):
+        count_severities(wrapper.format(blob))
+
+
+@pytest.mark.parametrize('report', [
+    '# R\n\n> **Overall risk rating:** High\n',
+    '[Acme](https://example.com) review\n\n**Overall risk rating:** High\n',
+])
+def test_rating_in_a_callout_or_after_a_leading_link_is_found(report):
+    assert extract_overall_risk_rating(report) == 'high'
+
+
+def test_a_json_string_echo_has_no_rating():
+    assert extract_overall_risk_rating(json.dumps('# SAST Report\n**Overall risk rating:** High')) is None
+
+
+@pytest.mark.parametrize('raw,clean', [
+    ('/var/folders/vk/x46_71_j52s3b7qt2hzdvf6c0000gn/T/case/app.py', '/tmp/evaluator/case/app.py'),
+    ('/private/var/folders/ab/cdef/T', '/tmp/evaluator'),
+    ('/home/alice/work', '/home/evaluator/work'),
+    ('/Users/alice/work', '/home/evaluator/work'),
+    ('C:\\Users\\alice\\work', 'C:\\Users\\evaluator\\work'),
+])
+def test_host_paths_are_scrubbed(raw, clean):
+    import tempfile
+
+    from secfoo.report.evidence import scrub_evidence
+    assert scrub_evidence({'cwd': raw}) == {'cwd': clean}
+    assert '/var/folders/' not in json.dumps(scrub_evidence({'cwd': tempfile.gettempdir() + '/x'}))
+
+
+def test_published_evidence_contains_no_host_paths():
+    import re
+    evidence = ROOT / 'docs/evaluations'
+    leaks = [f'{path.name}: {m}' for path in evidence.rglob('*') if path.is_file()
+             for m in re.findall(r'/var/folders/[^\s"]+|/Users/(?!evaluator)[^/\s"]+|/home/(?!evaluator)[^/\s"]+',
+                                 path.read_text(encoding='utf-8', errors='replace'))]
+    assert leaks == []
+
+
+def test_stored_reports_are_read_once_until_they_change(tmp_path, monkeypatch):
+    from secfoo.report import markdown
+    path = tmp_path / 'report.md'
+    path.write_text('# Report\n\n**Overall risk rating:** Low\n')
+    reads = []
+    real = markdown.Path.read_text
+    monkeypatch.setattr(markdown.Path, 'read_text', lambda self, *a, **k: reads.append(self) or real(self, *a, **k))
+    for _ in range(5):
+        assert extract_overall_risk_rating(markdown.read_stored_report(path)) == 'low'
+    assert len(reads) == 1
+    path.write_text('# Report\n\n**Overall risk rating:** High!\n')  # new size and mtime
+    assert extract_overall_risk_rating(markdown.read_stored_report(path)) == 'high'

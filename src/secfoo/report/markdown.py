@@ -239,7 +239,8 @@ class Heading:
 class ParsedReport:
     source: str
     headings: tuple[Heading, ...]
-    excluded: tuple[tuple[int, int], ...]
+    excluded: tuple[tuple[int, int], ...]   # code blocks and blockquotes
+    code: tuple[tuple[int, int], ...] = ()  # code blocks only
 
 
 class ReportText(str):
@@ -255,7 +256,7 @@ class ReportText(str):
         return ReportText(self[start:end], self.parsed, self.start + start)
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=64)
 def _parse_report(source: str) -> ReportText:
     # Match markdown-it's newline normalization exactly. Unicode separators
     # and C0 controls are source characters, never additional token-map lines.
@@ -267,12 +268,15 @@ def _parse_report(source: str) -> ReportText:
         offsets.append(offsets[-1] + len(line))
     result = []
     excluded = []
+    code = []
     ignored = set()
     for token in MD.parse(source):
         if token.type in {'fence', 'code_block', 'blockquote_open'} and token.map:
             a, b = token.map
             ignored.update(range(a, b))
             excluded.append((offsets[a], offsets[b]))
+            if token.type != 'blockquote_open':
+                code.append((offsets[a], offsets[b]))
         if token.type == 'fence' and token.map:
             a, b = token.map
             last = lines[b - 1].rstrip('\r\n')
@@ -289,7 +293,7 @@ def _parse_report(source: str) -> ReportText:
     for i, line in enumerate(lines):
         if i not in ignored and FINDING.match(line) and offsets[i] not in real:
             raise MalformedReportError('Finding-like text is not a valid top-level Markdown heading')
-    parsed = ParsedReport(source, tuple(result), tuple(excluded))
+    parsed = ParsedReport(source, tuple(result), tuple(excluded), tuple(code))
     return ReportText(source, parsed)
 
 
@@ -334,15 +338,26 @@ def detail_blocks(report: str, pattern: re.Pattern | None = None) -> list[tuple[
     return blocks
 
 
-def prose_source(report: str) -> str:
-    """Blank examples without changing source offsets or re-parsing sections."""
-    report = parse_report(report)
+def _blank(report: ReportText, ranges) -> str:
     chars = list(report)
-    for start, end in report.parsed.excluded:
+    for start, end in ranges:
         for i in range(max(start - report.start, 0), min(end - report.start, len(report))):
             if chars[i] != '\n':
                 chars[i] = ' '
     return ''.join(chars)
+
+
+def prose_source(report: str) -> str:
+    """Blank examples without changing source offsets or re-parsing sections."""
+    report = parse_report(report)
+    return _blank(report, report.parsed.excluded)
+
+
+def text_outside_code(report: str) -> str:
+    """Like prose_source, but keeps blockquotes: a summary line a model put
+    in a callout is still the report's own text."""
+    report = parse_report(report)
+    return _blank(report, report.parsed.code)
 
 
 def visible_text(report: str) -> str:
@@ -363,8 +378,17 @@ def example_finding_ids(report: str) -> set[str]:
 
 
 def has_json_draft(report: str) -> bool:
-    """Recognize a JSON draft envelope even after a model's prose preamble."""
-    text = prose_source(report)
+    """A JSON draft envelope (`{"draft_report": "..."}`) returned instead of
+    a report: after a prose preamble, in a code fence, or bare.
+
+    Only when the text has no Markdown structure of its own. A report with
+    real headings that *quotes* such an envelope (a finding about a reformat
+    step, an example) is a report, not an echo; inside the envelope the
+    report's newlines are JSON-escaped, so an echo never parses as headings."""
+    report = parse_report(report)
+    if headings(report):
+        return False
+    text = str(report)
     decoder = json.JSONDecoder()
     for match in re.finditer(r'\{', text):
         try:
@@ -377,19 +401,32 @@ def has_json_draft(report: str) -> bool:
 
 
 def read_stored_report(path: str | Path | None, *, errors: list[str] | None = None) -> str:
-    """Older malformed reports are unavailable data, never a dashboard crash."""
+    """Older malformed reports are unavailable data, never a dashboard crash.
+
+    Cached by (path, mtime, size): stored reports don't change, and the
+    assessments list and dashboards read the same files on every page load."""
     if not path:
         return ''
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return ''
+    text, error = _read_stored_report_cached(str(path), stat.st_mtime_ns, stat.st_size)
+    if error is not None and errors is not None:
+        errors.append(str(path))
+    return text
+
+
+@lru_cache(maxsize=1024)
+def _read_stored_report_cached(path: str, _mtime_ns: int, _size: int) -> tuple[str, str | None]:
     try:
         text = Path(path).read_text(encoding='utf-8', errors='replace')
         parsed = parse_report(text)
         if has_json_draft(parsed):
             raise MalformedReportError('JSON draft wrapper is not a report')
-        return parsed
+        return parsed, None
     except MalformedReportError as error:
         logging.getLogger(__name__).warning('Unparsable stored report %s: %s', path, error)
-        if errors is not None:
-            errors.append(str(path))
-        return ''
+        return '', str(error)
     except OSError:
-        return ''
+        return '', None

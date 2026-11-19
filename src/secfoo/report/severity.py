@@ -8,6 +8,7 @@ produce -- malformed Markdown raises rather than silently passing a severity gat
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -15,6 +16,7 @@ from secfoo.report.markdown import (
     MalformedReportError,
     has_json_draft,
     headings,
+    text_outside_code,
     visible_text,
 )
 
@@ -65,12 +67,25 @@ def count_severities(report_markdown: str) -> SeverityCounts:
     return SeverityCounts(**counts)
 
 
+def _is_json_document(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped or stripped[0] not in '{["':
+        return False
+    try:
+        json.loads(stripped)
+    except ValueError:
+        return False
+    return True
+
+
 def extract_overall_risk_rating(report_markdown: str) -> str | None:
-    if has_json_draft(report_markdown):
+    """The report's own `**Overall risk rating:**` line. Prose first, then
+    blockquotes (a rating written as a callout); never code blocks, never a
+    JSON echo of a report."""
+    if has_json_draft(report_markdown) or _is_json_document(report_markdown):
         return None
-    if report_markdown.lstrip().startswith(("{", "[", '"')):
-        return None
-    match = _RISK_RATING_RE.search(visible_text(report_markdown))
-    if match is None:
-        return None
-    return match.group(1).strip().lower()
+    for text in (visible_text(report_markdown), text_outside_code(report_markdown)):
+        match = _RISK_RATING_RE.search(text)
+        if match is not None:
+            return match.group(1).strip().lower()
+    return None

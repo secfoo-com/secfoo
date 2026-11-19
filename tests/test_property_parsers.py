@@ -50,11 +50,20 @@ one_line = st.text(
 ).filter(lambda s: not s.lstrip().startswith("###"))
 
 
+# Example findings a report may legitimately show: inside a closed code
+# fence or a blockquote they are illustrations, never counted.
+example_title = one_line.filter(lambda s: "~" not in s and "`" not in s)
+example_block = st.tuples(st.sampled_from(["fence", "quote"]), tier_word, example_title).map(
+    lambda t: (f"~~~~\n### [{t[1]}] F9: {t[2]}\n~~~~" if t[0] == "fence" else f"> ### [{t[1]}] F9: {t[2]}")
+)
+
+
 @given(
     headings=st.lists(st.tuples(st.one_of(tier_word, unknown_word), one_line), max_size=25),
     filler=st.lists(one_line, max_size=25),
+    examples=st.lists(example_block, max_size=5),
 )
-def test_count_severities_counts_exactly_the_recognised_headings(headings, filler):
+def test_count_severities_counts_exactly_the_recognised_headings(headings, filler, examples):
     lines = ["prose: " + text for text in filler]
     expected = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for word, title in headings:
@@ -62,6 +71,8 @@ def test_count_severities_counts_exactly_the_recognised_headings(headings, fille
         tier = TIERS.get(word.lower())
         if tier:
             expected[tier] += 1
+    for block in examples:  # separated by blank lines so each stays its own block
+        lines.insert(len(lines) // 3, "\n" + block + "\n")
     counts = count_severities("\n".join(lines))
     assert counts == SeverityCounts(**expected)
     assert counts.total == sum(expected.values())
@@ -88,20 +99,33 @@ def test_unicode_separators_cannot_close_a_fence(text, separator):
         count_severities(report)
 
 
-@given(word=st.one_of(tier_word, unknown_word), before=one_line, after=one_line)
-def test_overall_risk_rating_round_trips(word, before, after):
-    # The marker is matched case-insensitively and the rating is lowercased.
-    report = f"{before}\n\n**Overall risk rating:** {word}\n\n{after}"
-    report = f"prose: {before}\n\n- **Overall risk rating:** {word}\n\nprose: {after}"
+@given(
+    word=st.one_of(tier_word, unknown_word),
+    before=one_line,
+    after=one_line,
+    shape=st.sampled_from(["{}", "- {}", "> {}"]),
+)
+def test_overall_risk_rating_round_trips(word, before, after, shape):
+    # The marker is matched case-insensitively and the rating is lowercased,
+    # whether it is a plain line, a list item or a blockquote callout.
+    line = shape.format(f"**Overall risk rating:** {word}")
+    report = f"# Report\n\nprose: {before}\n\n{line}\n\nprose: {after}"
     assert extract_overall_risk_rating(report) == word.lower()
 
 
 @given(st.text())
 def test_overall_risk_rating_only_rejects_malformed_reports(text):
+    """Arbitrary text never crashes the extractor with anything but
+    MalformedReportError, and only when the severity counter (which gates
+    CI) rejects the same text: the two never disagree about a report."""
     try:
         rating = extract_overall_risk_rating(text)
     except MalformedReportError:
-        return
+        try:
+            count_severities(text)
+        except MalformedReportError:
+            return
+        raise AssertionError("rating extractor rejected a report the severity counter accepts")
     assert rating is None or rating == rating.lower()
 
 

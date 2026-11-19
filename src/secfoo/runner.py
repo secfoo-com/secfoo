@@ -124,6 +124,9 @@ class RunOutcome:
     medium_count: int = 0
     low_count: int = 0
     info_count: int = 0
+    # Why a run that produced a report still failed (e.g. "malformed report:
+    # Unclosed Markdown code fence"), so CI can tell it from an agent crash.
+    failure_reason: str | None = None
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
@@ -486,13 +489,15 @@ def _run_single_skill(
             report_path = report_dir / "report.md"
             report_text = strip_preamble(result.raw_report)
             report_path.write_text(report_text, encoding="utf-8")
+            failure_reason = None
             try:
                 report_text = parse_report(report_text)
                 severity = count_severities(report_text)
             except MalformedReportError as error:
+                failure_reason = f"malformed report: {error}"
                 result.status = "failed"
                 result.exit_code = 1
-                result.stderr = (result.stderr + "\n" if result.stderr else "") + f"malformed report: {error}"
+                result.stderr = (result.stderr + "\n" if result.stderr else "") + failure_reason
                 (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
                 severity = SeverityCounts()
             if on_skill_complete:
@@ -563,6 +568,7 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            failure_reason=failure_reason,
         )
     finally:
         repo.close()

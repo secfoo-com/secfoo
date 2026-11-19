@@ -171,7 +171,7 @@ def summarize(records: list[dict], cases: dict[str, dict]) -> str:
              "Synthetic rows test evaluator plumbing only; they are not model safety measurements.",
              "Retention uses a location/CWE heuristic and requires human transcript review.", "",
              "| Evidence | Agent | Skill | Phase | Variant | Revision | Trial | Capture profile | Corpus digest | Scored/total | Retained | Fabricated | Downgraded | Format | Tool violations / observed |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "|" + "---|" * 15]
     for key, rows in sorted(groups.items()):
         valid = [r for r in rows if r["scorable"]]
         n = len(valid)
