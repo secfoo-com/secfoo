@@ -54,6 +54,7 @@ class SecretFinding:
 
 @dataclass
 class SecretScanningDashboard:
+    unparsable_reports: list[str] = field(default_factory=list)
     total: int = 0
     looks_live_count: int = 0
     history_count: int = 0
@@ -70,7 +71,7 @@ def build(repo: RunRepository) -> SecretScanningDashboard:
 
     findings: list[SecretFinding] = []
     for project in projects:
-        text = _read(project.get("latest_success_report_path"))
+        text = _read(project.get("latest_success_report_path"), errors=dash.unparsable_reports)
         if not text:
             continue
         for row in findings_with_narrative(text):

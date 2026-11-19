@@ -29,6 +29,8 @@ class ThirdPartyDashboard:
     ccm_rows: list[dict] = field(default_factory=list)
     uncovered_ccm_domains: list[str] = field(default_factory=list)
     assessed_vendor_count: int = 0
+    # Stored reports that could not be parsed (shown as a warning: not a clean scan).
+    unparsable_reports: list[str] = field(default_factory=list)
 
 
 def build(repo: RunRepository) -> ThirdPartyDashboard:
@@ -44,7 +46,7 @@ def build(repo: RunRepository) -> ThirdPartyDashboard:
         )
         if not runs or not runs[0].report_path:
             continue
-        text = _read(runs[0].report_path)
+        text = _read(runs[0].report_path, errors=dash.unparsable_reports)
         if not text:
             continue
 

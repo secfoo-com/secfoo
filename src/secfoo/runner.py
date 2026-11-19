@@ -29,13 +29,13 @@ from secfoo.context_sources import ContextSource
 from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
 from secfoo.report.context_coverage import CoverageRecord, coverage_for_run
-from secfoo.report.markdown import strip_preamble
+from secfoo.report.markdown import MalformedReportError, parse_report, strip_preamble
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
 from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
 from secfoo.report.sca import osv_keys_for_report
 from secfoo.report.secret_scanning import SKILL_ID as SECRET_SKILL_ID
-from secfoo.report.severity import count_severities
+from secfoo.report.severity import SeverityCounts, count_severities
 from secfoo.settings import MCPServerConfig
 from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
@@ -128,6 +128,9 @@ class RunOutcome:
     medium_count: int = 0
     low_count: int = 0
     info_count: int = 0
+    # Why a run that produced a report still failed (e.g. "malformed report:
+    # Unclosed Markdown code fence"), so CI can tell it from an agent crash.
+    failure_reason: str | None = None
     # Documentation sources provided or discovered, reconciled against the report (#125).
     context_sources: tuple[CoverageRecord, ...] = ()
 
@@ -487,15 +490,24 @@ def _run_single_skill(
             # Memory Bank: capture HEAD SHA so future runs can diff against this baseline.
             target_commit = _git_head_commit(target_ctx.local_path)
 
-            if on_skill_complete:
-                on_skill_complete(skill.name, result.status)
-
             (report_dir / "stdout.log").write_text(result.stdout, encoding="utf-8")
             (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
             report_path = report_dir / "report.md"
             report_text = strip_preamble(result.raw_report)
             report_path.write_text(report_text, encoding="utf-8")
-            severity = count_severities(report_text)
+            failure_reason = None
+            try:
+                report_text = parse_report(report_text)
+                severity = count_severities(report_text)
+            except MalformedReportError as error:
+                failure_reason = f"malformed report: {error}"
+                result.status = "failed"
+                result.exit_code = 1
+                result.stderr = (result.stderr + "\n" if result.stderr else "") + failure_reason
+                (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
+                severity = SeverityCounts()
+            if on_skill_complete:
+                on_skill_complete(skill.name, result.status)
 
             repo.complete_run(
                 run_uuid,
@@ -573,6 +585,7 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            failure_reason=failure_reason,
             context_sources=context_records,
         )
     finally:

@@ -5,6 +5,10 @@
 {% from "_page.html" import page_head %}
 {{ page_head("third-party", "Third-Party", "Third-party assessments", counts.total ~ " third-party assessment(s) · AI-BOM: " ~ models_count ~ " model(s), " ~ tools_count ~ " tool(s) tracked.") }}
 
+{% if dash.unparsable_reports %}
+<p class="alert alert--warning" role="status">{{ dash.unparsable_reports|unique|list|length }} stored report(s) could not be parsed and were excluded. Open the original report to inspect it; these results are not a clean scan.</p>
+{% endif %}
+
 {% if counts.total == 0 %}
 {% call empty_state("No third-party assessments yet", "/assessments/new", "New Assessment", "u-mt-6") %}
   Create an assessment with type <strong>Third-Party</strong> and upload the

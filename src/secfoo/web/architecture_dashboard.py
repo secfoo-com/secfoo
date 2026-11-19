@@ -70,6 +70,8 @@ class ArchitectureDashboard:
     top_standards: list[tuple[str, int]] = field(default_factory=list)
     top_standards_preview: list[tuple[str, int]] = field(default_factory=list)
     standards_total: int = 0
+    # Stored reports that could not be parsed (shown as a warning: not a clean scan).
+    unparsable_reports: list[str] = field(default_factory=list)
 
 
 RECENT_STALE_LIMIT = 5
@@ -110,7 +112,7 @@ def build(repo: RunRepository) -> ArchitectureDashboard:
     remediated_total = 0
 
     for project in projects:
-        text = _read(project.get("latest_success_report_path"))
+        text = _read(project.get("latest_success_report_path"), errors=dash.unparsable_reports)
         if not text:
             continue
 

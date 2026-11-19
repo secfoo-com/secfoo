@@ -38,8 +38,9 @@ import hashlib
 import re
 from pathlib import Path
 
-from secfoo.report.architecture import _extract_section
 from secfoo.report.code_region import hash_code_region
+from secfoo.report.markdown import detail_blocks, example_finding_ids, prose_source
+from secfoo.report.markdown import section as _extract_section
 
 SKILL_ID = "sast"
 
@@ -76,10 +77,15 @@ def extract_findings_register_rows(report_markdown: str) -> list[dict[str, str]]
     version (no CVSS Vector column), simply yield an empty list -- this
     module never falls back to guessing a vector for an older report.
     """
-    section = _extract_section(report_markdown, "Findings Register")
+    section = prose_source(_extract_section(report_markdown, "Findings Register"))
     rows = []
     for match in _FINDINGS_REGISTER_ROW_RE.finditer(section):
         rows.append({key: value.strip() for key, value in match.groupdict().items()})
+    # Keep legacy register rows without narratives, but never persist an
+    # identifier whose only detail heading belongs to a quoted/code example.
+    examples = example_finding_ids(report_markdown)
+    real_ids = {key for key, _ in _iter_detail_blocks(report_markdown)}
+    rows = [row for row in rows if row["id"] not in examples or row["id"] in real_ids]
     return rows
 
 
@@ -88,13 +94,7 @@ def _iter_detail_blocks(report_markdown: str) -> list[tuple[str, str]]:
     between one `### [SEVERITY] Fn:` heading and the next.
     """
     section = _extract_section(report_markdown, "Detailed Findings")
-    headings = list(_DETAIL_HEADING_RE.finditer(section))
-    blocks = []
-    for i, heading in enumerate(headings):
-        start = heading.end()
-        end = headings[i + 1].start() if i + 1 < len(headings) else len(section)
-        blocks.append((heading.group("id"), section[start:end]))
-    return blocks
+    return [(key, prose_source(block)) for key, block in detail_blocks(section, _DETAIL_HEADING_RE)]
 
 
 def extract_description_by_id(report_markdown: str) -> dict[str, str]:

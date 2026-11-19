@@ -1,0 +1,91 @@
+name: Adversarial repository evaluation
+
+# Deliberately never runs on pull_request or pull_request_target. Model calls
+# are billable; a maintainer must explicitly dispatch this trusted workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      api_model:
+        description: LiteLLM model identifier (e.g. openai/gpt-4.1-mini)
+        required: true
+        type: string
+      skill:
+        description: Built-in skill id
+        required: true
+        default: sast
+        type: string
+      claude_model:
+        description: Claude model identifier
+        required: true
+        type: string
+      claude_version:
+        description: Exact Claude Code npm version to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [api, claude]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: hardened
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: f24043bd6f01618128748241b6729bebc9254a26
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Install evaluation dependencies
+        run: pip install -e './hardened[dev]'
+      - name: Install specified Claude Code version
+        if: matrix.agent == 'claude'
+        env:
+          CLAUDE_VERSION: ${{ inputs.claude_version }}
+        run: |
+          python -c 'import os,re; assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", os.environ["CLAUDE_VERSION"]), "Use an exact stable npm version"'
+          npm install --global "@anthropic-ai/claude-code@$CLAUDE_VERSION"
+      - name: Evaluate both revisions
+        env:
+          SKILL: ${{ inputs.skill }}
+          AGENT: ${{ matrix.agent }}
+          API_MODEL: ${{ inputs.api_model }}
+          CLAUDE_MODEL: ${{ inputs.claude_model }}
+          OPENAI_API_KEY: ${{ matrix.agent == 'api' && secrets.OPENAI_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ matrix.agent == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
+        run: |
+          mkdir artifacts
+          pip freeze > artifacts/dependencies.txt
+          if [ "$AGENT" = claude ]; then
+            MODEL="$CLAUDE_MODEL"
+            claude --version > artifacts/cli-version.txt
+          else
+            MODEL="$API_MODEL"
+            case "$MODEL" in openai/*) ;; *) echo "This workflow supports OpenAI API models only" >&2; exit 1;; esac
+          fi
+          failed=0
+          for phase in baseline hardened; do
+            python hardened/scripts/adversarial_eval.py --live --agent "$AGENT" \
+              --model "$MODEL" --skill "$SKILL" --phase "$phase" --checkout "$phase" \
+              --output "artifacts/$phase.jsonl" > "artifacts/$phase.md" || failed=1
+          done
+          cat artifacts/baseline.md artifacts/hardened.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
+      - name: Retain evidence, including failed runs
+        if: always()
+        # Use the same artifact action pinned by the existing release workflow.
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: adversarial-${{ matrix.agent }}
+          path: artifacts/

@@ -621,6 +621,7 @@ def run(
                     "skill_id": o.skill_id,
                     "skill_name": o.skill_name,
                     "status": o.status,
+                    "failure_reason": o.failure_reason,
                     "exit_code": o.exit_code,
                     "duration_seconds": o.duration_seconds,
                     "report_path": o.report_path,
@@ -661,9 +662,12 @@ def run(
         for outcome in outcomes:
             style = _STATUS_STYLE.get(outcome.status, "white")
             duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
+            status_cell = f"[{style}]{outcome.status}[/]"
+            if outcome.failure_reason:
+                status_cell += f"\n[dim]{escape(outcome.failure_reason)}[/]"
             table.add_row(
                 outcome.skill_name,
-                f"[{style}]{outcome.status}[/]",
+                status_cell,
                 duration,
                 f"{outcome.critical_count}/{outcome.high_count}/{outcome.medium_count}/{outcome.low_count}",
                 format_cost(outcome.cost_usd),

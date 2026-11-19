@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from secfoo.report.markdown import section as _extract_section
+
 _MERMAID_BLOCK_RE = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
 _DESIGN_VERDICT_RE = re.compile(r"\*\*Design verdict:\*\*\s*([^\n]+)", re.IGNORECASE)
 _BOUNDARY_ID_RE = re.compile(r"^\|\s*(B\d+)\s*\|", re.MULTILINE)
@@ -73,19 +75,6 @@ _ASSUMPTION_ROW_RE = re.compile(
 
 _EXCLUDED_STANDARD_VALUES = {"n/a", "na", "none", "general practice", "-", ""}
 _CONFORMANCE_SCORE = {"conformant": 100.0, "partial": 50.0, "non-conformant": 0.0}
-
-
-def _extract_section(report_markdown: str, title: str) -> str:
-    """Text between a `## [N.] <title>` heading and the next `## ` heading.
-    The section number prefix is optional in the match so this stays
-    correct if sections get renumbered later. Empty string if not found.
-    """
-    pattern = re.compile(
-        rf"^##\s*(?:\d+\.\s*)?{re.escape(title)}.*?\n(.*?)(?=^##\s|\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    match = pattern.search(report_markdown)
-    return match.group(1) if match else ""
 
 
 def extract_mermaid_diagram(report_markdown: str) -> str | None:

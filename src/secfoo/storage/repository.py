@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secfoo.config import DB_PATH, ensure_store_dirs
+from secfoo.report.markdown import read_stored_report
 
 # Lets a host process that serves multiple SQLite files (the multi-tenant
 # portal, one file per tenant) select which file `RunRepository()` opens
@@ -754,7 +755,10 @@ class RunRepository:
         path = Path(row["report_path"])
         if not path.exists():
             return None, None
-        rating = extract_overall_risk_rating(path.read_text(encoding="utf-8", errors="replace"))
+        text = read_stored_report(path)
+        if not text:
+            return None, None
+        rating = extract_overall_risk_rating(text)
         risk = RESPONSIBLE_AI_RISK_BY_RATING.get(rating or "")
         if risk is None:
             return None, None

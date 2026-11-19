@@ -29,6 +29,7 @@ with atheris.instrument_imports():
         MAX_TYPE_CHARS,
         parse_documentation_coverage,
     )
+    from secfoo.report.markdown import MalformedReportError
     from secfoo.report.severity import count_severities, extract_overall_risk_rating
     from secfoo.skills.loader import SkillLoadError, _parse_frontmatter
     from secfoo.web.finding_filters import normalize_severity
@@ -38,11 +39,15 @@ def test_one_input(data: bytes) -> None:
     provider = atheris.FuzzedDataProvider(data)
     text = provider.ConsumeUnicodeNoSurrogates(4096)
 
-    # Report parsers must accept any text and never raise.
-    counts = count_severities(text)
-    assert counts.total == counts.critical + counts.high + counts.medium + counts.low + counts.info
-    rating = extract_overall_risk_rating(text)
-    assert rating is None or rating == rating.lower()
+    # Report parsers may reject malformed structure only with the typed error.
+    try:
+        counts = count_severities(text)
+        assert counts.total == counts.critical + counts.high + counts.medium + counts.low + counts.info
+        rating = extract_overall_risk_rating(text)
+        assert rating is None or rating == rating.lower()
+    except MalformedReportError:
+        pass  # malformed reports are deliberately rejected, never a zero-count pass
+    # The coverage-table parser must accept any text and never raise.
     coverage_rows = parse_documentation_coverage(text)
     assert len(coverage_rows) <= MAX_ROWS
     for row in coverage_rows:

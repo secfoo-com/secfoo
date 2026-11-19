@@ -1070,3 +1070,29 @@ Homebrew is a planned follow-up (a tap formula in a separate
 See [`design-system/README.md`](../design-system/README.md) for the design
 system used by the dashboard.
 
+## Malicious repositories and adversarial validation
+
+Repository text is untrusted evidence, including files named `AGENTS.md`,
+`CLAUDE.md` and `.cursorrules`. Secfoo's review brief rejects instructions to
+suppress findings, change severity, copy fabricated reports, or execute
+commands from the target. The API adapter separates the brief into a system
+message, quotes filenames, and preserves source lines inside random per-file
+boundaries. Report consumers share a Markdown heading/section iterator.
+Fenced and quoted examples are ignored; unclosed fences and malformed finding
+headings fail the run instead of passing severity gates with zero findings.
+
+These controls do not establish that a malicious repository cannot influence
+an agent. Tool grants are not an operating-system sandbox, and model behavior
+must be measured. The [adversarial evaluation guide](ADVERSARIAL_EVAL.md)
+documents eight paired fixture techniques, offline regression replay,
+opt-in live measurements and the limits of the metrics. Synthetic replay
+results are not live security results.
+
+The [historical November 16 record](evaluations/2026-11-16/README.md)
+uses a previous, explicitly labeled SQL-only corpus and older code. Its scores
+are not measurements of the current corpus or head. The harness reports each
+revision, trial, capture profile and corpus digest separately; API tool-policy
+measurements are marked not applicable because that adapter exposes no tools.
+Fresh free-model measurements are tracked in the PR, separately from offline
+regressions. Tool grants and source boundaries do not establish isolation or
+immunity to prompt injection.

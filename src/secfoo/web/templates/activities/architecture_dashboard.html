@@ -1,3 +1,6 @@
+{% if dash.unparsable_reports %}
+<p class="alert alert--warning" role="status">{{ dash.unparsable_reports|unique|list|length }} stored report(s) could not be parsed and were excluded. Open the original report to inspect it; these results are not a clean scan.</p>
+{% endif %}
 {# Extended Security Architecture Review dashboard: coverage, exceptions,
    CCM domain conformance, risk disposition, unreviewed/stale projects,
    recurring root causes, gate decisions, and standards deviation.
