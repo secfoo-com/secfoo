@@ -835,7 +835,8 @@ secfoo run --skill security-architecture-review \
   - **Local files and folders:** Extracted directly by secfoo and inlined into the prompt brief as untrusted reference material (the prompt explicitly instructs the agent to treat context as reference data and never follow instructions found within it). Local extraction is bounded by plain limits:
     - 20,000 characters per source (text files read up to 80,000 bytes; documents up to 25 MB).
     - 60,000 characters in total across all local sources.
-    - 50 files per folder examined. Symlinks are never followed.
+    - 50 files per folder examined. Symlinks are never followed. A folder that exceeds the file cap is marked truncated in its note and still counts as reached.
+    - Two local files with the same name are labelled with enough parent folder names to tell them apart (e.g. `a/README.md` and `b/README.md`).
 - **Configuring default context sources:**
   In `~/.secfoo/config.toml`:
   ```toml
@@ -846,14 +847,14 @@ secfoo run --skill security-architecture-review \
   ]
   ```
 - **Documentation coverage table & reporting:**
-  When one or more context sources are given, the prompt asks the agent to add a `### Documentation coverage` table at the end of its Coverage Notes section (Secret Scanning uses its section 5 for it), with the columns shown:
+  When one or more context sources are given, the prompt asks the agent to add a `### Documentation coverage` table at the end of its Coverage Notes section (Secret Scanning uses its section 5 for it). The table may sit under any heading level (such as `##`, `###`, `####`, or numbered headings like `## 5. Documentation coverage`), with the columns shown:
   ```markdown
   | Source | Type | Reached | Notes |
   |---|---|---|---|
   | https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 | Confluence page | Yes | Reviewed architecture and trust boundaries |
   | architecture.pdf | local file | Yes | Inlined by secfoo |
   ```
-  On run completion, secfoo parses this table and reconciles each declared context source (marking whether it was reached and preserving the agent's notes). A declared source the agent leaves out of the table is recorded as not reached ("not reported by the agent"), and if the run itself does not complete, URL sources are recorded as not reached ("run did not complete") while local files secfoo already inlined stay reached. The coverage is saved in the local database (`context_sources` table per run) and displayed in the web dashboard run detail view (with a `documentation sources: X of Y reached` receipt line and a Documentation coverage table card with status badges).
+  On run completion, secfoo parses this table and reconciles each declared context source (marking whether it was reached and preserving the agent's notes). Matching rule: a row matches a source only when its Source cell is that source's label (a URL or a file/folder name; markdown links and one trailing "(note)" are tolerated); there is no fuzzy or positional matching; a source with no matching row is recorded as not reported ("not reported by the agent"). If the run itself does not complete, URL sources are recorded as not reached ("run did not complete") while local files secfoo already inlined stay reached. The coverage is saved in the local database (`context_sources` table per run) and displayed in the web dashboard run detail view (with a `documentation sources: X of Y reached` receipt line and a Documentation coverage table card with status badges).
 - **Machine-readable JSON output:**
   When passing `--json`, each run object in `runs` includes a `context_sources` array:
   ```json

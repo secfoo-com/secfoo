@@ -10,8 +10,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from secfoo.context_sources import SUPPORTED_LOCAL_EXTENSIONS, ContextSource
 from secfoo.docext import MAX_UPLOAD_BYTES, extract_text
@@ -49,6 +52,7 @@ class BriefEntry:
     readers: tuple[str, ...]
     reached: bool | None
     note: str
+    label: str = ""
 
 
 @dataclass(frozen=True)
@@ -125,6 +129,20 @@ def _extract_single_file(path: Path) -> tuple[bool, str, str]:
     return True, sanitized, note
 
 
+def _is_eligible_file(file_full: Path, resolved_root: Path) -> bool:
+    if file_full.name.startswith("."):
+        return False
+    if file_full.is_symlink() or os.path.islink(file_full):
+        return False
+    try:
+        resolved_file = file_full.resolve()
+        if not resolved_file.is_relative_to(resolved_root):
+            return False
+    except (OSError, ValueError):
+        return False
+    return file_full.suffix.lower() in SUPPORTED_LOCAL_EXTENSIONS
+
+
 def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
     """Walk folder and extract supported files. Returns (success, combined_text, note)."""
     try:
@@ -137,7 +155,8 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
     files_examined = 0
     parts: list[str] = []
     total_chars = 0
-    cap_stopped = False
+    truncation_reason: str | None = None
+    remaining_eligible = 0
 
     for root, dirs, files in os.walk(folder_path, followlinks=False):
         valid_dirs: list[str] = []
@@ -154,10 +173,23 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
         for f in sorted(files):
             if f.startswith("."):
                 continue
+
+            file_full = Path(root) / f
+
+            if truncation_reason is not None:
+                if _is_eligible_file(file_full, resolved_root):
+                    remaining_eligible += 1
+                    if remaining_eligible > 10_000:
+                        break
+                continue
+
             files_examined += 1
             if files_examined > MAX_DIRECTORY_FILES:
-                break
-            file_full = Path(root) / f
+                truncation_reason = f"{MAX_DIRECTORY_FILES}-file cap"
+                if _is_eligible_file(file_full, resolved_root):
+                    remaining_eligible += 1
+                continue
+
             if file_full.is_symlink() or os.path.islink(file_full):
                 files_skipped += 1
                 continue
@@ -174,8 +206,9 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
                 continue
 
             if total_chars >= MAX_CHARS_PER_SOURCE:
-                cap_stopped = True
-                break
+                truncation_reason = "per-source cap"
+                remaining_eligible += 1
+                continue
 
             success, file_text, _ = _extract_single_file(file_full)
             if not success or not file_text.strip():
@@ -188,29 +221,93 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
             files_read += 1
             total_chars += len(part)
 
-        if cap_stopped:
-            break
-        if files_examined >= MAX_DIRECTORY_FILES:
+            if total_chars >= MAX_CHARS_PER_SOURCE:
+                truncation_reason = "per-source cap"
+
+        if truncation_reason is not None and remaining_eligible > 10_000:
             break
 
     if files_read == 0:
         return False, "", f"{files_read} files read, {files_skipped} skipped"
 
     combined = "\n\n".join(parts)
-    note = f"{files_read} files read, {files_skipped} skipped"
-    if cap_stopped:
-        note += "; remaining files not read (per-source cap)"
+    if truncation_reason is not None and remaining_eligible > 0:
+        rem_str = "10,000+" if remaining_eligible > 10_000 else f"{remaining_eligible:,}"
+        note = f"{files_read} files read, {files_skipped} skipped; truncated: {rem_str} more files not read ({truncation_reason})"
+    else:
+        note = f"{files_read} files read, {files_skipped} skipped"
     return True, combined, note
+
+
+def _clean_path_parts(loc: str) -> list[str]:
+    p = Path(loc)
+    parts = [
+        part for part in p.parts
+        if part not in ("/", "\\", "") and not os.path.splitdrive(part)[0] and part != "."
+    ]
+    return parts
+
+
+def source_labels(sources: Sequence[ContextSource]) -> list[str]:
+    """Return distinct display labels for context sources, disambiguating local collisions."""
+    labels: list[str] = [""] * len(sources)
+    local_indices_by_base: dict[str, list[int]] = {}
+
+    for i, source in enumerate(sources):
+        if source.kind == "url":
+            labels[i] = source.location
+        else:
+            loc = source.location
+            is_dir = (source.kind == "directory")
+            name = Path(loc).name or loc
+            base = f"{name}/" if is_dir else name
+            base_key = base.lower()
+            local_indices_by_base.setdefault(base_key, []).append(i)
+
+    for base_key, indices in local_indices_by_base.items():
+        if len(indices) == 1:
+            idx = indices[0]
+            source = sources[idx]
+            is_dir = (source.kind == "directory")
+            name = Path(source.location).name or source.location
+            labels[idx] = f"{name}/" if is_dir else name
+            continue
+
+        parts_list: list[list[str]] = [_clean_path_parts(sources[idx].location) for idx in indices]
+        is_dirs: list[bool] = [sources[idx].kind == "directory" for idx in indices]
+
+        k = 1
+        while True:
+            candidate_labels: list[str] = []
+            can_lengthen_any = False
+            for parts, is_dir in zip(parts_list, is_dirs):
+                if not parts:
+                    candidate_labels.append("")
+                    continue
+                take = min(k + 1, len(parts))
+                if take < len(parts):
+                    can_lengthen_any = True
+                chosen = parts[-take:]
+                leaf = f"{chosen[-1]}/" if is_dir else chosen[-1]
+                if len(chosen) > 1:
+                    lbl = "/".join(chosen[:-1] + [leaf])
+                else:
+                    lbl = leaf
+                candidate_labels.append(lbl)
+
+            lowered = [lbl.lower() for lbl in candidate_labels]
+            if len(set(lowered)) == len(indices) or not can_lengthen_any:
+                for idx, lbl in zip(indices, candidate_labels):
+                    labels[idx] = lbl
+                break
+            k += 1
+
+    return labels
 
 
 def source_label(source: ContextSource) -> str:
     """Return the display label for a context source."""
-    if source.kind == "url":
-        return source.location
-    source_path = Path(source.location)
-    if source.kind == "directory":
-        return f"{source_path.name}/"
-    return source_path.name
+    return source_labels([source])[0]
 
 
 def build_context_brief(
@@ -236,8 +333,10 @@ def build_context_brief(
     ]
 
     total_chars_inlined = 0
+    labels = source_labels(sources)
 
     for i, source in enumerate(sources, start=1):
+        label = labels[i - 1]
         if source.kind == "url":
             kind = classify_url(source.location)
             type_label = _URL_TYPE_LABELS[kind]
@@ -248,6 +347,7 @@ def build_context_brief(
                 readers=readers,
                 reached=None,
                 note="",
+                label=label,
             )
             entries.append(entry)
 
@@ -270,44 +370,28 @@ def build_context_brief(
             is_folder = source.kind == "directory"
             type_label = "local folder" if is_folder else "local file"
             source_path = Path(source.location)
-            display_name = source_label(source)
+            display_name = label
 
             if is_folder:
                 success, raw_text, note = _extract_folder(source_path)
             else:
                 success, raw_text, note = _extract_single_file(source_path)
 
-            if not success:
-                entry = BriefEntry(
-                    source=source,
-                    type_label=type_label,
-                    readers=(),
-                    reached=False,
-                    note=note,
-                )
-                entries.append(entry)
-                section_lines.append(f"### Source {i}: {type_label} — {display_name} (not read: {note})")
-                section_lines.append(
-                    f"This source was not inlined ({note}). "
-                    "Report this source as not reached under Coverage Notes."
-                )
-                section_lines.append("")
-                continue
-
             remaining_total = MAX_CHARS_TOTAL - total_chars_inlined
-            if remaining_total <= 0:
-                note = "not inlined: total size cap reached"
+            if not success or remaining_total <= 0:
+                not_read_note = note if not success else "not inlined: total size cap reached"
                 entry = BriefEntry(
                     source=source,
                     type_label=type_label,
                     readers=(),
                     reached=False,
-                    note=note,
+                    note=not_read_note,
+                    label=label,
                 )
                 entries.append(entry)
-                section_lines.append(f"### Source {i}: {type_label} — {display_name} (not read: {note})")
+                section_lines.append(f"### Source {i}: {type_label} — {display_name} (not read: {not_read_note})")
                 section_lines.append(
-                    f"This source was not inlined ({note}). "
+                    f"This source was not inlined ({not_read_note}). "
                     "Report this source as not reached under Coverage Notes."
                 )
                 section_lines.append("")
@@ -331,6 +415,7 @@ def build_context_brief(
                 readers=(),
                 reached=True,
                 note=note,
+                label=label,
             )
             entries.append(entry)
 

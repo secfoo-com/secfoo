@@ -12,8 +12,10 @@ from secfoo.context_brief import (
     classify_url,
     likely_readers,
     source_label,
+    source_labels,
 )
 from secfoo.context_sources import parse_context_source
+from secfoo.report.context_coverage import coverage_for_run
 from secfoo.settings import MCPServerConfig
 
 
@@ -342,3 +344,77 @@ def test_source_label(tmp_path: Path) -> None:
     (folder_path / "a.md").write_text("Hello", encoding="utf-8")
     folder_source = parse_context_source(str(folder_path))
     assert source_label(folder_source) == "docs_folder/"
+
+
+# Test 6. Duplicate basenames produce disambiguated labels without str(tmp_path)
+def test_duplicate_basenames_produce_distinct_labels_and_headings(tmp_path: Path) -> None:
+    dir_a = tmp_path / "a"
+    dir_a.mkdir()
+    file_a = dir_a / "README.md"
+    file_a.write_text("# Readme A", encoding="utf-8")
+
+    dir_b = tmp_path / "b"
+    dir_b.mkdir()
+    file_b = dir_b / "README.md"
+    file_b.write_text("# Readme B", encoding="utf-8")
+
+    s1 = parse_context_source(str(file_a))
+    s2 = parse_context_source(str(file_b))
+
+    labels = source_labels([s1, s2])
+    assert labels == ["a/README.md", "b/README.md"]
+
+    brief = build_context_brief([s1, s2], [])
+    assert brief is not None
+    assert brief.entries[0].label == "a/README.md"
+    assert brief.entries[1].label == "b/README.md"
+    assert "### Source 1: local file — a/README.md" in brief.section
+    assert "### Source 2: local file — b/README.md" in brief.section
+
+    report = """\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| a/README.md | local file | Yes | read A |
+| b/README.md | local file | Yes | read B |
+"""
+    records = coverage_for_run(brief, report, run_succeeded=True)
+    assert len(records) == 2
+    assert records[0].source == "a/README.md"
+    assert records[0].notes == "read A"
+    assert records[1].source == "b/README.md"
+    assert records[1].notes == "read B"
+
+    for r in records:
+        assert str(tmp_path) not in r.source
+        assert str(tmp_path) not in r.notes
+
+
+# Test 7. Folder truncation with 55 files vs 3 files
+def test_folder_55_files_truncation_reporting(tmp_path: Path) -> None:
+    folder = tmp_path / "many_files"
+    folder.mkdir()
+    for i in range(1, 56):
+        (folder / f"doc_{i:02d}.md").write_text(f"# Doc {i}\nSmall content", encoding="utf-8")
+
+    source = parse_context_source(str(folder))
+    brief = build_context_brief([source], [])
+    assert brief is not None
+    entry = brief.entries[0]
+    assert "truncated" in entry.note
+    assert "5 more files" in entry.note
+    assert "50-file cap" in entry.note
+    assert entry.reached is True
+    assert "50-file cap" in brief.section
+
+    # Now verify folder with 3 files has no "truncated"
+    folder3 = tmp_path / "three_files"
+    folder3.mkdir()
+    for i in range(1, 4):
+        (folder3 / f"doc_{i}.md").write_text(f"# Doc {i}", encoding="utf-8")
+    s3 = parse_context_source(str(folder3))
+    brief3 = build_context_brief([s3], [])
+    assert brief3 is not None
+    entry3 = brief3.entries[0]
+    assert "truncated" not in entry3.note
+    assert entry3.reached is True

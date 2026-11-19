@@ -12,6 +12,7 @@ from secfoo.report.context_coverage import (
     MAX_NOTES_CHARS,
     MAX_ROWS,
     MAX_SOURCE_CHARS,
+    CoverageRecord,
     coverage_for_run,
     parse_documentation_coverage,
 )
@@ -282,8 +283,8 @@ def test_coverage_for_run_url_matched_by_substring() -> None:
     assert records[0].notes == "verified"
 
 
-# 11. positional fallback when counts equal and labels do not match
-def test_coverage_for_run_positional_fallback() -> None:
+# 11. no positional fallback: unmatched sources marked not reported; extra agent rows appended
+def test_coverage_for_run_no_positional_fallback() -> None:
     s1 = parse_context_source("https://example.com/one")
     s2 = parse_context_source("https://example.com/two")
     brief = build_context_brief([s1, s2], [])
@@ -293,17 +294,22 @@ def test_coverage_for_run_positional_fallback() -> None:
 ### Documentation coverage
 | Source | Type | Reached | Notes |
 |---|---|---|---|
-| Unmatched Alpha | URL | Yes | first note |
-| Unmatched Beta | URL | No | second note |
+| https://example.com/one | URL | Yes | first note |
+| discovered README.md | file | Yes | extra note |
 """
     records = coverage_for_run(brief, report, run_succeeded=True)
-    assert len(records) == 2
+    assert len(records) == 3
     assert records[0].source == "https://example.com/one"
     assert records[0].reached is True
     assert records[0].notes == "first note"
+
     assert records[1].source == "https://example.com/two"
     assert records[1].reached is False
-    assert records[1].notes == "second note"
+    assert records[1].notes == "not reported by the agent"
+
+    assert records[2].source == "discovered README.md"
+    assert records[2].reached is True
+    assert records[2].notes == "extra note"
 
 
 # 12. missing row for a URL -> reached False, "not reported by the agent"
@@ -441,3 +447,160 @@ def test_coverage_for_run_exact_match_precedence_over_substring() -> None:
     assert records[0].notes == "note for 1"
     assert records[1].source == "https://x.example/wiki/12"
     assert records[1].notes == "note for 12"
+
+
+# Test 1. Nested heading lookup and scope boundaries
+def test_nested_headings_and_lookup_boundaries() -> None:
+    # (a) "## 5. Documentation coverage" directly followed by "### Documentation coverage" and table
+    report1 = """\
+# Security Assessment Report
+## 5. Documentation coverage
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://example.com/doc | URL | Yes | ok 1 |
+"""
+    rows1 = parse_documentation_coverage(report1)
+    assert len(rows1) == 1
+    assert rows1[0].source == "https://example.com/doc"
+    assert rows1[0].notes == "ok 1"
+
+    # (b) "#### Documentation coverage" inside "## Coverage Notes"
+    report2 = """\
+# Security Assessment Report
+## Coverage Notes
+Some introductory text.
+#### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://example.com/deep | URL | Yes | ok 2 |
+"""
+    rows2 = parse_documentation_coverage(report2)
+    assert len(rows2) == 1
+    assert rows2[0].source == "https://example.com/deep"
+    assert rows2[0].notes == "ok 2"
+
+    # (c) Deeper non-coverage heading between coverage heading and table
+    report3 = """\
+# Security Assessment Report
+## 5. Documentation coverage
+### Assessment Subheading
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://example.com/sub | URL | Yes | ok 3 |
+"""
+    rows3 = parse_documentation_coverage(report3)
+    assert len(rows3) == 1
+    assert rows3[0].source == "https://example.com/sub"
+    assert rows3[0].notes == "ok 3"
+
+    # (d) Table that ends at next heading of equal or higher level (later table not returned)
+    report4 = """\
+# Security Assessment Report
+### Documentation coverage
+No table immediately here.
+### Next Section
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://example.com/later | URL | Yes | not part of coverage |
+"""
+    assert parse_documentation_coverage(report4) == []
+
+
+# Test 2. pages/1 vs pages/12 disambiguation
+def test_pages_1_vs_pages_12_non_collision() -> None:
+    s1 = parse_context_source("https://x.example/wiki/pages/1")
+    s2 = parse_context_source("https://x.example/wiki/pages/12")
+    brief = build_context_brief([s1, s2], [])
+    assert brief is not None
+
+    report = """\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://x.example/wiki/pages/12 (Arch) | Confluence page | No | 403 |
+| https://x.example/wiki/pages/1 (Threat) | Confluence page | Yes | ok |
+"""
+    records = coverage_for_run(brief, report, run_succeeded=True)
+    assert len(records) == 2
+    assert records[0].source == "https://x.example/wiki/pages/1"
+    assert records[0].reached is True
+    assert records[0].notes == "ok"
+
+    assert records[1].source == "https://x.example/wiki/pages/12"
+    assert records[1].reached is False
+    assert records[1].notes == "403"
+
+
+# Test 3. a.md vs data.md and folder docs/ vs https://docs.google.com/x
+def test_no_cross_matches_between_substring_lookalikes(tmp_path: Path) -> None:
+    a_file = tmp_path / "a.md"
+    a_file.write_text("# A", encoding="utf-8")
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "guide.md").write_text("# Guide", encoding="utf-8")
+
+    s1 = parse_context_source(str(a_file))
+    s2 = parse_context_source(str(docs_dir))
+    brief = build_context_brief([s1, s2], [])
+    assert brief is not None
+
+    report = """\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| data.md | local file | Yes | read data |
+| https://docs.google.com/x | Google Docs | Yes | read gdocs |
+"""
+    records = coverage_for_run(brief, report, run_succeeded=True)
+    # a.md was inlined by secfoo (reached True), does not match data.md
+    assert records[0].source == "a.md"
+    assert records[0].reached is True
+    assert records[0].notes != "read data"
+
+    # docs/ was inlined by secfoo (reached True), does not match https://docs.google.com/x
+    assert records[1].source == "docs/"
+    assert records[1].reached is True
+    assert records[1].notes != "read gdocs"
+
+    # Both agent rows are unmatched extras
+    assert len(records) == 4
+    assert records[2].source == "data.md"
+    assert records[3].source == "https://docs.google.com/x"
+
+
+# Test 4. Markdown link row [Arch](url) matches source url
+def test_markdown_link_row_matches_source_url() -> None:
+    url = "https://x.example/wiki/1"
+    source = parse_context_source(url)
+    brief = build_context_brief([source], [])
+    assert brief is not None
+
+    report = f"""\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| [Arch]({url}) | Confluence page | Yes | verified arch link |
+"""
+    records = coverage_for_run(brief, report, run_succeeded=True)
+    assert len(records) == 1
+    assert records[0].source == url
+    assert records[0].reached is True
+    assert records[0].notes == "verified arch link"
+
+
+# Test 8. CoverageRow no longer exists; parse_* returns CoverageRecord
+def test_coverage_row_removed_and_returns_coverage_record() -> None:
+    with pytest.raises(ImportError):
+        from secfoo.report.context_coverage import CoverageRow  # type: ignore[attr-defined] # noqa: F401
+
+    report = """\
+### Documentation coverage
+| Source | Type | Reached | Notes |
+|---|---|---|---|
+| https://example.com/rec | URL | Yes | note |
+"""
+    rows = parse_documentation_coverage(report)
+    assert len(rows) == 1
+    assert isinstance(rows[0], CoverageRecord)
+    assert rows[0].source == "https://example.com/rec"
