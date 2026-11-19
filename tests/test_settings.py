@@ -183,3 +183,73 @@ def test_load_config_rejects_invalid_elements_in_defaults_context(tmp_path, valu
     path.write_text(f"[defaults]\ncontext = {value}\n")
     with pytest.raises(ConfigError, match="defaults.context"):
         load_config(path)
+
+
+def test_load_config_parses_mcp_server_hosts(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        """
+[[mcp_servers]]
+name = "atlassian"
+command = "npx"
+hosts = ["wiki.internal.example", " *.Atlassian.Net ", "WIKI.INTERNAL.EXAMPLE"]
+"""
+    )
+    cfg = load_config(path)
+    assert cfg.mcp_servers[0].hosts == ["wiki.internal.example", "*.atlassian.net"]
+
+
+def test_load_config_mcp_server_hosts_default_empty(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        """
+[[mcp_servers]]
+name = "atlassian"
+command = "npx"
+"""
+    )
+    cfg = load_config(path)
+    assert cfg.mcp_servers[0].hosts == []
+
+
+@pytest.mark.parametrize("value", ['"wiki.example.com"', "42", "true", "{ key = 'val' }"])
+def test_load_config_rejects_non_list_mcp_server_hosts(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f"""
+[[mcp_servers]]
+name = "atlassian"
+command = "npx"
+hosts = {value}
+"""
+    )
+    with pytest.raises(ConfigError, match=r"mcp_servers\.atlassian\.hosts"):
+        load_config(path)
+
+
+@pytest.mark.parametrize(
+    "element",
+    [
+        '"https://wiki.example.com"',
+        '"user@example.com"',
+        '"foo bar.com"',
+        '"*example.com"',
+        '"*."',
+        '""',
+        '"   "',
+        "42",
+        "true",
+    ],
+)
+def test_load_config_rejects_invalid_elements_in_mcp_server_hosts(tmp_path, element):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f"""
+[[mcp_servers]]
+name = "atlassian"
+command = "npx"
+hosts = [{element}]
+"""
+    )
+    with pytest.raises(ConfigError, match=r"mcp_servers\.atlassian\.hosts"):
+        load_config(path)

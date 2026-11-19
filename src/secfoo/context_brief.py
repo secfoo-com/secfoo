@@ -8,13 +8,11 @@ URL sources classified by type with their likely MCP reader tools.
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 from urllib.parse import urlsplit
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 from secfoo.context_sources import SUPPORTED_LOCAL_EXTENSIONS, ContextSource
 from secfoo.docext import MAX_UPLOAD_BYTES, extract_text
@@ -23,6 +21,7 @@ from secfoo.settings import MCPServerConfig
 MAX_CHARS_PER_SOURCE = 20_000  # per file or per folder
 MAX_CHARS_TOTAL = 60_000  # across all local sources in one run
 MAX_DIRECTORY_FILES = 50  # files examined per folder source
+MAX_FILES_COUNTED_AFTER_TRUNCATION = 10_000  # maximum files inspected when counting after truncation
 
 UrlKind = Literal["confluence", "jira", "sharepoint", "notion", "google_docs", "other"]
 
@@ -61,7 +60,21 @@ class ContextBrief:
     entries: tuple[BriefEntry, ...]
 
 
-def classify_url(url: str) -> UrlKind:
+def host_matches(hostname: str, patterns: Sequence[str]) -> bool:
+    """True when hostname matches pattern (exact match, or *.domain matching subdomains and root domain)."""
+    h = hostname.lower()
+    for pat in patterns:
+        p = pat.lower()
+        if h == p:
+            return True
+        if p.startswith("*."):
+            root = p[2:]
+            if h == root or h.endswith("." + root):
+                return True
+    return False
+
+
+def classify_url(url: str, servers: list[MCPServerConfig] | None = None) -> UrlKind:
     parts = urlsplit(url)
     hostname = (parts.hostname or "").lower()
     if (
@@ -80,20 +93,53 @@ def classify_url(url: str) -> UrlKind:
         return "notion"
     if hostname in {"docs.google.com", "drive.google.com"}:
         return "google_docs"
+
+    if servers is not None and hostname:
+        all_hosts: list[str] = []
+        for s in servers:
+            all_hosts.extend(s.hosts)
+        if host_matches(hostname, all_hosts):
+            p = parts.path.lower()
+            if p.startswith(("/wiki", "/display/", "/spaces/", "/pages/", "/confluence")):
+                return "confluence"
+            if p.startswith(("/browse/", "/jira", "/projects/", "/secure/", "/issues/")):
+                return "jira"
+
     return "other"
 
 
-def likely_readers(kind: UrlKind, servers: list[MCPServerConfig]) -> tuple[str, ...]:
-    keywords = _URL_KEYWORDS.get(kind, ())
-    if not keywords:
-        return ()
+def likely_readers(
+    kind: UrlKind,
+    servers: list[MCPServerConfig],
+    url: str | None = None,
+) -> tuple[str, ...]:
     matched: list[str] = []
-    for server in servers:
-        search_parts = [server.name, server.url or "", server.command or ""]
-        search_parts.extend(server.args)
-        search_text = " ".join(search_parts).lower()
-        if any(keyword in search_text for keyword in keywords):
-            matched.append(server.name)
+    seen: set[str] = set()
+
+    if url is not None:
+        hostname = (urlsplit(url).hostname or "").lower()
+        if hostname:
+            for server in servers:
+                if (
+                    server.hosts
+                    and host_matches(hostname, server.hosts)
+                    and server.name not in seen
+                ):
+                    seen.add(server.name)
+                    matched.append(server.name)
+
+    keywords = _URL_KEYWORDS.get(kind, ())
+    if keywords:
+        for server in servers:
+            if server.name in seen:
+                continue
+            search_parts = [server.name, server.url or "", server.command or ""]
+            search_parts.extend(server.args)
+            search_text = " ".join(search_parts).lower()
+            if any(keyword in search_text for keyword in keywords):
+                seen.add(server.name)
+                matched.append(server.name)
+
     return tuple(matched)
 
 
@@ -157,6 +203,8 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
     total_chars = 0
     truncation_reason: str | None = None
     remaining_eligible = 0
+    post_truncation_visited = 0
+    stopped_by_counted_cap = False
 
     for root, dirs, files in os.walk(folder_path, followlinks=False):
         valid_dirs: list[str] = []
@@ -177,15 +225,21 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
             file_full = Path(root) / f
 
             if truncation_reason is not None:
+                post_truncation_visited += 1
+                if post_truncation_visited > MAX_FILES_COUNTED_AFTER_TRUNCATION:
+                    stopped_by_counted_cap = True
+                    break
                 if _is_eligible_file(file_full, resolved_root):
                     remaining_eligible += 1
-                    if remaining_eligible > 10_000:
-                        break
                 continue
 
             files_examined += 1
             if files_examined > MAX_DIRECTORY_FILES:
                 truncation_reason = f"{MAX_DIRECTORY_FILES}-file cap"
+                post_truncation_visited += 1
+                if post_truncation_visited > MAX_FILES_COUNTED_AFTER_TRUNCATION:
+                    stopped_by_counted_cap = True
+                    break
                 if _is_eligible_file(file_full, resolved_root):
                     remaining_eligible += 1
                 continue
@@ -207,6 +261,10 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
 
             if total_chars >= MAX_CHARS_PER_SOURCE:
                 truncation_reason = "per-source cap"
+                post_truncation_visited += 1
+                if post_truncation_visited > MAX_FILES_COUNTED_AFTER_TRUNCATION:
+                    stopped_by_counted_cap = True
+                    break
                 remaining_eligible += 1
                 continue
 
@@ -224,16 +282,23 @@ def _extract_folder(folder_path: Path) -> tuple[bool, str, str]:
             if total_chars >= MAX_CHARS_PER_SOURCE:
                 truncation_reason = "per-source cap"
 
-        if truncation_reason is not None and remaining_eligible > 10_000:
+        if stopped_by_counted_cap:
             break
 
     if files_read == 0:
         return False, "", f"{files_read} files read, {files_skipped} skipped"
 
     combined = "\n\n".join(parts)
-    if truncation_reason is not None and remaining_eligible > 0:
-        rem_str = "10,000+" if remaining_eligible > 10_000 else f"{remaining_eligible:,}"
-        note = f"{files_read} files read, {files_skipped} skipped; truncated: {rem_str} more files not read ({truncation_reason})"
+    if truncation_reason is not None:
+        if stopped_by_counted_cap:
+            if remaining_eligible > 0:
+                note = f"{files_read} files read, {files_skipped} skipped; truncated: at least {remaining_eligible:,} more files not read ({truncation_reason})"
+            else:
+                note = f"{files_read} files read, {files_skipped} skipped; truncated: more files not read ({truncation_reason})"
+        elif remaining_eligible > 0:
+            note = f"{files_read} files read, {files_skipped} skipped; truncated: {remaining_eligible:,} more files not read ({truncation_reason})"
+        else:
+            note = f"{files_read} files read, {files_skipped} skipped"
     else:
         note = f"{files_read} files read, {files_skipped} skipped"
     return True, combined, note
@@ -338,9 +403,9 @@ def build_context_brief(
     for i, source in enumerate(sources, start=1):
         label = labels[i - 1]
         if source.kind == "url":
-            kind = classify_url(source.location)
+            kind = classify_url(source.location, servers)
             type_label = _URL_TYPE_LABELS[kind]
-            readers = likely_readers(kind, servers) if servers is not None else ()
+            readers = likely_readers(kind, servers, url=source.location) if servers is not None else ()
             entry = BriefEntry(
                 source=source,
                 type_label=type_label,

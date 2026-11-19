@@ -35,6 +35,8 @@ class MCPServerConfig:
     transport: str = "stdio"  # stdio | sse | http
     env: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
+    # Documentation hostnames this server can read, e.g. a self-hosted Confluence or Jira; not the server's own `url`
+    hosts: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if bool(self.command) == bool(self.url):
@@ -80,6 +82,28 @@ class SecfooConfig:
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
+    hosts_raw = raw.get("hosts", [])
+    if not isinstance(hosts_raw, list) or not all(isinstance(h, str) for h in hosts_raw):
+        raise ConfigError(f"mcp_servers.{name}.hosts must be an array of strings")
+
+    hosts: list[str] = []
+    seen_hosts: set[str] = set()
+    for h in hosts_raw:
+        cleaned = h.strip().lower()
+        if not cleaned:
+            raise ConfigError(f"mcp_servers.{name}.hosts contains an empty host entry")
+        if any(ch in cleaned for ch in ("/", ":", "@")) or any(ch.isspace() for ch in cleaned):
+            raise ConfigError(
+                f"mcp_servers.{name}.hosts entry {h!r} contains invalid characters ('/', ':', '@', or whitespace)"
+            )
+        test_part = cleaned.removeprefix("*.")
+        if not test_part or "*" in test_part:
+            raise ConfigError(f"mcp_servers.{name}.hosts invalid pattern {h!r}")
+
+        if cleaned not in seen_hosts:
+            seen_hosts.add(cleaned)
+            hosts.append(cleaned)
+
     try:
         return MCPServerConfig(
             name=name,
@@ -89,6 +113,7 @@ def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
             transport=raw.get("transport", "stdio"),
             env=dict(raw.get("env", {})),
             headers=dict(raw.get("headers", {})),
+            hosts=hosts,
         )
     except ConfigError:
         raise

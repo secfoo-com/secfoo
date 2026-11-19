@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from secfoo.settings import Defaults, MCPServerConfig, SecfooConfig
 from secfoo.storage.repository import RunRepository
 from secfoo.web.app import create_app
 
@@ -369,6 +370,8 @@ def test_assessment_run_form_page_renders(client):
     assert resp.status_code == 200
     assert 'name="skill"' in resp.text
     assert 'name="agent"' in resp.text
+    assert 'name="context"' in resp.text
+    assert "Documentation context" in resp.text
     assert f'action="/assessments/{assessment_id}/runs"' in resp.text
 
 
@@ -409,7 +412,7 @@ def test_create_then_run_flow_end_to_end(client, tmp_path):
 
 
 def test_trigger_run_calls_execute_runs_with_expected_args(monkeypatch, client):
-    project_id, assessment_id = _create_assessment()
+    _project_id, assessment_id = _create_assessment()
     monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
 
     captured = {}
@@ -439,6 +442,134 @@ def test_trigger_run_calls_execute_runs_with_expected_args(monkeypatch, client):
     assert captured["assessment_id"] == assessment_id
     assert captured["confluence_urls"] == ["https://a.example/x", "https://a.example/y"]
     assert captured["target"] == "https://github.com/org/vendor-app"
+    assert len(captured["context_sources"]) == 2
+    assert "mcp_servers" in captured
+
+
+def test_trigger_run_with_context_and_mcp_servers(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    servers = [
+        MCPServerConfig(
+            name="atlassian-mcp",
+            command="npx",
+            hosts=["wiki.corp.example"],
+        )
+    ]
+    monkeypatch.setattr(
+        "secfoo.web.routes.assessments.load_config",
+        lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers),
+    )
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": "https://wiki.corp.example/wiki/page\nhttps://jira.corp.example/browse/SEC-1\n",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert captured["confluence_urls"] == ["https://wiki.corp.example/wiki/page"]
+    assert [s.location for s in captured["context_sources"]] == [
+        "https://wiki.corp.example/wiki/page",
+        "https://jira.corp.example/browse/SEC-1",
+    ]
+    assert captured["mcp_servers"] == servers
+
+
+def test_trigger_run_invalid_context_source_returns_400(client):
+    _, assessment_id = _create_assessment()
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": "http://insecure.example.com",
+        },
+    )
+    assert resp.status_code == 400
+    assert "plain http://" in resp.json()["detail"]
+
+
+def test_trigger_run_context_inside_target_returns_400(client, tmp_path):
+    target_dir = tmp_path / "app_repo"
+    target_dir.mkdir()
+    repo = RunRepository()
+    project_id = repo.upsert_project(str(target_dir), "Local App", "local")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
+    repo.close()
+
+    inside_doc = target_dir / "inside.md"
+    inside_doc.write_text("notes", encoding="utf-8")
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": str(inside_doc),
+        },
+    )
+    assert resp.status_code == 400
+    assert "inside the scanned target" in resp.json()["detail"]
+
+
+def test_trigger_run_merges_config_defaults_context(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    url_default = "https://acme.atlassian.net/wiki/spaces/DEF"
+    url_form = "https://acme.atlassian.net/wiki/spaces/NEW"
+    monkeypatch.setattr(
+        "secfoo.web.routes.assessments.load_config",
+        lambda: SecfooConfig(defaults=Defaults(context=[url_default]), mcp_servers=[]),
+    )
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "context": url_form,
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert [s.location for s in captured["context_sources"]] == [url_default, url_form]
+    assert captured["confluence_urls"] == [url_default, url_form]
+
+
+def test_trigger_run_legacy_confluence_and_context_combined(client, monkeypatch):
+    monkeypatch.setattr("secfoo.web.routes.assessments.threading.Thread", _SyncThread)
+    _, assessment_id = _create_assessment()
+    captured = {}
+    url_confluence = "https://custom.wiki/page"
+    url_context = "https://acme.atlassian.net/browse/SEC-1"
+    monkeypatch.setattr("secfoo.web.routes.assessments.execute_runs", lambda **kwargs: captured.update(kwargs) or [])
+
+    resp = client.post(
+        f"/assessments/{assessment_id}/runs",
+        data={
+            "skill": ["security-architecture-review"],
+            "agent": "claude",
+            "depth": "quick",
+            "confluence": url_confluence,
+            "context": url_context,
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert captured["confluence_urls"] == [url_confluence]
+    assert [s.location for s in captured["context_sources"]] == [url_confluence, url_context]
 
 
 def test_trigger_run_unknown_skill_returns_400(client):

@@ -42,21 +42,32 @@ def looks_like_url(value: str) -> bool:
     return bool(_URL_SCHEME.match(value))
 
 
-def _parse_url(value: str) -> ContextSource:
+def https_url_problem(value: str) -> str | None:
+    """Return None if value is a safe https URL, or a human-readable reason string."""
+    cleaned = value.strip()
+    if not cleaned:
+        return "the URL is empty"
     try:
-        parts = urlsplit(value)
+        parts = urlsplit(cleaned)
     except ValueError as exc:
-        raise ContextSourceError(f"not a valid URL: {exc}") from exc
+        return f"not a valid URL: {exc}"
     if parts.scheme == "http":
-        raise ContextSourceError("plain http:// is not allowed, use https://")
+        return "plain http:// is not allowed, use https://"
     if parts.scheme != "https":
-        raise ContextSourceError(f"unsupported URL scheme {parts.scheme!r}, use https://")
+        return f"unsupported URL scheme {parts.scheme!r}, use https://"
     if not parts.hostname:
-        raise ContextSourceError("the URL has no host")
+        return "the URL has no host"
     if parts.username or parts.password:
-        raise ContextSourceError("the URL must not contain credentials")
-    if any(char in value for char in "\r\n\t \\"):
-        raise ContextSourceError("the URL must not contain whitespace or backslashes")
+        return "the URL must not contain credentials"
+    if any(char in cleaned for char in "\r\n\t \\"):
+        return "the URL must not contain whitespace or backslashes"
+    return None
+
+
+def _parse_url(value: str) -> ContextSource:
+    problem = https_url_problem(value)
+    if problem is not None:
+        raise ContextSourceError(problem)
     return ContextSource(raw=value, kind="url", location=value)
 
 
@@ -86,19 +97,45 @@ def parse_context_source(value: str) -> ContextSource:
     return _parse_url(cleaned) if looks_like_url(cleaned) else _parse_path(cleaned)
 
 
+def _is_same_or_inside(path: Path, anchor: Path) -> bool:
+    candidates = [path, *path.parents]
+    existing_anchor = False
+    try:
+        existing_anchor = anchor.exists()
+    except OSError:
+        pass
+
+    had_permission_error = False
+    all_permission_errors = True
+
+    for cand in candidates:
+        try:
+            if os.path.samefile(cand, anchor):
+                return True
+            all_permission_errors = False
+        except PermissionError:
+            had_permission_error = True
+        except OSError:
+            all_permission_errors = False
+
+    if existing_anchor and had_permission_error and all_permission_errors:
+        raise ContextSourceError("could not verify that it is outside the scanned target")
+
+    return False
+
+
 def _reject_overlap_with_target(source: ContextSource, target_dir: Path | None) -> None:
     """The scanned target is untrusted, so context must be the reviewer's
     own documents: nothing inside the target, and no folder that contains it."""
     if source.kind == "url" or target_dir is None:
         return
-    target = target_dir.resolve()
-    path = Path(source.location)
-    if path.is_relative_to(target):
+    source_path = Path(source.location)
+    if _is_same_or_inside(source_path, target_dir):
         raise ContextSourceError(
             "it is inside the scanned target, which is untrusted; "
             "context must be your own documents"
         )
-    if source.kind == "directory" and target.is_relative_to(path):
+    if source.kind == "directory" and _is_same_or_inside(target_dir, source_path):
         raise ContextSourceError("it contains the scanned target, so it would pull in untrusted files")
 
 

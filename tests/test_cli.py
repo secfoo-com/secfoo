@@ -769,7 +769,14 @@ def test_run_context_url_forwarded_to_execute_runs(monkeypatch):
     monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [_outcome("success")])
     result = runner.invoke(app, ["run", "--skill", "sast", "--context", "https://wiki.example.com/p"])
     assert result.exit_code == 0
-    assert captured["confluence_urls"] == ["https://wiki.example.com/p"]
+    assert captured["confluence_urls"] == []
+    assert [s.location for s in captured["context_sources"]] == ["https://wiki.example.com/p"]
+
+    confluence_page = "https://acme.atlassian.net/wiki/spaces/SEC/pages/1"
+    result = runner.invoke(app, ["run", "--skill", "sast", "--context", confluence_page])
+    assert result.exit_code == 0
+    assert captured["confluence_urls"] == [confluence_page]
+    assert [s.location for s in captured["context_sources"]] == [confluence_page]
 
 
 def test_run_confluence_alias_forwarded_to_execute_runs(monkeypatch):
@@ -806,7 +813,8 @@ def test_run_context_merges_config_and_flag_in_order_deduped(monkeypatch):
         ["run", "--skill", "sast", "--context", url_a, "--context", url_c],
     )
     assert result.exit_code == 0
-    assert captured["confluence_urls"] == [url_a, url_b, url_c]
+    assert [s.location for s in captured["context_sources"]] == [url_a, url_b, url_c]
+    assert captured["confluence_urls"] == []
 
 
 def test_run_context_file_inside_target_rejected(tmp_path, monkeypatch):

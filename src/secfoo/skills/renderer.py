@@ -10,9 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
 
 from secfoo.context_brief import ContextBrief
+from secfoo.context_sources import https_url_problem
 from secfoo.skills.loader import Skill
 from secfoo.stack import Stack
 
@@ -827,10 +827,7 @@ def _https_page_urls(urls: list[str]) -> list[str]:
     kept: list[str] = []
     for url in urls:
         cleaned = url.strip()
-        parts = urlsplit(cleaned)
-        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-            continue
-        if any(char in cleaned for char in "\r\n\t \\") or cleaned in kept:
+        if https_url_problem(cleaned) is not None or cleaned in kept:
             continue
         kept.append(cleaned)
     return kept

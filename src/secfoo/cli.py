@@ -26,7 +26,8 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
-from secfoo.context_sources import ContextSourceError, resolve_context_sources
+from secfoo.context_run import resolve_run_context
+from secfoo.context_sources import ContextSourceError
 from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
@@ -487,11 +488,12 @@ def run(
     except TargetResolutionError:
         scanned_dir = None  # execute_runs reports the bad target below
     try:
-        context_sources = resolve_context_sources(
-            from_config=file_defaults.context,
-            from_confluence_flag=confluence,
-            from_context_flag=context or [],
+        run_context = resolve_run_context(
+            defaults_context=file_defaults.context,
+            confluence_values=confluence,
+            context_values=context or [],
             target_dir=scanned_dir,
+            mcp_servers=file_config.mcp_servers,
         )
     except ContextSourceError as exc:
         err_console.print(f"[red]Error:[/] {escape(str(exc))}")
@@ -556,8 +558,8 @@ def run(
             outcomes = execute_runs(
                 skill_ids=skill_ids,
                 target=target,
-                confluence_urls=[s.location for s in context_sources if s.kind == "url"],
-                context_sources=context_sources,
+                confluence_urls=run_context.confluence_urls,
+                context_sources=run_context.sources,
                 mcp_servers=file_config.mcp_servers,
                 agent_id=agent.value,
                 model=model,

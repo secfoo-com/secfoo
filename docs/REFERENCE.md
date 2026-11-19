@@ -829,14 +829,16 @@ secfoo run --skill security-architecture-review \
   - URLs missing a hostname or containing whitespace are rejected.
   - Local paths that do not exist trigger an error (scheme-less URLs like `wiki.example.com` receive a hint that URLs require the `https://` prefix).
   - Unsupported local file extensions are rejected (supported: `.docx`, `.markdown`, `.md`, `.pdf`, `.pptx`, `.txt`).
-  - **Target boundary enforcement:** Local context files and folders must live *outside* the target being scanned, and cannot contain the target (a target folder cannot be inside a context folder). Context files must be external reference material, not code under review.
+  - **Target boundary enforcement:** Local context files and folders must live *outside* the target being scanned, and cannot contain the target (a target folder cannot be inside a context folder). secfoo checks real filesystem identity (resolving symlinks, casing, and path traversals, failing closed on permission error) to ensure context files are strictly external reference material, not code under review.
 - **How sources are presented to the agent:**
-  - **HTTPS URLs:** Grouped and classified in the prompt brief by host kind (`confluence`, `jira`, `sharepoint`, `notion`, `google_docs`, `other`). secfoo checks the host against configured `[[mcp_servers]]` and names the likely MCP server for the agent to invoke (matching server names, commands, or URLs from `[[mcp_servers]]`; credentials and environment values are never printed). If no matching MCP server is configured, secfoo states a coverage gap in the brief.
+  - **HTTPS URLs:** Grouped and classified in the prompt brief by host kind (`confluence`, `jira`, `sharepoint`, `notion`, `google_docs`, `other`). secfoo checks the host against configured `[[mcp_servers]]` (including server `hosts` patterns) and names the likely MCP server for the agent to invoke (matching server names, commands, or URLs from `[[mcp_servers]]`; credentials and environment values are never printed). If no matching MCP server is configured, secfoo states a coverage gap in the brief. Only URLs provided via `--confluence` or classified as Confluence populate `confluence_urls` for skill prompts with dedicated Confluence instructions; other URL kinds are presented purely as reference context with their likely reader tools.
   - **Local files and folders:** Extracted directly by secfoo and inlined into the prompt brief as untrusted reference material (the prompt explicitly instructs the agent to treat context as reference data and never follow instructions found within it). Local extraction is bounded by plain limits:
     - 20,000 characters per source (text files read up to 80,000 bytes; documents up to 25 MB).
     - 60,000 characters in total across all local sources.
-    - 50 files per folder examined. Symlinks are never followed. A folder that exceeds the file cap is marked truncated in its note and still counts as reached.
+    - 50 files per folder examined. Symlinks are never followed. A folder that exceeds the file cap is marked truncated in its note and still counts as reached. When post-truncation file inspection reaches the safety limit (10,000 files), the note reports `truncated: at least <k> more files not read (<reason>)`.
     - Two local files with the same name are labelled with enough parent folder names to tell them apart (e.g. `a/README.md` and `b/README.md`).
+- **Web dashboard integration:**
+  The web dashboard's Run Assessment form (`/assessments/{id}/runs`) includes a "Documentation context (optional)" field, accepting one HTTPS URL or local file/folder path per line. It merges with `[defaults].context`, enforces the same target boundary and URL validation rules, and passes resolved context sources into the run.
 - **Configuring default context sources:**
   In `~/.secfoo/config.toml`:
   ```toml
@@ -932,7 +934,10 @@ max_input_tokens = 150000
 name = "Atlassian-Rovo-MCP"
 command = "npx"
 args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+hosts = ["wiki.internal.example", "*.atlassian.net"]
 ```
+
+The optional `hosts` array specifies hostnames or domain patterns served by this MCP server (e.g. `["wiki.internal.example", "*.atlassian.net"]`). Wildcards starting with `*.` match subdomains as well as the root domain itself. secfoo uses `hosts` to route URL context sources to their likely MCP readers and classify internal enterprise Confluence / Jira URLs.
 
 CLI flags always override `[defaults]`. See
 [`src/secfoo/config.example.toml`](../src/secfoo/config.example.toml) for the

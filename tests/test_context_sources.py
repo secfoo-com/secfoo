@@ -4,10 +4,13 @@ import pytest
 
 from secfoo.context_sources import (
     ContextSourceError,
+    https_url_problem,
     looks_like_url,
     parse_context_source,
     resolve_context_sources,
 )
+from secfoo.skills.renderer import _https_page_urls
+from secfoo.web.templating import https_url
 
 
 def _resolve(*, config=(), confluence=(), context=(), target=None):
@@ -127,3 +130,91 @@ def test_error_names_where_the_bad_value_came_from():
 def test_scheme_less_url_gets_a_hint():
     with pytest.raises(ContextSourceError, match="needs the https:// prefix"):
         parse_context_source("wiki.example.com/some/page")
+
+
+@pytest.mark.parametrize(
+    "raw_url",
+    [
+        "https://example.com/valid/path",
+        "  https://sub.domain.org/page?query=1#frag  ",
+        "http://insecure.example.com/page",
+        "https://user:pass@example.com/page",
+        "https://example.com/with space",
+        "https://example.com/with\\backslash",
+        "https:///no-host",
+        "ftp://example.com/resource",
+        "",
+        "   ",
+        "not a url",
+    ],
+)
+def test_https_url_problem_consistency(raw_url):
+    problem = https_url_problem(raw_url)
+    filtered_renderer = _https_page_urls([raw_url])
+    filtered_templating = https_url(raw_url)
+
+    if problem is None:
+        assert len(filtered_renderer) == 1
+        assert filtered_renderer[0] == raw_url.strip()
+        assert filtered_templating == raw_url.strip()
+    else:
+        assert len(filtered_renderer) == 0
+        assert filtered_templating == ""
+
+
+def test_symlink_inside_target_is_rejected(tmp_path):
+    target = tmp_path / "repo"
+    target.mkdir()
+    outside_doc = tmp_path / "doc.md"
+    outside_doc.write_text("content", encoding="utf-8")
+    link_inside = target / "link_to_doc.md"
+    try:
+        link_inside.symlink_to(outside_doc)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported in this environment")
+
+    with pytest.raises(ContextSourceError, match="inside the scanned target"):
+        _resolve(context=[str(link_inside)], target=target)
+
+
+def test_symlinked_target_alias_is_rejected(tmp_path):
+    target = tmp_path / "real_repo"
+    target.mkdir()
+    target_alias = tmp_path / "repo_alias"
+    try:
+        target_alias.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks not supported in this environment")
+
+    doc = target / "design.md"
+    doc.write_text("content", encoding="utf-8")
+
+    with pytest.raises(ContextSourceError, match="inside the scanned target"):
+        _resolve(context=[str(doc)], target=target_alias)
+
+
+def test_sibling_directory_sharing_prefix_is_accepted(tmp_path):
+    target = tmp_path / "project"
+    target.mkdir()
+    sibling = tmp_path / "project-docs"
+    sibling.mkdir()
+    doc = sibling / "arch.md"
+    doc.write_text("design", encoding="utf-8")
+
+    sources = _resolve(context=[str(doc), str(sibling)], target=target)
+    assert len(sources) == 2
+
+
+def test_case_insensitive_target_overlap_is_rejected(tmp_path):
+    target = tmp_path / "MyProject"
+    target.mkdir()
+    test_file = target / "test.txt"
+    test_file.write_text("x", encoding="utf-8")
+    case_variant = tmp_path / "myproject" / "test.txt"
+    if not case_variant.exists():
+        pytest.skip("Filesystem is case-sensitive")
+
+    doc = tmp_path / "myproject" / "design.md"
+    doc.write_text("design", encoding="utf-8")
+    with pytest.raises(ContextSourceError, match="inside the scanned target"):
+        _resolve(context=[str(doc)], target=target)

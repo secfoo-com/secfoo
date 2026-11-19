@@ -15,6 +15,8 @@ from secfoo.agents.registry import ADAPTERS, get_adapter
 from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.config import attachment_dir
+from secfoo.context_run import resolve_run_context
+from secfoo.context_sources import ContextSourceError
 from secfoo.runner import _project_display_name, execute_runs
 from secfoo.settings import ConfigError, load_config
 from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill
@@ -22,7 +24,12 @@ from secfoo.skills.renderer import merge_excludes
 from secfoo.storage.repository import RunRepository
 from secfoo.targets.resolver import TargetResolutionError, resolve_target
 from secfoo.web.run_status import assessment_pipeline
-from secfoo.web.templating import SIDEBAR_ACTIVITY_IDS, ordered_skills, severity_rows, templates
+from secfoo.web.templating import (
+    SIDEBAR_ACTIVITY_IDS,
+    ordered_skills,
+    severity_rows,
+    templates,
+)
 from secfoo.web.third_party_dashboard import SKILL_ID as THIRD_PARTY_RISK_SKILL_ID
 
 router = APIRouter()
@@ -326,6 +333,7 @@ def assessment_trigger_run(
     agent: str = Form(...),
     depth: str = Form("quick"),
     confluence: str = Form(""),
+    context: str = Form(""),
     exclude: str = Form(""),
 ):
     """Kicks off a real skill run (the same underlying execute_runs() the
@@ -352,21 +360,42 @@ def assessment_trigger_run(
     if depth not in ("quick", "standard"):
         raise HTTPException(status_code=400, detail=f"Unknown depth {depth!r}. Expected 'quick' or 'standard'.")
 
-    confluence_urls = [line.strip() for line in confluence.splitlines() if line.strip()]
     try:
-        config_excludes = load_config().defaults.exclude
+        config = load_config()
+        config_excludes = config.defaults.exclude
+        config_context = config.defaults.context
+        config_mcp_servers = config.mcp_servers
     except ConfigError:
-        # A malformed config shouldn't block a run from the UI -- the CLI
-        # surfaces the error loudly, and exclusions are an optimization.
         config_excludes = []
+        config_context = []
+        config_mcp_servers = []
+
     exclude_paths = merge_excludes(config_excludes, exclude.splitlines())
+
+    try:
+        scanned_dir = resolve_target(project.identifier).path
+    except TargetResolutionError:
+        scanned_dir = None
+
+    try:
+        run_context = resolve_run_context(
+            defaults_context=config_context,
+            confluence_values=confluence.splitlines(),
+            context_values=context.splitlines(),
+            target_dir=scanned_dir,
+            mcp_servers=config_mcp_servers,
+        )
+    except ContextSourceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     thread = threading.Thread(
         target=execute_runs,
         kwargs={
             "skill_ids": skill,
             "target": project.identifier,
-            "confluence_urls": confluence_urls,
+            "confluence_urls": run_context.confluence_urls,
+            "context_sources": run_context.sources,
+            "mcp_servers": config_mcp_servers,
             "agent_id": agent,
             "depth": depth,
             "assessment_id": assessment_id,

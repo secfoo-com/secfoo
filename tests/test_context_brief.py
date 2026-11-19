@@ -10,6 +10,7 @@ from secfoo.context_brief import (
     MAX_CHARS_PER_SOURCE,
     build_context_brief,
     classify_url,
+    host_matches,
     likely_readers,
     source_label,
     source_labels,
@@ -418,3 +419,65 @@ def test_folder_55_files_truncation_reporting(tmp_path: Path) -> None:
     entry3 = brief3.entries[0]
     assert "truncated" not in entry3.note
     assert entry3.reached is True
+
+
+def test_folder_truncation_with_post_truncation_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    folder = tmp_path / "large_folder"
+    folder.mkdir()
+    for i in range(1, 15):
+        (folder / f"doc_{i:02d}.md").write_text(f"# Doc {i}", encoding="utf-8")
+        (folder / f"ignore_{i:02d}.bin").write_bytes(b"\x00" * 10)
+
+    monkeypatch.setattr(context_brief, "MAX_DIRECTORY_FILES", 2)
+    monkeypatch.setattr(context_brief, "MAX_FILES_COUNTED_AFTER_TRUNCATION", 4)
+
+    source = parse_context_source(str(folder))
+    brief = build_context_brief([source], [])
+    assert brief is not None
+    entry = brief.entries[0]
+    assert "truncated: at least " in entry.note
+    assert "more files not read (2-file cap)" in entry.note
+
+
+def test_host_matches() -> None:
+    assert host_matches("sub.example.com", ["*.example.com"])
+    assert host_matches("example.com", ["*.example.com"])
+    assert not host_matches("other.org", ["*.example.com"])
+    assert not host_matches("fakeexample.com", ["*.example.com"])
+    assert host_matches("example.com", ["example.com"])
+    assert not host_matches("sub.example.com", ["example.com"])
+
+
+def test_classify_url_with_mcp_server_hosts() -> None:
+    servers = [
+        MCPServerConfig(
+            name="corp-atlassian",
+            command="npx",
+            hosts=["jira.corp.example", "*.atlassian.corp"],
+        )
+    ]
+    assert classify_url("https://jira.corp.example/browse/SEC-1", servers) == "jira"
+    assert classify_url("https://jira.corp.example/wiki/spaces/SEC", servers) == "confluence"
+    assert classify_url("https://sub.atlassian.corp/wiki/page", servers) == "confluence"
+    assert classify_url("https://sub.atlassian.corp/other/path", servers) == "other"
+    assert classify_url("https://unrelated.com/browse/SEC-1", servers) == "other"
+
+
+def test_likely_readers_prioritizes_host_match() -> None:
+    general_server = MCPServerConfig(
+        name="general-atlassian",
+        command="npx",
+        args=["confluence", "jira"],
+    )
+    host_server = MCPServerConfig(
+        name="custom-wiki",
+        command="npx",
+        hosts=["wiki.custom.corp"],
+    )
+    servers = [general_server, host_server]
+    matched = likely_readers(
+        "confluence",
+        servers,
+        url="https://wiki.custom.corp/wiki/page",
+    )
+    assert matched == ("custom-wiki", "general-atlassian")
