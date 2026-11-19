@@ -37,6 +37,10 @@ PROBE_VERSION = "0.1.0"
 DEFAULT_FLUSH_SECONDS = 10.0
 WATCHLIST_RECHECK_SECONDS = 30.0
 MAX_STACK_FRAMES = 10
+# stop() waits at most this long for an in-flight flush (bounded by the
+# transport's socket timeout plus its close drain) before giving up on the
+# final flush: the app's exit is never held by the sensor.
+STOP_WAIT_SECONDS = 2.0
 _TOOL_NAME = "secfoo-sensor"
 
 
@@ -52,7 +56,10 @@ def _stdlib_and_site_dirs() -> tuple[str, ...]:
     paths = sysconfig.get_paths()
     dirs = {paths.get(k) for k in ("stdlib", "platstdlib", "purelib", "platlib")}
     dirs |= {p for p in sys.path if p and ("site-packages" in p or "dist-packages" in p)}
-    return tuple(sorted(os.path.normcase(os.path.abspath(d)) for d in dirs if d))
+    # realpath, not abspath: with a symlinked interpreter (Homebrew, pyenv,
+    # venvs) code objects carry the resolved path while sysconfig reports the
+    # symlinked one, and the stdlib would count as app code.
+    return tuple(sorted(os.path.normcase(os.path.realpath(d)) for d in dirs if d))
 
 
 class Probe:
@@ -61,7 +68,7 @@ class Probe:
         self.watchlist_path = watchlist_path
         self.transport = transport
         self.flush_seconds = flush_seconds
-        self.app_root = os.path.normcase(os.path.abspath(app_root or os.getcwd()))
+        self.app_root = os.path.normcase(os.path.realpath(app_root or os.getcwd()))
         self.backend = backend or ("monitoring" if hasattr(sys, "monitoring") else "profile")
         self._excluded_dirs = _stdlib_and_site_dirs()
         self._lock = threading.Lock()
@@ -78,6 +85,12 @@ class Probe:
         self._pending_symbols: dict = {}    # symbol -> [fingerprints], not resolved yet
         self._seen_app_code: set = set()
         self._app_code_cache: dict = {}  # code object -> is app code
+        self._paths: dict = {}  # filename -> normalised real path
+        # Profile backend only: the profiler stays installed in threads that
+        # were already running when the probe stopped or disabled itself
+        # (sys.setprofile only reaches the calling thread before 3.12), so it
+        # checks this flag and records nothing once it is cleared.
+        self._recording = False
         self._tool_id: int | None = None
         self._watcher: _ImportWatcher | None = None
         self._stop = threading.Event()
@@ -119,29 +132,39 @@ class Probe:
         """Final flush (only while healthy), then release every hook. A probe
         that `_disable`d itself still holds its sys.monitoring tool id, its
         import watcher and its transport, so those are released either way;
-        stopping twice is a no-op."""
+        stopping twice is a no-op.
+
+        The flush lock is held across the final flush AND the close, so the
+        flusher thread can never send after (or during) the close. The wait
+        for it is bounded, so a flusher stuck in a slow send never holds up
+        the app's exit."""
         was_active = self._active
         self._stop.set()
-        if was_active:
-            self.flush()
-        self._active = False
+        self._recording = False
+        locked = self._flush_lock.acquire(timeout=STOP_WAIT_SECONDS)
         try:
-            if self._watcher is not None:
-                if self._watcher in sys.meta_path:
-                    sys.meta_path.remove(self._watcher)
-                self._watcher = None
-            if self._tool_id is not None:
-                sys.monitoring.register_callback(self._tool_id, sys.monitoring.events.PY_START, None)
-                sys.monitoring.set_events(self._tool_id, 0)
-                sys.monitoring.free_tool_id(self._tool_id)
-                self._tool_id = None
-            elif was_active and self.backend == "profile":
-                sys.setprofile(None)
-                threading.setprofile(None)  # type: ignore[arg-type]
-            if was_active or self._broken:
-                self.transport.close()
-        except Exception:  # noqa: BLE001, S110 -- shutting down; never raise into the app
-            pass
+            if was_active and locked and not self._broken:
+                self._flush_now()
+            self._active = False
+            try:
+                if self._watcher is not None:
+                    if self._watcher in sys.meta_path:
+                        sys.meta_path.remove(self._watcher)
+                    self._watcher = None
+                if self._tool_id is not None:
+                    sys.monitoring.register_callback(self._tool_id, sys.monitoring.events.PY_START, None)
+                    sys.monitoring.set_events(self._tool_id, 0)
+                    sys.monitoring.free_tool_id(self._tool_id)
+                    self._tool_id = None
+                elif self.backend == "profile" and (was_active or self._broken):
+                    _release_profiler()
+                if was_active or self._broken:
+                    self.transport.close()
+            except Exception:  # noqa: BLE001, S110 -- shutting down; never raise into the app
+                pass
+        finally:
+            if locked:
+                self._flush_lock.release()
 
     def _after_fork(self) -> None:
         """A forked worker (gunicorn, multiprocessing) is its own session."""
@@ -160,13 +183,14 @@ class Probe:
             return
         self._broken = True
         self._active = False
+        self._recording = False
         try:
             if self._tool_id is not None:
                 sys.monitoring.set_events(self._tool_id, 0)
                 for code in list(self._watched):
                     sys.monitoring.set_local_events(self._tool_id, code, 0)
             elif self.backend == "profile":
-                sys.setprofile(None)
+                _release_profiler()
             print(f"secfoo sensor: disabled after an internal error ({exc.__class__.__name__}); "
                   "the app is unaffected", file=sys.stderr)
         except Exception:  # noqa: BLE001, S110 -- never raise into the app
@@ -240,7 +264,7 @@ class Probe:
 
     def _start_profile(self) -> None:
         def profiler(frame, event, _arg):
-            if event != "call":
+            if event != "call" or not self._recording:
                 return
             try:
                 code = frame.f_code
@@ -253,6 +277,7 @@ class Probe:
             except Exception as exc:  # noqa: BLE001
                 self._disable(exc)
 
+        self._recording = True
         sys.setprofile(profiler)
         threading.setprofile(profiler)
 
@@ -266,10 +291,18 @@ class Probe:
             known = self._app_code_cache[code] = self._is_app_code(code.co_filename)
         return known
 
+    def _real(self, filename: str) -> str:
+        """normcase(realpath(filename)), cached: realpath stats every path
+        component, and the same few files come back on every stack sample."""
+        path = self._paths.get(filename)
+        if path is None:
+            path = self._paths[filename] = os.path.normcase(os.path.realpath(filename))
+        return path
+
     def _is_app_code(self, filename: str) -> bool:
         if not filename or filename.startswith("<"):
             return False
-        path = os.path.normcase(os.path.abspath(filename))
+        path = self._real(filename)
         return path.startswith(self.app_root) and not path.startswith(self._excluded_dirs)
 
     def _record_hit(self, code, watched) -> None:
@@ -300,7 +333,7 @@ class Probe:
         while frame is not None and len(frames) < MAX_STACK_FRAMES:
             filename = frame.f_code.co_filename
             if self._is_app_code(filename):
-                rel = os.path.relpath(filename, self.app_root).replace(os.sep, "/")
+                rel = os.path.relpath(self._real(filename), self.app_root).replace(os.sep, "/")
                 frames.append(f"{rel}:{frame.f_lineno}")
             frame = frame.f_back
         return frames
@@ -365,19 +398,24 @@ class Probe:
         """One batch of running totals. Serialised: when stop()'s final flush
         overlapped the flusher thread's, the transport's non-blocking control
         read made the other thread's sendall fail, the socket was closed as
-        "sensor gone", and the final session line was lost."""
-        if self._broken:
+        "sensor gone", and the final session line was lost.
+        Once stop() has begun, only stop() itself flushes (under the lock)."""
+        if self._broken or self._stop.is_set():
             return
         with self._flush_lock:
-            if self._broken:
+            if self._broken or self._stop.is_set():
                 return
-            try:
-                self._load_watchlist()
-                self._resolve_pending()
-                if not self.transport.send(self.snapshot()):
-                    self.dropped += 1
-            except Exception as exc:  # noqa: BLE001
-                self._disable(exc)
+            self._flush_now()
+
+    def _flush_now(self) -> None:
+        """The flush itself; the caller holds _flush_lock."""
+        try:
+            self._load_watchlist()
+            self._resolve_pending()
+            if not self.transport.send(self.snapshot()):
+                self.dropped += 1
+        except Exception as exc:  # noqa: BLE001
+            self._disable(exc)
 
     def _interval(self) -> float:
         """The sensor's `welcome` interval if it sent one, doubled while it
@@ -392,6 +430,16 @@ class Probe:
 
         self._thread = threading.Thread(target=loop, name="secfoo-sensor-flush", daemon=True)
         self._thread.start()
+
+
+def _release_profiler() -> None:
+    """Remove the profiler from this thread, from threads started later and,
+    on 3.12+, from every running thread."""
+    sys.setprofile(None)
+    threading.setprofile(None)  # type: ignore[arg-type]
+    setprofile_all = getattr(threading, "setprofile_all_threads", None)
+    if setprofile_all is not None:
+        setprofile_all(None)
 
 
 def _resolve(symbol: str):

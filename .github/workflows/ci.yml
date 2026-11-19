@@ -47,10 +47,9 @@ jobs:
         run: ruff check . || true
 
       - name: Test (secfoo core)
-        # --cov-fail-under is the floor (#115): the job fails if total line
-        # coverage drops below it. Set just under today's ~92%; raise it when
-        # a PR lifts coverage, never lower it to make a PR pass.
-        run: pytest tests --cov=secfoo --cov-report=term --cov-report=xml --cov-fail-under=90
+        # Coverage is collected here and gated in its own last step, so a
+        # coverage-only drop never hides the conformance and skills checks.
+        run: pytest tests --cov=secfoo --cov-report=term --cov-report=xml
 
       - name: Coverage summary
         # The per-file table, lowest first, so a drop is visible on the PR.
@@ -78,3 +77,10 @@ jobs:
       - name: Validate example custom skills
         # Same check a team's own skills repo would run (docs/SKILLS.md).
         run: secfoo skills validate examples/skills
+
+      - name: Coverage floor (#115)
+        # The job fails if total line coverage drops below the floor. Set just
+        # under today's ~92%; raise it when a PR lifts coverage, never lower
+        # it to make a PR pass.
+        if: ${{ !cancelled() }}
+        run: coverage report --fail-under=90

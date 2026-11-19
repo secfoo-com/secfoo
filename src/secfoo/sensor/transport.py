@@ -17,9 +17,11 @@ from __future__ import annotations
 import gzip
 import ipaddress
 import json
+import math
 import os
 import socket
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -27,6 +29,17 @@ PROTOCOL_VERSION = 1
 DIRECT_TIMEOUT_SECONDS = 0.2  # #73: a cold start or shutdown never waits on the network
 SOCKET_TIMEOUT_SECONDS = 1.0
 CLOSE_DRAIN_SECONDS = 0.2  # bounded: shutdown never waits on the sensor longer than this
+MIN_FLUSH_SECONDS = 0.05
+MAX_FLUSH_SECONDS = 3600.0
+
+
+def clamp_flush_interval(value) -> float | None:
+    """A usable flush interval in seconds, or None. NaN and infinity are
+    rejected: Event.wait(nan) returns at once (the flusher would spin) and
+    Event.wait(inf) raises OverflowError inside the flusher thread."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return min(max(float(value), MIN_FLUSH_SECONDS), MAX_FLUSH_SECONDS)
 
 
 class TransportError(ValueError):
@@ -154,8 +167,10 @@ class SocketTransport(_StreamTransport):
                 message = json.loads(raw)
             except ValueError:
                 continue
-            if message.get("type") == "welcome" and isinstance(message.get("flush_interval"), (int, float)):
-                self.flush_interval = max(float(message["flush_interval"]), 0.05)
+            if message.get("type") == "welcome":
+                interval = clamp_flush_interval(message.get("flush_interval"))
+                if interval is not None:
+                    self.flush_interval = interval
             elif message.get("type") == "slow":
                 self.slow = True
 
@@ -167,14 +182,17 @@ class SocketTransport(_StreamTransport):
         FIN, and the sensor then discards lines it had received but not yet
         read -- the final flush's session line among them. So: send FIN,
         drain what the sensor wrote back (bounded by CLOSE_DRAIN_SECONDS),
-        then close."""
+        then close. The drain has one overall deadline, not a per-read
+        timeout: a sensor that keeps writing must not hold the app's exit."""
         conn = self._conn
         if conn is not None:
             try:
                 conn.shutdown(socket.SHUT_WR)
-                conn.settimeout(CLOSE_DRAIN_SECONDS)
-                while conn.recv(65536):
-                    pass
+                deadline = time.monotonic() + CLOSE_DRAIN_SECONDS
+                while (remaining := deadline - time.monotonic()) > 0:
+                    conn.settimeout(remaining)
+                    if not conn.recv(65536):
+                        break
             except OSError:
                 pass
         super().close()

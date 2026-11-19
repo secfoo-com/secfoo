@@ -353,6 +353,43 @@ def test_stack_sample_keeps_app_frames_only_and_caps_its_depth(make_probe, tmp_p
     assert hit["entry_frame"] == hit["stack_sample"][1]
 
 
+def test_stack_sample_drops_frames_outside_the_app(make_probe, tmp_path, monkeypatch):
+    """A shallow app call: pytest and stdlib frames are within reach of
+    MAX_STACK_FRAMES, so the filename filter is what keeps them out."""
+    name = f"shallow_{uuid.uuid4().hex[:8]}"
+    body = "def f0(probe):\n    return f1(probe)\n\ndef f1(probe):\n    return f2(probe)\n\n"
+    body += "def f2(probe):\n    return probe._record_hit(probe, ('sym', ['fp']))\n"
+    (tmp_path / f"{name}.py").write_text(body, encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+    mod = importlib.import_module(name)
+    try:
+        probe = make_probe()
+        mod.f0(probe)
+    finally:
+        sys.modules.pop(name, None)
+    [hit] = _hits(probe.snapshot())
+    assert hit["stack_sample"] and len(hit["stack_sample"]) < probe_mod.MAX_STACK_FRAMES
+    assert all(frame.startswith(f"{name}.py:") for frame in hit["stack_sample"])
+
+
+def test_app_code_follows_symlinks(tmp_path):
+    """A symlinked app root (or a symlinked interpreter) must not change
+    what counts as app code: both sides are compared as real paths."""
+    real = tmp_path / "real"
+    (real / "pkg").mkdir(parents=True)
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available here")
+    probe = Probe(watchlist_path=None, transport=RecordingTransport(), app_root=str(link))
+    assert probe._is_app_code(str(real / "pkg" / "views.py"))
+    assert probe._is_app_code(str(link / "pkg" / "views.py"))
+    probe = Probe(watchlist_path=None, transport=RecordingTransport(), app_root=str(real))
+    assert probe._is_app_code(str(link / "pkg" / "views.py"))
+
+
 # ---------- frame and filename filters ----------
 
 
@@ -607,6 +644,108 @@ def test_the_probe_reconnects_when_the_sensor_comes_back(make_probe):
     assert probe.dropped == 1
 
 
+def test_the_probe_reconnects_after_a_live_sensor_dies(make_probe):
+    """#115: the sensor accepts, reads the first batch, then dies (closes
+    the connection) and comes back on the same address. The probe must drop
+    the dead socket and say hello on a fresh connection, not keep writing
+    into the dead one."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("127.0.0.1", 0))
+    server.listen(2)
+    server.settimeout(10)
+    transport = transport_mod.SocketTransport(f"tcp://127.0.0.1:{server.getsockname()[1]}")
+    probe = make_probe(transport=transport)
+
+    def read_lines(conn, count):
+        conn.settimeout(10)
+        data = b""
+        while data.count(b"\n") < count:
+            chunk = conn.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+        return [json.loads(line)["type"] for line in data.splitlines()[:count]]
+
+    try:
+        assert probe.flush() is None
+        first, _ = server.accept()
+        assert read_lines(first, 2) == ["hello", "session"]
+        first.close()  # the sensor dies; the probe's socket is now dead
+
+        server.settimeout(0.2)
+        second = None
+        deadline = time.monotonic() + 10
+        while second is None and time.monotonic() < deadline:
+            probe.flush()  # the first write after EOF may still "succeed"; a later one fails and reconnects
+            try:
+                second, _ = server.accept()
+            except TimeoutError:
+                continue
+        assert second is not None, "the probe never reconnected to the restarted sensor"
+        assert read_lines(second, 2) == ["hello", "session"]
+        second.close()
+    finally:
+        server.close()
+        transport.close()
+    assert probe.dropped >= 1 and not probe._broken
+
+
+def test_close_drain_is_bounded_even_if_the_sensor_keeps_writing():
+    """close() runs from stop() at exit: a sensor that keeps talking must
+    not hold it open past CLOSE_DRAIN_SECONDS."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    server.settimeout(10)
+    stop = threading.Event()
+
+    def chatty_sensor():
+        conn, _ = server.accept()
+        give_up = time.monotonic() + 5  # a regression fails the bound below instead of hanging the suite
+        try:
+            while not stop.is_set() and time.monotonic() < give_up:
+                conn.sendall(b'{"type":"slow"}\n')
+                time.sleep(0.05)
+        except OSError:
+            pass
+        finally:
+            conn.close()
+
+    thread = threading.Thread(target=chatty_sensor, daemon=True)
+    thread.start()
+    transport = transport_mod.SocketTransport(f"tcp://127.0.0.1:{server.getsockname()[1]}")
+    try:
+        assert transport.send([{"type": "session", "id": "s"}])
+        started = time.monotonic()
+        transport.close()
+        elapsed = time.monotonic() - started
+    finally:
+        stop.set()
+        thread.join(5)
+        server.close()
+    assert elapsed < transport_mod.CLOSE_DRAIN_SECONDS + 0.5
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "true", "\"1\""])
+def test_a_welcome_with_an_unusable_interval_is_ignored(value):
+    transport = transport_mod.SocketTransport("tcp://127.0.0.1:9")
+    ours, theirs = socket.socketpair()
+    transport._conn = ours
+    try:
+        theirs.sendall(b'{"type":"welcome","protocol":1,"flush_interval":' + value.encode() + b"}\n")
+        time.sleep(0.05)
+        transport._read_control()
+        assert transport.flush_interval is None
+        theirs.sendall(b'{"type":"welcome","protocol":1,"flush_interval":1e308}\n')
+        time.sleep(0.05)
+        transport._read_control()
+        assert transport.flush_interval == transport_mod.MAX_FLUSH_SECONDS
+    finally:
+        transport._conn = None
+        ours.close()
+        theirs.close()
+
+
 def test_closing_with_an_unread_welcome_still_delivers_the_final_batch(make_probe):
     """Regression: closing a socket with unread inbound data (the sensor's
     welcome) sends RST, and the sensor drops lines it hadn't read yet -- the
@@ -648,6 +787,29 @@ def test_closing_with_an_unread_welcome_still_delivers_the_final_batch(make_prob
 
 
 # ---------- shutdown ordering ----------
+
+
+def test_the_flusher_never_sends_after_stop_has_closed_the_transport(make_probe):
+    """stop() holds the flush lock across its final flush and the close, so
+    a flusher that woke just before stop() cannot send afterwards (which
+    would reconnect and leave a second, never-closed socket)."""
+
+    class SlowTransport(RecordingTransport):
+        def send(self, events):
+            self.calls.append("send")
+            time.sleep(0.03)
+            return True
+
+    for _ in range(25):
+        transport = SlowTransport()
+        probe = make_probe(transport=transport, flush_seconds=0.01, watchlist=False)
+        probe._active = True
+        probe._start_flusher()
+        time.sleep(0.04)  # let the flusher be mid-send or about to wake
+        probe.stop()
+        probe._thread.join(2)
+        assert transport.calls.count("close") == 1
+        assert transport.calls[-1] == "close", transport.calls
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
@@ -697,6 +859,32 @@ def test_a_disabled_probe_still_releases_its_hooks_on_stop(modules, make_probe, 
     assert not any(isinstance(f, _ImportWatcher) and f.probe is probe for f in sys.meta_path)
     if backend == "monitoring":
         assert sys.monitoring.get_tool(tool_id) is None
+
+
+def test_a_disabled_profile_probe_stops_recording_in_every_thread(modules, make_probe, trigger, capsys):
+    """On the profile backend, _disable() and stop() must remove the
+    profiler for new threads too, and the profiler must record nothing in
+    threads that still carry it."""
+    vuln, app = modules()
+    app_mod = importlib.import_module(app)
+    probe = make_probe([f"{vuln}.parse"], backend="profile")
+    probe.start()
+    profiler = sys.getprofile()
+    probe._disable(RuntimeError("probe bug"))
+    assert "disabled after an internal error" in capsys.readouterr().err
+    assert sys.getprofile() is None and threading.getprofile() is None  # released on disable, not only on stop
+    probe.stop()
+    assert sys.getprofile() is None and threading.getprofile() is None
+
+    before = {k: list(v) for k, v in probe._hits.items()}
+    [watched_code] = probe._watched
+    # A thread that was already running still carries the old profiler: it
+    # must record nothing, even for a watched function.
+    trigger.via_profiler(profiler, _Frame(watched_code), "call")
+    worker = threading.Thread(target=app_mod.handle, args=("x",))
+    worker.start()
+    worker.join(5)
+    assert {k: list(v) for k, v in probe._hits.items()} == before
 
 
 def test_stopping_a_probe_that_never_started_touches_nothing(make_probe):
@@ -851,6 +1039,8 @@ def test_start_from_env_configures_the_probe_from_secfoo_variables(fresh_package
 
 @pytest.mark.parametrize(("name", "value", "reason"), [
     ("SECFOO_FLUSH_INTERVAL", "soon", "could not convert"),
+    ("SECFOO_FLUSH_INTERVAL", "nan", "finite"),
+    ("SECFOO_FLUSH_INTERVAL", "inf", "finite"),
     ("SECFOO_SENSOR_ADDR", "ftp://x", "unsupported SECFOO_SENSOR_ADDR"),
     ("SECFOO_SENSOR_ADDR", "tcp://10.0.0.5:7461", "loopback"),
 ])
