@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-19 20:31:44 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-19 20:55:42 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **76** | Silver | 4 | 5 | 2 | 18 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **82** | Silver | 4 | 6 | 2 | 19 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 4 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
@@ -37,6 +37,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-19 | [@karthickmk2001](https://github.com/karthickmk2001) | [#148](https://github.com/secfoo-com/secfoo/pull/148) | [#115](https://github.com/secfoo-com/secfoo/issues/115) Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI | medium | +6 |
 | 2026-11-17 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | [#138](https://github.com/secfoo-com/secfoo/pull/138) | [#132](https://github.com/secfoo-com/secfoo/issues/132) Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard | medium | +6 |
 | 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
 | 2026-11-14 | [@AdithKB](https://github.com/AdithKB) | [#105](https://github.com/secfoo-com/secfoo/pull/105) | [#93](https://github.com/secfoo-com/secfoo/issues/93) Run your own skill from anywhere: `--skill-file` with URLs, and shared skill packs | medium | +6 |

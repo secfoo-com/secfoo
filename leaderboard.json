@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-19T20:31:44Z",
+  "generated_at": "2026-11-19T20:55:42Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 76,
+      "points": 82,
       "counts": {
         "hard": 4,
-        "medium": 5,
+        "medium": 6,
         "low": 2
       },
-      "merged_prs": 18,
+      "merged_prs": 19,
       "awards": [
         {
           "pr": 86,
@@ -150,6 +150,17 @@
           "issue_title": "Runtime package inventory: loaded versions, drift and live advisories",
           "contributor": "karthickmk2001",
           "merged_at": "2026-11-12T14:58:06Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 148,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/148",
+          "issue": 115,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/115",
+          "issue_title": "Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-19T20:55:26Z",
           "difficulty": "medium",
           "points": 6
         }
@@ -406,6 +417,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 148,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/148",
+      "issue": 115,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/115",
+      "issue_title": "Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-19T20:55:26Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 138,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/138",
