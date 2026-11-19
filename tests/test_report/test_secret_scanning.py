@@ -45,10 +45,10 @@ Scanned src/ and .github/workflows/, including git history back to the first com
 - **Exposure:** Looks like a placeholder default, low real-world exposure.
 - **Remediation:** Confirm it was never live; if uncertain, rotate anyway and rewrite history.
 
-## 5. Documentation & Confluence Coverage
-| Source | Reached? | Secrets found |
-|--------|----------|----------------|
-| Onboarding runbook | Yes | 1 |
+## 5. Documentation coverage
+| Source | Type | Reached | Notes |
+|--------|------|---------|-------|
+| Onboarding runbook | Confluence page | Yes | 1 secret found |
 
 ## 6. Remediation Roadmap
 P0: S1.

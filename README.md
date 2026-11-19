@@ -43,22 +43,22 @@ A code repository is one input. Real reviews also need the design doc, the
 threat model from last year, the runbook and the ticket that explains why the
 odd thing is there. secfoo passes that context to the agent through
 [MCP](https://modelcontextprotocol.io) and asks the skills to use it:
-the architecture review compares what is *documented* (Confluence, README,
-ADRs) with what is *implemented* and reports the gaps; secret scanning
-covers linked Confluence pages as well as code; every report ends with a
-coverage section that says which documentation sources were reached and
-which were not.
+the architecture review compares what is *documented* (the provided
+documentation sources, README, ADRs) with what is *implemented* and reports
+the gaps; secret scanning covers linked documentation sources as well as code;
+every report ends with a coverage section that says which documentation sources
+were reached and which were not.
 
 ```bash
 secfoo run --skill security-architecture-review --skill threat-modeling \
   --target https://github.com/org/payments-api \
-  --confluence https://yourcompany.atlassian.net/wiki/spaces/PAY/pages/123/Architecture \
-  --confluence https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/456/Threat+Model
+  --context https://yourcompany.atlassian.net/wiki/spaces/PAY/pages/123/Architecture \
+  --context ../design-docs/threat-model.pdf
 ```
 
-Connect the documentation sources once in `~/.secfoo/config.toml`; any MCP
+Connect remote documentation sources once in `~/.secfoo/config.toml`; any MCP
 server works, so the same applies to SharePoint and Microsoft 365, Jira,
-Notion, Google Drive or an internal wiki:
+Notion, Google Docs or an internal wiki:
 
 ```toml
 [[mcp_servers]]
@@ -75,7 +75,7 @@ headers = { Authorization = "Bearer ..." }
 
 | Context | How it gets in | Used by |
 |---|---|---|
-| Confluence pages | `--confluence <url>` (repeatable) plus an Atlassian MCP server | Architecture review, threat modeling, secret scanning, compliance skills |
+| Documentation sources (Confluence, Jira, SharePoint, Notion, Google Docs, local PDF/DOCX/Markdown) | `--context <url\|path>` (repeatable; `--confluence` / `-c` alias) with an MCP server or local file extraction | Architecture review, threat modeling, secret scanning, compliance skills |
 | Jira, SharePoint, Notion, Google Drive, internal wikis | `[[mcp_servers]]` in config; the agent calls them as tools during the review | Every skill |
 | Vendor documents (PDF, DOCX, PPTX) and AI-BOM files | `secfoo assessment upload <id> <file>` | Third-party risk assessment, Responsible AI compliance |
 | Curated vulnerability patterns | `secfoo memory signup` (optional hosted service, exposed as an MCP server) | SAST, SCA, secret scanning |

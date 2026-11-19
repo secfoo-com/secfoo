@@ -35,6 +35,8 @@ class MCPServerConfig:
     transport: str = "stdio"  # stdio | sse | http
     env: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
+    # Documentation hostnames this server can read, e.g. a self-hosted Confluence or Jira; not the server's own `url`
+    hosts: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if bool(self.command) == bool(self.url):
@@ -56,6 +58,9 @@ class Defaults:
     # max_cost_usd: fail the run when the summed reported spend exceeds this.
     fail_on: str | None = None
     max_cost_usd: float | None = None
+    # Documentation sources read on every run: https:// URLs or local files
+    # and folders (#125). Merged with --context; see context_sources.py.
+    context: list[str] = field(default_factory=list)
 
 
 VALID_FAIL_ON = ("critical", "high", "medium", "low")
@@ -77,6 +82,28 @@ class SecfooConfig:
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
+    hosts_raw = raw.get("hosts", [])
+    if not isinstance(hosts_raw, list) or not all(isinstance(h, str) for h in hosts_raw):
+        raise ConfigError(f"mcp_servers.{name}.hosts must be an array of strings")
+
+    hosts: list[str] = []
+    seen_hosts: set[str] = set()
+    for h in hosts_raw:
+        cleaned = h.strip().lower()
+        if not cleaned:
+            raise ConfigError(f"mcp_servers.{name}.hosts contains an empty host entry")
+        if any(ch in cleaned for ch in ("/", ":", "@")) or any(ch.isspace() for ch in cleaned):
+            raise ConfigError(
+                f"mcp_servers.{name}.hosts entry {h!r} contains invalid characters ('/', ':', '@', or whitespace)"
+            )
+        test_part = cleaned.removeprefix("*.")
+        if not test_part or "*" in test_part:
+            raise ConfigError(f"mcp_servers.{name}.hosts invalid pattern {h!r}")
+
+        if cleaned not in seen_hosts:
+            seen_hosts.add(cleaned)
+            hosts.append(cleaned)
+
     try:
         return MCPServerConfig(
             name=name,
@@ -86,6 +113,7 @@ def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
             transport=raw.get("transport", "stdio"),
             env=dict(raw.get("env", {})),
             headers=dict(raw.get("headers", {})),
+            hosts=hosts,
         )
     except ConfigError:
         raise
@@ -115,6 +143,9 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         if isinstance(max_cost_usd, bool) or not isinstance(max_cost_usd, (int, float)) or max_cost_usd <= 0:
             raise ConfigError("defaults.max_cost_usd must be a positive number")
         max_cost_usd = float(max_cost_usd)
+    context_raw = defaults_raw.get("context", [])
+    if not isinstance(context_raw, list) or not all(isinstance(c, str) and c.strip() for c in context_raw):
+        raise ConfigError("defaults.context must be an array of non-empty strings")
     defaults = Defaults(
         agent=defaults_raw.get("agent"),
         depth=defaults_raw.get("depth"),
@@ -122,6 +153,7 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         exclude=list(exclude_raw),
         fail_on=fail_on,
         max_cost_usd=max_cost_usd,
+        context=list(context_raw),
     )
 
     agents_raw = data.get("agents", {})
