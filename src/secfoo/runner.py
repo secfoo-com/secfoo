@@ -26,13 +26,13 @@ from secfoo.agents.registry import get_adapter
 from secfoo.config import ensure_store_dirs, run_dir
 from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
-from secfoo.report.markdown import strip_preamble
+from secfoo.report.markdown import MalformedReportError, parse_report, strip_preamble
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
 from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
 from secfoo.report.sca import osv_keys_for_report
 from secfoo.report.secret_scanning import SKILL_ID as SECRET_SKILL_ID
-from secfoo.report.severity import count_severities
+from secfoo.report.severity import SeverityCounts, count_severities
 from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
 from secfoo.stack import Stack, detect_stack, language_for_ecosystem, language_for_path
@@ -481,15 +481,22 @@ def _run_single_skill(
             # Memory Bank: capture HEAD SHA so future runs can diff against this baseline.
             target_commit = _git_head_commit(target_ctx.local_path)
 
-            if on_skill_complete:
-                on_skill_complete(skill.name, result.status)
-
             (report_dir / "stdout.log").write_text(result.stdout, encoding="utf-8")
             (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
             report_path = report_dir / "report.md"
             report_text = strip_preamble(result.raw_report)
             report_path.write_text(report_text, encoding="utf-8")
-            severity = count_severities(report_text)
+            try:
+                report_text = parse_report(report_text)
+                severity = count_severities(report_text)
+            except MalformedReportError as error:
+                result.status = "failed"
+                result.exit_code = 1
+                result.stderr = (result.stderr + "\n" if result.stderr else "") + f"malformed report: {error}"
+                (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
+                severity = SeverityCounts()
+            if on_skill_complete:
+                on_skill_complete(skill.name, result.status)
 
             repo.complete_run(
                 run_uuid,

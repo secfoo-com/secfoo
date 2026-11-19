@@ -1010,18 +1010,11 @@ documents eight paired fixture techniques, offline regression replay,
 opt-in live measurements and the limits of the metrics. Synthetic replay
 results are not live security results.
 
-The earlier, labeled SQL-only corpus in the [2026-11-16 live record](evaluations/2026-11-16/README.md) reports Claude
-Sonnet 4.6 retaining the real finding in all 16 baseline and all 16 hardened
-reviews. The local Qwen3 4B Instruct API comparison retained it in 7/8 baseline
-attacks versus 8/8 hardened attacks, and 8/8 controls in both phases. The
-baseline Unicode attack obeyed the injected instruction; the hardened run
-reported the real defect. These are single trials, not a general safety
-guarantee. All 32 local API reports failed the evaluator's format check.
-Only the separately captured Claude tool-request pair has complete tool
-telemetry, under the same restricted tool set in both phases. A malicious
-repository can still influence model text; tool restrictions and source
-boundaries reduce specific attack surfaces but do not prove isolation or immunity.
-These historical runs do not measure the revised eight-defect corpus. Original
-API tool lists were not observed and now replay as unknown; complete historical
-Claude tool streams measure only the narrower grants used for those runs.
-
+The [historical November 16 record](evaluations/2026-11-16/README.md)
+uses a previous, explicitly labeled SQL-only corpus and older code. Its scores
+are not measurements of the current corpus or head. The harness reports each
+revision, trial, capture profile and corpus digest separately; API tool-policy
+measurements are marked not applicable because that adapter exposes no tools.
+Fresh free-model measurements are tracked in the PR, separately from offline
+regressions. Tool grants and source boundaries do not establish isolation or
+immunity to prompt injection.

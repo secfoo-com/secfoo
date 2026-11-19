@@ -11,7 +11,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from secfoo.report.markdown import headings, visible_text
+from secfoo.report.markdown import (
+    MalformedReportError,
+    has_json_draft,
+    headings,
+    visible_text,
+)
 
 _FINDING_HEADING_RE = re.compile(r"^###\s*\[(?P<severity>[A-Za-z]+)\]", re.MULTILINE)
 _RISK_RATING_RE = re.compile(r"\*\*Overall risk rating:\*\*\s*([A-Za-z]+)", re.IGNORECASE)
@@ -45,6 +50,8 @@ class SeverityCounts:
 
 
 def count_severities(report_markdown: str) -> SeverityCounts:
+    if has_json_draft(report_markdown):
+        raise MalformedReportError("JSON draft wrapper is not a report")
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for heading in headings(report_markdown):
         if heading.level != 3:
@@ -59,6 +66,8 @@ def count_severities(report_markdown: str) -> SeverityCounts:
 
 
 def extract_overall_risk_rating(report_markdown: str) -> str | None:
+    if has_json_draft(report_markdown):
+        return None
     if report_markdown.lstrip().startswith(("{", "[", '"')):
         return None
     match = _RISK_RATING_RE.search(visible_text(report_markdown))

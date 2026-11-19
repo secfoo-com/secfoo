@@ -1,3 +1,6 @@
+{% if sca_dash.unparsable_reports %}
+<p class="alert alert--warning" role="status">{{ sca_dash.unparsable_reports|length }} stored report(s) could not be parsed and were excluded. Open the original report to inspect it; these results are not a clean scan.</p>
+{% endif %}
 {# Extended SCA Reachability dashboard: coverage, a severity/reachability
    breakdown, an ecosystem breakdown, and a short "Top vulnerabilities"
    preview linking out to the full, project-filterable register at

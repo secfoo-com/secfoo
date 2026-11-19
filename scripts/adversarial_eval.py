@@ -17,6 +17,7 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from secfoo.report.evidence import scrub_evidence
 from secfoo.report.markdown import MD, MalformedReportError
 from secfoo.report.markdown import detail_blocks as report_detail_blocks
 from secfoo.report.severity import count_severities, extract_overall_risk_rating
@@ -63,8 +64,8 @@ print(json.dumps(result))
 '''
 
 
-def load_cases(corpus: Path = CORPUS) -> dict[str, dict]:
-    cases = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
+def load_cases(corpus: Path = CORPUS, *, manifest: Path | None = None) -> dict[str, dict]:
+    cases = json.loads((manifest or corpus / "manifest.json").read_text(encoding="utf-8"))
     result = {}
     for case in cases:
         if case["id"] in result or case["variant"] not in {"attack", "control"}:
@@ -142,12 +143,12 @@ def score(record: dict, case: dict) -> dict:
 
 
 def read_records(path: Path, cases: dict[str, dict]) -> list[dict]:
-    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
     if not records:
         raise ValueError("empty evidence artifact")
     seen = set()
     for r in records:
-        key = (r["agent"], r["phase"], r["case_id"], r.get("trial", 1), r.get("skill", "sast"))
+        key = (r["agent"], r["phase"], r["case_id"], r.get("trial", 1), r.get("skill", "sast"), r.get("revision"), r.get("capture_profile"))
         if r["case_id"] not in cases or key in seen:
             raise ValueError("unknown case or duplicate trial")
         if r.get("kind") not in {"synthetic", "live"}:
@@ -161,21 +162,23 @@ def read_records(path: Path, cases: dict[str, dict]) -> list[dict]:
 def summarize(records: list[dict], cases: dict[str, dict]) -> str:
     groups = defaultdict(list)
     for r in records:
-        groups[(r["kind"], r["agent"], r.get("skill", "sast"), r["phase"], cases[r["case_id"]]["variant"])].append(
+        groups[(r["kind"], r["agent"], r.get("skill", "sast"), r["phase"], cases[r["case_id"]]["variant"], r.get("revision", "unspecified"),
+                str(r.get("trial", 1)), r.get("capture_profile", "unspecified"),
+                r.get("corpus_sha256", "unspecified"))].append(
             score(r, cases[r["case_id"]])
         )
     lines = ["# Adversarial evaluation", "",
              "Synthetic rows test evaluator plumbing only; they are not model safety measurements.",
              "Retention uses a location/CWE heuristic and requires human transcript review.", "",
-             "| Evidence | Agent | Skill | Phase | Variant | Scored/total | Retained | Fabricated | Downgraded | Format | Tool violations / observed |",
-             "|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| Evidence | Agent | Skill | Phase | Variant | Revision | Trial | Capture profile | Corpus digest | Scored/total | Retained | Fabricated | Downgraded | Format | Tool violations / observed |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for key, rows in sorted(groups.items()):
         valid = [r for r in rows if r["scorable"]]
         n = len(valid)
         def count(field, valid=valid, n=n):
             return f"{sum(r[field] for r in valid)}/{n}"
         observed = [r["forbidden_tool_attempts"] for r in valid if r["forbidden_tool_attempts"] is not None]
-        tools = f"{sum(observed)} / {len(observed)}" if observed else "unknown / 0"
+        tools = "not exposed (API has no tools)" if key[1] == "api" else (f"{sum(observed)} / {len(observed)}" if observed else "unknown / 0")
         lines.append("| " + " | ".join((*key, f"{n}/{len(rows)}", count("finding_retained"),
                      count("fabricated_finding"), count("severity_downgraded"), count("contract"), tools)) + " |")
     return "\n".join(lines) + "\n"
@@ -195,14 +198,22 @@ def materialize_fixture(source: Path, target: Path) -> None:
 
 
 def evaluation_environment(agent: str, model: str, checkout: Path, target: Path) -> dict[str, str]:
-    names = {"PATH", "LANG", "LC_ALL", "SYSTEMROOT", "WINDIR", "TMPDIR", "TEMP", "TMP"}
+    names = {"PATH", "LANG", "LC_ALL", "SYSTEMROOT", "WINDIR", "TMPDIR", "TEMP", "TMP", "SECFOO_MEMORY"}
     env = {k: v for k, v in os.environ.items() if k in names}
+    model = model if "/" in model else "openai/" + model
     provider = model.split("/", 1)[0]
     key = "ANTHROPIC_API_KEY" if agent == "claude" else {
         "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY",
     }.get(provider)
     if key and os.environ.get(key):
         env[key] = os.environ[key]
+    if agent == "api" and provider in {"ollama", "ollama_chat"}:
+        # Local-only route: LiteLLM's adapter still needs a nonempty sentinel.
+        from urllib.parse import urlsplit
+        base = os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+        if urlsplit(base).hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("Ollama evaluation must use a loopback endpoint")
+        env.update(OLLAMA_API_BASE=base, OPENAI_API_KEY="local-placeholder-not-a-real-key")
     home = target / ".eval-home"
     home.mkdir()
     env.update(HOME=str(home), USERPROFILE=str(home), PYTHONPATH=str(checkout / "src"),
@@ -256,6 +267,8 @@ def live_records(args, cases):
                       "prompt_sha256": result.get("prompt_sha256"),
                       "corpus_sha256": corpus_digest(),
                       "skill": getattr(args, "skill", "sast"),
+                      "corpus_manifest": "tests/fixtures/adversarial/manifest.json",
+                      "capture_profile": "production-grants-stream-v2" if args.agent == "claude" else "api-no-tools-exposed",
                       "tool_observation": result.get("tool_observation", "unavailable"),
                       "tool_calls": result.get("tool_calls"),
                       "tool_allowlist": result.get("tool_allowlist", []),
@@ -269,7 +282,7 @@ def live_records(args, cases):
                                   tool_allowlist=capture.get("tool_allowlist", []),
                                   telemetry_source="claude-stream-json")
                     record["capture"] = capture
-            yield record
+            yield scrub_evidence(record)
 
 
 def corpus_digest():
@@ -298,8 +311,15 @@ def main():
     if args.timeout <= 0 or args.trial <= 0:
         parser.error("--timeout and --trial must be positive")
     cases = load_cases()
-    if args.records and args.records.parent.name == "2026-11-16":
-        cases = load_cases(args.records.parent / "corpus-v1")
+    if args.records:
+        raw = [json.loads(line) for line in args.records.read_text().split("\n") if line.strip()]
+        manifests = {r.get("corpus_manifest") for r in raw}
+        if len(manifests) != 1 or None in manifests:
+            parser.error("records must name one explicit corpus_manifest")
+        manifest = (ROOT / manifests.pop()).resolve()
+        if not manifest.is_relative_to(ROOT):
+            parser.error("corpus_manifest must remain inside the checkout")
+        cases = load_cases(manifest=manifest)
     if args.case:
         if not args.live or any(case not in cases for case in args.case):
             parser.error("--case requires --live and known corpus case ids")

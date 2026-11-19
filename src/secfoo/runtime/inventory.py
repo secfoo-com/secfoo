@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secfoo import osv
+from secfoo.report.markdown import read_stored_report
 from secfoo.report.sca import SKILL_ID, inventory_lookup
 
 DEFAULT_BASELINE_HOURS = 24
@@ -79,7 +80,10 @@ def _scanned(repo, project_id: int) -> dict[tuple[str, str], set[str]]:
         path = Path(project["latest_success_report_path"])
         if not path.is_file():
             continue
-        for (package, version), ecosystem_raw in inventory_lookup(path.read_text(encoding="utf-8")).items():
+        text = read_stored_report(path)
+        if not text:
+            continue
+        for (package, version), ecosystem_raw in inventory_lookup(text).items():
             ecosystem = osv.normalize_ecosystem(ecosystem_raw)
             if ecosystem:
                 scanned[(ecosystem, package.lower())].add(version)

@@ -14,6 +14,8 @@ import sys
 import uuid
 from pathlib import Path
 
+from secfoo.report.evidence import scrub_evidence
+
 
 def parse_stream(stdout: str) -> tuple[dict, list[dict]]:
     events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
@@ -55,7 +57,7 @@ def main() -> int:
         stdout = proc.stdout
     path = capture_dir / f"{uuid.uuid4().hex}.json"
     with path.open("x", encoding="utf-8") as output:
-        json.dump(capture, output)
+        json.dump(scrub_evidence(capture), output)
     path.chmod(0o600)
     sys.stdout.write(stdout)
     sys.stderr.write(proc.stderr)

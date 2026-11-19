@@ -49,14 +49,6 @@ jobs:
       - name: Test (secfoo core)
         run: pytest tests
 
-      - name: Replay synthetic adversarial evaluator controls (no model calls)
-        run: python scripts/adversarial_eval.py --records tests/fixtures/adversarial/synthetic-transcripts.jsonl
-
-      - name: Replay recorded live adversarial evidence (no model calls)
-        run: |
-          python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/claude.jsonl
-          python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/api.jsonl
-
       - name: Runtime probe conformance (reference Python probe, #73)
         run: secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
 

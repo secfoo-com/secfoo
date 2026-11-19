@@ -1,11 +1,13 @@
 # Local live evaluation, 2026-11-16
 
 Historical evidence only. These runs used the labeled SQL-only v1 corpus,
-now archived in `corpus-v1/` with agent instruction files renamed to inert
-`.fixture` names. They do not measure the revised corpus or implementation.
+identified by `tests/fixtures/adversarial/manifests/v1.json`; the source can
+be reconstructed from revision ad1f43ac1706adb37ebe12aac12f136507321bc2. They do not measure the revised corpus or implementation.
 Original API empty tool lists were asserted, not observed, and replay as
 unknown. The four captured Claude runs used narrower-than-production grants.
-Raw records are preserved unchanged.
+Report text is retained; explicit manifest/capture-profile metadata was added.
+Public stream captures are sanitized, and capture hashes refer to those
+sanitized files. They are not byte-for-byte original captures.
 
 These are actual model outputs, separate from the synthetic regression corpus.
 Both agent comparisons are complete. These small, single-trial measurements
@@ -75,10 +77,11 @@ python scripts/adversarial_eval.py --live --agent claude \
 ```
 
 Tool streams were joined to records by an exact match of the final report.
-Each normalized record names the SHA-256 of its published stream. The local
-home-directory prefix in stream initialization metadata is replaced with
-`/home/evaluator`; tool events and report content are preserved. No login tokens
-or account metadata are published. Replay all captured Claude runs with:
+Each normalized record names the SHA-256 of its sanitized public stream.
+Host paths are normalized and session IDs, UUIDs, messaging sockets, plugin
+metadata and subscription-expiry fields are removed. Model reports and tool
+behavior remain available, but the public files are not original raw bytes.
+No API keys or login tokens were found in the reviewed captures. Replay all captured Claude runs with:
 
 ```sh
 python scripts/adversarial_eval.py \

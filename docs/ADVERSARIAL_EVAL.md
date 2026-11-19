@@ -20,8 +20,10 @@ inert naming convention. Symlinks are rejected. Runtime homes, launchers and
 captures live outside the materialized target.
 
 The actual November 16 measurements used an earlier corpus that repeated an
-explicitly labeled SQL defect. Its manifest and source are preserved under
-[evaluations/2026-11-16/corpus-v1](evaluations/2026-11-16/corpus-v1).
+explicitly labeled SQL defect. Its evaluator-only metadata is retained in
+[the v1 manifest](../tests/fixtures/adversarial/manifests/v1.json). The original
+source remains available at git revision ad1f43ac1706adb37ebe12aac12f136507321bc2;
+it is not duplicated in the checkout.
 Historical records must not be interpreted as measurements of the revised
 corpus or implementation. No fresh model measurements are claimed for this
 revision: the local machine has no configured model credentials or model runtime.
@@ -37,8 +39,8 @@ pytest tests/test_adversarial_eval.py tests/test_review_hardening.py
 ```
 
 Synthetic transcripts calibrate evaluator behavior only. They are not model
-measurements. Historical replay automatically uses the archived v1 manifest.
-Both archive and current corpus remain covered by regression tests. Offline CI
+measurements. Each record explicitly names its corpus_manifest; replay uses that field.
+Both historical metadata and the current corpus remain covered by regression tests. Offline CI
 needs no model credentials. Parser fuzzing is pinned to Atheris 2.3.0 in a
 separate weekly/manual workflow, outside the routine PR matrix.
 
@@ -64,7 +66,8 @@ Checkouts must be clean and committed. Use the same current harness, corpus,
 dependencies, skill and model settings for both phases. Records include source
 revision, model, skill, prompt hash, corpus hash and trial. Exclusive output
 creation prevents accidental overwrite. Repeat trials before estimating a
-stable effect. A table groups by agent, skill, phase and attack/control variant.
+stable effect. A table groups by agent, skill, phase, attack/control variant, source revision,
+trial, capture profile and corpus digest. Different setups are never pooled.
 Other skills can be selected, but a source-code defect is not an appropriate
 positive control for every skill; reviewers must assess applicability.
 
@@ -77,8 +80,8 @@ Claude capture is integrated into each harness invocation. It preserves the
 production adapter's tool grants, captures the complete stream and records the
 actual allowlist alongside tool attempts. Invalid or incomplete streams remain
 unknown. The API harness observes tool-call fields returned by each actual
-completion; an empty list is recorded only after that observer ran. It does not
-infer tool safety from the adapter exposing no tools. Model prose requesting a
+completion; the table states that API tools are not exposed, rather than calling an empty
+list an observed safety result. Model prose requesting a
 command is not an executed API tool call.
 
 ## Scoring and production hardening
@@ -95,13 +98,22 @@ command is not an executed API tool call.
   SAST/SCA/secret-scanning extraction and the evaluator. Quoted/fenced headings
   and register examples cannot become persisted findings. Unterminated fences
   and finding-like headings that Markdown does not recognize raise a malformed
-  report error. The runner records these runs as failed before findings ingestion.
+  report error. The runner records these runs as failed before findings ingestion, preserving
+  report paths, normal multi-skill outcomes and CLI JSON output. Malformed old
+  stored reports are logged and skipped; dashboards identify exclusions.
 - API source bodies retain raw newlines between random per-file boundaries;
   paths and deleted-path lists are JSON quoted. The trusted brief remains a
-  system message. Reformat instructions explicitly identify the JSON draft
+  system message and declares the generated boundary tokens there. Reformat instructions explicitly identify the JSON draft
   field and require raw Markdown; JSON echoes and malformed output fail after
   the bounded retry rather than becoming successful zero-finding reports.
 
 Random boundaries and tool grants reduce specific attack surfaces. They do not
 prevent all model manipulation or establish isolation. Inspect artifacts for
 credentials and unexpected data before publishing.
+
+Local Ollama evaluations retain OLLAMA_API_BASE only for a loopback URL, use a
+non-secret availability sentinel, and retain SECFOO_MEMORY. Bare model names
+resolve to the OpenAI provider for credential selection. No cloud routing is
+enabled automatically. Captures normalize local paths and remove session IDs,
+UUIDs, messaging sockets, plugin metadata and subscription-expiry fields before
+publication. Capture hashes describe the sanitized public files, not originals.

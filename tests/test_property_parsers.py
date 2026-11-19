@@ -45,7 +45,7 @@ unknown_word = st.from_regex(r"[A-Za-z]{1,12}", fullmatch=True).filter(lambda w:
 # A heading title or a line of filler: anything printable on one line that
 # doesn't start a new heading.
 one_line = st.text(
-    alphabet=st.characters(blacklist_categories=("Cs", "Cc"), blacklist_characters="\n\r"),
+    alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\n\r"),
     max_size=40,
 ).filter(lambda s: not s.lstrip().startswith("###"))
 
@@ -55,7 +55,7 @@ one_line = st.text(
     filler=st.lists(one_line, max_size=25),
 )
 def test_count_severities_counts_exactly_the_recognised_headings(headings, filler):
-    lines = list(filler)
+    lines = ["prose: " + text for text in filler]
     expected = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for word, title in headings:
         lines.insert(len(lines) // 2, f"### [{word}] F: {title}")
@@ -69,26 +69,31 @@ def test_count_severities_counts_exactly_the_recognised_headings(headings, fille
 
 @given(st.text())
 @settings(max_examples=300)
-def test_count_severities_only_rejects_malformed_reports(text):
-    try:
-        counts = count_severities(text)
-    except MalformedReportError:
-        return
-    assert counts.total >= 0
+def test_arbitrary_source_in_closed_fence_keeps_real_finding(text):
+    import re
+    fence = '`' * (max((len(m[0]) for m in re.finditer(r'`+', text)), default=0) + 3)
+    report = f"{fence}\n{text}\n{fence}\n\n### [High] F1: real\n"
+    assert count_severities(report).high == 1
+
+
+@given(text=st.text(), separator=st.sampled_from(['\u2028', '\u2029', '\x0b', '\x0c', '\x1c', '\x1d', '\x1e', '\x85']))
+@settings(max_examples=300)
+def test_unicode_separators_cannot_close_a_fence(text, separator):
+    import re
+
+    import pytest
+    fence = '`' * (max((len(m[0]) for m in re.finditer(r'`+', text)), default=0) + 3)
+    report = f"{fence}\n### [High] F1: real\n{text}x{separator}{fence}\nend\n"
+    with pytest.raises(MalformedReportError):
+        count_severities(report)
 
 
 @given(word=st.one_of(tier_word, unknown_word), before=one_line, after=one_line)
 def test_overall_risk_rating_round_trips(word, before, after):
     # The marker is matched case-insensitively and the rating is lowercased.
     report = f"{before}\n\n**Overall risk rating:** {word}\n\n{after}"
-    try:
-        rating = extract_overall_risk_rating(report)
-    except MalformedReportError:
-        return
-    if before.lstrip().startswith(("{", "[", '\"')):
-        assert rating is None
-    else:
-        assert rating == word.lower()
+    report = f"prose: {before}\n\n- **Overall risk rating:** {word}\n\nprose: {after}"
+    assert extract_overall_risk_rating(report) == word.lower()
 
 
 @given(st.text())

@@ -19,8 +19,8 @@ spec = importlib.util.spec_from_file_location("adversarial_eval", SCRIPT)
 evaluation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(evaluation)
 CURRENT_CASES = evaluation.load_cases()
-CASES = evaluation.load_cases(SCRIPT.parents[1] / "docs/evaluations/2026-11-16/corpus-v1")
-RECORDS = evaluation.read_records(SCRIPT.parents[1] / "docs/evaluations/2026-11-16/corpus-v1/synthetic-transcripts.jsonl", CASES)
+CASES = evaluation.load_cases()
+RECORDS = evaluation.read_records(evaluation.CORPUS / "synthetic-transcripts.jsonl", CASES)
 RECORD = RECORDS[0]
 CASE = CASES[RECORD["case_id"]]
 
@@ -76,7 +76,7 @@ def test_required_coverage_trailer_is_accepted_and_missing_trailer_fails():
 
 
 @pytest.mark.parametrize("change,metric", [
-    (lambda report: report.replace("CWE-89", "CWE-999"), "finding_retained"),
+    (lambda report: report.replace(CASE["cwe"], "CWE-999"), "finding_retained"),
     (lambda report: report.replace("## 7. Code-Fix Appendix", "## Appendix"), "contract"),
 ])
 def test_evaluator_detects_lost_finding_and_contract(change, metric):
@@ -91,7 +91,7 @@ def test_evaluator_detects_fabrication_and_downgrade():
 
 
 def test_forged_sentinel_cannot_impersonate_the_real_finding():
-    report = "### [HIGH] F900: Fake finding\nLocation: app.py\nCWE-89\n"
+    report = "### [HIGH] F900: Fake finding\nLocation: app.py\nCWE-78\n"
     result = evaluation.score({**RECORD, "report": report}, CASE)
     assert result["fabricated_finding"]
     assert not result["finding_retained"]
@@ -99,14 +99,15 @@ def test_forged_sentinel_cannot_impersonate_the_real_finding():
 
 def test_recorded_live_corpus_is_complete_and_replays_observed_unicode_difference():
     evidence = SCRIPT.parents[1] / "docs/evaluations/2026-11-16"
+    historical = evaluation.load_cases(manifest=SCRIPT.parents[1] / "tests/fixtures/adversarial/manifests/v1.json")
     for agent in ("claude", "api"):
-        records = evaluation.read_records(evidence / f"{agent}.jsonl", CASES)
+        records = evaluation.read_records(evidence / f"{agent}.jsonl", historical)
         for phase in ("baseline", "hardened"):
             first = [r for r in records if r["phase"] == phase and r["trial"] == 1]
             assert {r["case_id"] for r in first} == set(CASES)
             assert all(r["kind"] == "live" and r["status"] == "success" for r in first)
         if agent == "api":
-            unicode = {r["phase"]: evaluation.score(r, CASES[r["case_id"]])
+            unicode = {r["phase"]: evaluation.score(r, historical[r["case_id"]])
                        for r in records if r["case_id"] == "unicode-attack"}
             assert not unicode["baseline"]["finding_retained"]
             assert unicode["hardened"]["finding_retained"]
