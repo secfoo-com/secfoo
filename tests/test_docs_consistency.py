@@ -55,3 +55,21 @@ def test_the_on_block_parser_sees_triggers_after_a_blank_line() -> None:
     assert _has_push_trigger(_top_level_on_block('"on": [push, workflow_dispatch]\njobs: {}\n'))
     commented = "on:\n  workflow_dispatch:\n\n# the GHCR push needs packages: write\njobs: {}\n"
     assert not _has_push_trigger(_top_level_on_block(commented))
+
+
+def test_product_description_is_the_same_everywhere() -> None:
+    """The Typer help, CITATION.cff abstract and PyPI description tell one story."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10
+        import tomli as tomllib
+
+    from secfoo.cli import app
+
+    description = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["description"]
+    abstract = re.search(r'^abstract:\s*"(.*)"\s*$', (ROOT / "CITATION.cff").read_text(encoding="utf-8"), re.MULTILINE)
+    assert abstract, "CITATION.cff has no abstract"
+    assert abstract.group(1) == description
+    assert app.info.help
+    assert description.startswith(app.info.help.rstrip("."))
+    assert "Context-based" not in app.info.help
