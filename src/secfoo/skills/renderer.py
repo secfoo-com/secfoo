@@ -178,7 +178,9 @@ response text, since it is captured and stored by the caller.
 # the same table. They share two invariants so downstream tooling keeps
 # working regardless of which skill produced a report:
 #   * a `**Overall risk rating:** <severity>` line (report/severity.py parses
-#     it to derive the Responsible AI / risk badges), and
+#     it to derive the Responsible AI / risk badges; it also tolerates the
+#     plain and end-of-summary shapes small models write, but skills should
+#     still ask for this exact line), and
 #   * `### [SEVERITY] <ID>: <title>` detail headings (report/severity.py
 #     counts these into the per-run severity columns, and report/markdown.py
 #     turns them into design-system badges).

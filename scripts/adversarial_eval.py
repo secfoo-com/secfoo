@@ -153,6 +153,25 @@ def score(record: dict, case: dict) -> dict:
     }
 
 
+def rescore(record: dict) -> dict:
+    """Re-derive an API record's runtime status from its stored report.
+
+    The API agent fails a run when its final report has no parseable
+    overall risk rating (agents/api.py). Re-applying the current parser to
+    the stored text answers "would this run pass today?" without new model
+    calls. Only an API `failed` record with report text can change, and only
+    to `success`; runner failures, timeouts and empty reports keep their status.
+    """
+    report = record.get("report")
+    if record.get("agent") != "api" or record.get("status") != "failed" or not isinstance(report, str) or not report.strip():
+        return record
+    try:
+        valid = extract_overall_risk_rating(report) is not None
+    except MalformedReportError:
+        valid = False
+    return {**record, "status": "success", "rescored_from": "failed"} if valid else record
+
+
 def read_records(path: Path, cases: dict[str, dict]) -> list[dict]:
     records = [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
     if not records:
@@ -170,7 +189,7 @@ def read_records(path: Path, cases: dict[str, dict]) -> list[dict]:
     return records
 
 
-def summarize(records: list[dict], cases: dict[str, dict]) -> str:
+def summarize(records: list[dict], cases: dict[str, dict], *, rescored: bool = False) -> str:
     groups = defaultdict(list)
     for r in records:
         groups[(r["kind"], r["agent"], r.get("skill", "sast"), r["phase"], cases[r["case_id"]]["variant"], r.get("revision", "unspecified"),
@@ -180,8 +199,13 @@ def summarize(records: list[dict], cases: dict[str, dict]) -> str:
         )
     lines = ["# Adversarial evaluation", "",
              "Synthetic rows test evaluator plumbing only; they are not model safety measurements.",
-             "Retention uses a location/CWE heuristic and requires human transcript review.", "",
-             "| Evidence | Agent | Skill | Phase | Variant | Revision | Trial | Capture profile | Corpus digest | Scored/total | Retained | Fabricated | Downgraded | Format | Tool violations / observed |",
+             "Retention uses a location/CWE heuristic and requires human transcript review.", ""]
+    if rescored:
+        changed = sum(r.get("rescored_from") == "failed" for r in records)
+        note = ("Re-scored: each API record's status was re-derived from its stored report with the current "
+                f"parser, without new model calls; {changed} of {len(records)} records changed from failed to success.")
+        lines += [note, ""]
+    lines += ["| Evidence | Agent | Skill | Phase | Variant | Revision | Trial | Capture profile | Corpus digest | Scored/total | Retained | Fabricated | Downgraded | Format | Tool violations / observed |",
              "|" + "---|" * 15]
     for key, rows in sorted(groups.items()):
         valid = [r for r in rows if r["scorable"]]
@@ -437,6 +461,9 @@ def main():
                         help="concatenate trial artifacts in the given order into --output")
     parser.add_argument("--summary", type=Path, metavar="SUMMARY.md",
                         help="with --records, write the summary to this new file instead of stdout")
+    parser.add_argument("--rescore", action="store_true",
+                        help="with --records, re-derive each API record's status from its stored report "
+                             "with the current parser (no model calls); the artifact is not modified")
     args = parser.parse_args()
     if args.timeout <= 0 or args.trial <= 0:
         parser.error("--timeout and --trial must be positive")
@@ -450,6 +477,8 @@ def main():
         return 0
     if args.summary and not args.records:
         parser.error("--summary requires --records")
+    if args.rescore and (not args.records or args.live):
+        parser.error("--rescore requires --records and cannot be used with --live")
     if args.summary and args.summary.exists():
         parser.error(f"{args.summary} already exists; --summary never overwrites")
     cases = load_cases()
@@ -480,7 +509,9 @@ def main():
         if not args.records:
             parser.error("provide --records for offline replay, or explicitly request --live")
         records = read_records(args.records, cases)
-    summary = summarize(records, cases)
+        if args.rescore:
+            records = [rescore(r) for r in records]
+    summary = summarize(records, cases, rescored=args.rescore)
     if args.summary:
         with args.summary.open("x", encoding="utf-8") as handle:
             handle.write(summary)

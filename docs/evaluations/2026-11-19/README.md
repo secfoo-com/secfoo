@@ -62,4 +62,15 @@ python scripts/adversarial_eval.py --records docs/evaluations/2026-11-19/api.jso
 pytest tests/test_fresh_adversarial_evidence.py tests/test_review_hardening.py
 ```
 
+### Re-scored with the #153 parser
+
+The rating parser now also accepts `Overall risk rating:` without bold, on its own line or as the last sentence of the Executive Summary's first paragraph (never from a code fence, a blockquote example or a JSON echo). Re-applying it to the stored reports, without new model calls:
+
+```sh
+python scripts/adversarial_eval.py --records docs/evaluations/2026-11-19/api.jsonl --rescore \
+  --summary docs/evaluations/2026-11-19/summary-rescored.md   # exits 1: one report stays nonscorable
+```
+
+29 of the 30 failed runs now parse, each with the rating the qualitative table above reads in it, so 31 of 32 runs are scorable ([summary-rescored.md](summary-rescored.md)). The remaining report (`code-comment-attack`, trial 2) has an unclosed code fence and is correctly still rejected as malformed. `api.jsonl` and [summary.md](summary.md) are unchanged; the re-scored summary only answers "would these runs pass with today's parser". Retention is still the location/CWE heuristic, so it under-counts reports that label the planted bug with a neighbouring CWE.
+
 A replay exit of 1 reflects failed model reports, not corrupt evidence. CI assertions validate the complete paired trial coverage, source/corpus identity, scrubbed data and the recorded number of nonscorable outcomes. See [summary.md](summary.md), [setup.json](setup.json) and [historical November 16 evidence](../2026-11-16/README.md). Historical results do not measure this corpus or revision.
