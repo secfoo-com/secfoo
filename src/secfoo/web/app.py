@@ -46,6 +46,12 @@ def create_app(
     app.state.bind_host = bind_host
     app.state.allow_insecure_runtime = allow_insecure_runtime
 
+    @app.exception_handler(OverflowError)
+    async def id_out_of_range(request, exc):
+        # A path id wider than SQLite's 64-bit INTEGER (/assessments/99999999999999999999)
+        # cannot name a row; sqlite3 raises OverflowError binding it, which was a 500.
+        return PlainTextResponse("Not Found", status_code=404)
+
     @app.middleware("http")
     async def revalidate_static(request, call_next):
         # Make the browser re-check stylesheets/scripts on each load (a cheap
