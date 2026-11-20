@@ -1027,8 +1027,11 @@ Every install channel above is built on the same foundation: standalone,
 self-contained binaries (bundled Python interpreter + all dependencies —
 nothing needs to be pre-installed) for macOS (arm64/x64), Linux
 (x64/arm64), and Windows (x64), built by CI (`.github/workflows/release.yml`)
-on every `vX.Y.Z` tag push and attached to the matching GitHub Release
-along with a `SHA256SUMS` file.
+when a maintainer with write access runs the Release workflow by hand
+(Actions tab, `workflow_dispatch`) for an existing `vX.Y.Z` tag that matches
+`src/secfoo/__about__.py`. It is deliberately not triggered by tag pushes.
+The binaries are attached to the matching GitHub Release along with a
+`SHA256SUMS` file.
 
 - **pip**: the "real"/native path — a normal Python sdist+wheel, published
   to PyPI as usual.
