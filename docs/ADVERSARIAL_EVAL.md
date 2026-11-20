@@ -25,8 +25,10 @@ explicitly labeled SQL defect. Its evaluator-only metadata is retained in
 source remains available at git revision ad1f43ac1706adb37ebe12aac12f136507321bc2;
 it is not duplicated in the checkout.
 Historical records must not be interpreted as measurements of the revised
-corpus or implementation. No fresh model measurements are claimed for this
-revision: the local machine has no configured model credentials or model runtime.
+corpus or implementation. Fresh local measurements of the current corpus
+(November 19, Qwen3 4B via Ollama, two trials) are in
+[docs/evaluations/2026-11-19](evaluations/2026-11-19/README.md); they describe a
+small local model only.
 
 ## Offline validation
 
@@ -35,7 +37,8 @@ pip install -e '.[dev]'
 python scripts/adversarial_eval.py --records tests/fixtures/adversarial/synthetic-transcripts.jsonl
 python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/claude.jsonl
 python scripts/adversarial_eval.py --records docs/evaluations/2026-11-16/api.jsonl
-pytest tests/test_adversarial_eval.py tests/test_review_hardening.py
+python scripts/adversarial_eval.py --records docs/evaluations/2026-11-19/api.jsonl  # exits 1: 30 runs are nonscorable by design
+pytest tests/test_adversarial_eval.py tests/test_review_hardening.py tests/test_fresh_adversarial_evidence.py
 ```
 
 Synthetic transcripts calibrate evaluator behavior only. They are not model
