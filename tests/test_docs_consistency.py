@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import json
 import re
 from pathlib import Path
 
@@ -72,4 +74,11 @@ def test_product_description_is_the_same_everywhere() -> None:
     assert abstract.group(1) == description
     assert app.info.help
     assert description.startswith(app.info.help.rstrip("."))
-    assert "Context-based" not in app.info.help
+    # `secfoo --help` can show the root callback's docstring instead of Typer(help=...).
+    assert inspect.getdoc(app.registered_callback.callback) == app.info.help
+    # The npm package page is the third public listing.
+    npm = json.loads((ROOT / "npm/secfoo/package.json").read_text(encoding="utf-8"))
+    assert npm["description"] == description
+    for path in (ROOT / "src/secfoo/cli.py", ROOT / "CITATION.cff", ROOT / "npm/secfoo/package.json",
+                 ROOT / "npm/secfoo/README.md"):
+        assert "Context-based security architectural assessment" not in path.read_text(encoding="utf-8"), path
