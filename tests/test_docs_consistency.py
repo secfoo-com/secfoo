@@ -101,3 +101,32 @@ def test_product_description_is_the_same_everywhere() -> None:
     for path in (ROOT / "src/secfoo/cli.py", ROOT / "CITATION.cff", ROOT / "npm/secfoo/package.json",
                  ROOT / "npm/secfoo/README.md"):
         assert "Context-based security architectural assessment" not in path.read_text(encoding="utf-8"), path
+
+
+# --- packaging drift (#120) -------------------------------------------------
+
+_OBSOLETE_ORG_REFS = re.compile(r"github\.com/rakfortltd|raw\.githubusercontent\.com/rakfortltd|ghcr\.io/rakfortltd|REPO=\"rakfortltd|Repo = \"rakfortltd")
+
+
+def _tracked_text_files() -> list[Path]:
+    suffixes = {".md", ".sh", ".ps1", ".yml", ".yaml", ".json", ".cff", ".toml"}
+    skip = {"node_modules", ".git"}
+    files = [p for p in ROOT.rglob("*") if p.is_file() and p.suffix in suffixes and not skip & set(p.parts)]
+    files += [ROOT / "Dockerfile"]
+    return [p for p in files if p.resolve() != Path(__file__).resolve()]
+
+
+def test_no_references_to_the_old_github_org_or_image() -> None:
+    """Repo URLs, the installers and the image live under secfoo-com; the npm
+    scope `@rakfortltd/` is a published package name and is allowed."""
+    offenders = []
+    for path in _tracked_text_files():
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if _OBSOLETE_ORG_REFS.search(line):
+                offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+    assert offenders == []
+
+
+def test_about_version_parses() -> None:
+    text = (ROOT / "src" / "secfoo" / "__about__.py").read_text(encoding="utf-8")
+    assert re.search(r'^__version__ = "\d+\.\d+\.\d+"$', text, re.MULTILINE)

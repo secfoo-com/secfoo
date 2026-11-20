@@ -1,4 +1,4 @@
-# Published to ghcr.io/rakfortltd/secfoo by .github/workflows/release.yml.
+# Published to ghcr.io/secfoo-com/secfoo by .github/workflows/release.yml.
 # Installs from PyPI rather than PyInstaller-bundling -- simplest, most
 # robust route for a container image, since there's no cross-platform
 # concern (the image itself is the platform).

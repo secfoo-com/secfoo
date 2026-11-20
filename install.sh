@@ -1,6 +1,6 @@
 #!/bin/sh
 # Universal installer for secfoo (macOS/Linux). Usage:
-#   curl -fsSL https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.sh | sh
 #
 # Downloads the correct standalone binary from the latest GitHub Release,
 # verifies its checksum, and installs it to $PREFIX/bin (default
@@ -8,7 +8,7 @@
 # POSIX sh only -- no bashisms -- since /bin/sh is dash on many systems.
 set -e
 
-REPO="rakfortltd/secfoo"
+REPO="secfoo-com/secfoo"
 PREFIX="${PREFIX:-/usr/local}"
 
 os_name() {

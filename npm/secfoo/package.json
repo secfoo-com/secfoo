@@ -16,10 +16,10 @@
     "node": ">=16"
   },
   "license": "Apache-2.0",
-  "homepage": "https://github.com/rakfortltd/secfoo",
+  "homepage": "https://github.com/secfoo-com/secfoo",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rakfortltd/secfoo.git"
+    "url": "git+https://github.com/secfoo-com/secfoo.git"
   },
   "keywords": [
     "security",
