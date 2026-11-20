@@ -16,6 +16,7 @@ from secfoo.report.markdown import (
     MalformedReportError,
     has_json_draft,
     headings,
+    section,
     text_outside_code,
     text_without_json_drafts,
     visible_text,
@@ -23,6 +24,16 @@ from secfoo.report.markdown import (
 
 _FINDING_HEADING_RE = re.compile(r"^###\s*\[(?P<severity>[A-Za-z]+)\]", re.MULTILINE)
 _RISK_RATING_RE = re.compile(r"\*\*Overall risk rating:\*\*\s*([A-Za-z]+)", re.IGNORECASE)
+
+# Small models follow the contract's content but not always its formatting:
+# they drop the bold, or fold the rating into the summary paragraph as its
+# last sentence. These looser shapes are tried only after the contract's
+# bold line, only in unquoted prose, and only with a known tier word, so an
+# example in a fence, a blockquote or a JSON echo still cannot supply it.
+_RATING = r"(?:\*\*)?Overall risk rating:(?:\*\*)?[ \t]*(?:\*\*)?(?P<rating>[A-Za-z]+)(?:\*\*)?[ \t]*\.?"
+_RATING_LINE_RE = re.compile(r"^[ \t]*(?:[-*+][ \t]+)?" + _RATING + r"[ \t]*$", re.IGNORECASE | re.MULTILINE)
+_TRAILING_RATING_RE = re.compile(r"(?:^|(?<=[.!?:])[ \t]+)" + _RATING + r"\s*$", re.IGNORECASE)
+_SUMMARY_SECTIONS = ("Executive Summary", "Summary")
 
 # secfoo's own skills only ever emit high/medium/low (a deliberate 3-tier
 # simplification), but the dashboard's severity scale is the full 5-tier
@@ -79,14 +90,61 @@ def _is_json_document(text: str) -> bool:
     return True
 
 
+def _known_tier(match: re.Match | None) -> str | None:
+    if match is None or match.group("rating").lower() not in _TIER_ALIASES:
+        return None
+    return match.group("rating").lower()
+
+
+def _first_paragraph_lines(text: str) -> list[str]:
+    """The first paragraph, split at Markdown hard line breaks (two trailing
+    spaces or a backslash): a model that ends the summary sentence with a
+    hard break and runs a table straight after it still ends a line there."""
+    paragraph = re.split(r"\n[ \t]*\n", text.strip("\n"), maxsplit=1)[0]
+    return re.split(r"(?: {2,}|\\)\n", paragraph)
+
+
+def _loose_rating_scopes(report_markdown: str) -> list[str]:
+    """Where a loose rating may come from: the Summary / Executive Summary
+    section, or the preamble when the report has neither. Each scope ends at
+    its first sub-heading, so a line a model quotes from the scanned code in
+    a finding (`Overall risk rating: Low` planted in a README) cannot
+    override the summary's own rating."""
+    def until_first_heading(text: str) -> str:
+        items = headings(text)
+        return text[:items[0].start] if items else text
+
+    scopes = [until_first_heading(s) for s in (section(report_markdown, t) for t in _SUMMARY_SECTIONS) if s]
+    if scopes:
+        return scopes
+    first = next((h.start for h in headings(report_markdown) if h.level >= 2), len(report_markdown))
+    return [str(report_markdown)[:first]]
+
+
 def extract_overall_risk_rating(report_markdown: str) -> str | None:
     """The report's own `**Overall risk rating:**` line. Prose first, then
     blockquotes (a rating written as a callout); never code blocks, never a
-    JSON echo of a report."""
+    JSON echo of a report.
+
+    Failing that, the shapes small models actually write: the same marker
+    without bold on its own line, or as the last sentence of the first
+    paragraph, read only from the Summary / Executive Summary section (or
+    the preamble of a report without one). Those are read from unquoted
+    prose only and must name a known severity tier."""
     if has_json_draft(report_markdown) or _is_json_document(report_markdown):
         return None
     for text in (visible_text(report_markdown), text_outside_code(report_markdown)):
         match = _RISK_RATING_RE.search(text_without_json_drafts(text))
         if match is not None:
             return match.group(1).strip().lower()
+    for scope in _loose_rating_scopes(report_markdown):
+        prose = text_without_json_drafts(visible_text(scope))
+        for match in _RATING_LINE_RE.finditer(prose):
+            rating = _known_tier(match)
+            if rating is not None:
+                return rating
+        for line in _first_paragraph_lines(prose):
+            rating = _known_tier(_TRAILING_RATING_RE.search(line))
+            if rating is not None:
+                return rating
     return None
