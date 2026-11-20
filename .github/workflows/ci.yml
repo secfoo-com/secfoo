@@ -84,3 +84,27 @@ jobs:
         # it to make a PR pass.
         if: ${{ !cancelled() }}
         run: coverage report --fail-under=90
+
+  docs:
+    name: Docs (links, version)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: __about__.py is at or above the latest PyPI release
+        run: python scripts/check_pypi_version.py
+
+      - name: Check links in README.md and docs/
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        env:
+          # Authenticated github.com requests avoid the anonymous rate limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --no-progress --max-retries 2 --accept 200,201,204,429 --exclude '^https?://(localhost|127\.0\.0\.1)' --exclude 'ghcr\.io' --exclude 'npmjs\.com' --exclude 'raw\.githubusercontent\.com/.*/leaderboard' README.md 'docs/**/*.md'
+          fail: true

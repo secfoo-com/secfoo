@@ -1,5 +1,5 @@
 # Universal installer for secfoo (Windows). Usage:
-#   irm https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.ps1 | iex
 #
 # Downloads the latest secfoo-win32-x64.exe from GitHub Releases, verifies
 # its checksum, and installs it to $env:LOCALAPPDATA\secfoo\secfoo.exe,
@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "rakfortltd/secfoo"
+$Repo = "secfoo-com/secfoo"
 $InstallDir = Join-Path $env:LOCALAPPDATA "secfoo"
 $Asset = "secfoo-win32-x64.exe"
 

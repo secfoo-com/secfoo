@@ -721,16 +721,16 @@ pipx install secfoo
 npm install -g @rakfortltd/secfoo
 
 # Universal installer script (macOS/Linux, no Python or Node needed)
-curl -fsSL https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.sh | sh
 
 # Windows (PowerShell), no Python or Node needed
-irm https://raw.githubusercontent.com/rakfortltd/secfoo/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/secfoo-com/secfoo/main/install.ps1 | iex
 
 # Docker (nothing installed on the host at all)
-docker run --rm ghcr.io/rakfortltd/secfoo --help
+docker run --rm ghcr.io/secfoo-com/secfoo --help
 
 # Or grab a binary directly for your platform from the Releases page:
-# https://github.com/rakfortltd/secfoo/releases
+# https://github.com/secfoo-com/secfoo/releases
 ```
 
 Developing on this repo instead? `pip install -e ".[dev]"`.
@@ -1033,11 +1033,17 @@ when a maintainer with write access runs the Release workflow by hand
 deliberately not triggered by tag pushes. The run creates the GitHub Release
 for that tag, attaches the binaries and a `SHA256SUMS` file, and in the same
 run publishes to PyPI, npm and GHCR. A PyPI version cannot be re-uploaded, so
-dispatch it only for a version you mean to release.
+dispatch it only for a version you mean to release. Releases, tags and
+the GitHub Release assets are cut from `secfoo-com/secfoo`; the tag must
+already exist and match `src/secfoo/__about__.py`.
+Between releases `main` carries the next development version (for example
+`0.3.2.dev0`); the release commit sets it to the final `X.Y.Z` before tagging.
+CI fails if `__about__.py` is ever behind the latest PyPI release.
 
 - **pip**: the "real"/native path — a normal Python sdist+wheel, published
   to PyPI as usual.
-- **npm**: `@rakfortltd/secfoo` is a tiny meta-package whose
+- **npm**: `@rakfortltd/secfoo` (the npm scope is `@rakfortltd`; the source
+  repository and releases are `secfoo-com/secfoo`) is a tiny meta-package whose
   `optionalDependencies` are 5 per-platform packages
   (`@rakfortltd/secfoo-darwin-arm64`, etc.), each containing just that
   platform's binary. npm installs only the one matching your machine —
@@ -1045,7 +1051,7 @@ dispatch it only for a version you mean to release.
   behind a locked-down corporate npm/Artifactory mirror.
 - **install.sh / install.ps1**: detect your OS/arch, download the matching
   binary from the latest GitHub Release, verify its SHA256, install it.
-- **Docker**: `ghcr.io/rakfortltd/secfoo`, built from the PyPI package on
+- **Docker**: `ghcr.io/secfoo-com/secfoo`, built from the PyPI package on
   a slim Python base (simplest, most robust route for a container image —
   no cross-platform concern since the image itself is the platform).
   **Note**: none of the agent CLIs listed in the
@@ -1060,7 +1066,7 @@ dispatch it only for a version you mean to release.
 
   ```bash
   docker run --rm -p 8787:8787 -v ~/.secfoo:/root/.secfoo \
-    ghcr.io/rakfortltd/secfoo serve --host 0.0.0.0 --port 8787
+    ghcr.io/secfoo-com/secfoo serve --host 0.0.0.0 --port 8787
   ```
 
 - **GitHub Action**: `uses: secfoo-com/secfoo@main` (composite action in

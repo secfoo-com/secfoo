@@ -5,7 +5,10 @@ from __future__ import annotations
 import inspect
 import json
 import re
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -101,3 +104,65 @@ def test_product_description_is_the_same_everywhere() -> None:
     for path in (ROOT / "src/secfoo/cli.py", ROOT / "CITATION.cff", ROOT / "npm/secfoo/package.json",
                  ROOT / "npm/secfoo/README.md"):
         assert "Context-based security architectural assessment" not in path.read_text(encoding="utf-8"), path
+
+
+# --- packaging drift (#120) -------------------------------------------------
+
+_OBSOLETE_ORG_REFS = re.compile(r"github\.com/rakfortltd|raw\.githubusercontent\.com/rakfortltd|ghcr\.io/rakfortltd|REPO=\"rakfortltd|Repo = \"rakfortltd")
+
+
+def _tracked_text_files() -> list[Path]:
+    """Text files git tracks, so a local .venv, build/ or dist/ can't produce
+    false hits; fuzz reproducers and test fixtures are deliberately odd bytes."""
+    suffixes = {".md", ".sh", ".ps1", ".yml", ".yaml", ".json", ".cff", ".toml"}
+    names = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True).stdout
+    paths = [ROOT / name for name in names.decode().split("\0") if name]
+    return [p for p in paths
+            if (p.suffix in suffixes or p.name == "Dockerfile") and p.is_file()
+            and not p.relative_to(ROOT).as_posix().startswith(("fuzz/corpus/", "tests/fixtures/"))
+            and p.resolve() != Path(__file__).resolve()]
+
+
+def test_no_references_to_the_old_github_org_or_image() -> None:
+    """Repo URLs, the installers and the image live under secfoo-com; the npm
+    scope `@rakfortltd/` is a published package name and is allowed."""
+    files = _tracked_text_files()
+    assert any(p.name == "install.sh" for p in files) and any(p.name == "Dockerfile" for p in files)
+    offenders = []
+    for path in files:
+        for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+            if _OBSOLETE_ORG_REFS.search(line):
+                offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+    assert offenders == []
+
+
+def _check_pypi_version():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_pypi_version", ROOT / "scripts/check_pypi_version.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_about_version_is_pep440_and_not_behind_the_last_tagged_release() -> None:
+    check = _check_pypi_version()
+    local = check.local_version()
+    check.parse(local)  # raises on anything the release check can't compare
+    tags = subprocess.run(["git", "tag", "--list", "v*"], cwd=ROOT, capture_output=True, text=True, check=False).stdout.split()
+    for tag in tags:
+        assert check.parse(local) >= check.parse(tag[1:]), f"__about__.py {local} is behind tag {tag}"
+
+
+@pytest.mark.parametrize(("lower", "higher"), [
+    ("0.3.0", "0.3.1"), ("0.3.1", "0.3.2.dev0"), ("0.3.2.dev0", "0.3.2a1"), ("0.3.2a1", "0.3.2rc1"),
+    ("0.3.2rc1", "0.3.2"), ("0.3.2", "0.3.2.post1"), ("0.3.9", "0.3.10"), ("0.9", "0.10.0"),
+])
+def test_version_check_orders_like_pep440(lower, higher) -> None:
+    parse = _check_pypi_version().parse
+    assert parse(lower) < parse(higher)
+
+
+def test_version_check_treats_trailing_zeros_as_equal() -> None:
+    parse = _check_pypi_version().parse
+    assert parse("0.3") == parse("0.3.0")

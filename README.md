@@ -185,7 +185,7 @@ uvx secfoo --help                     # run from PyPI without installing (uv)
 pipx install secfoo                   # isolated install, Python 3.10+
 pip install secfoo                    # PyPI
 npm install -g @rakfortltd/secfoo     # npm, no Python needed
-docker run --rm ghcr.io/rakfortltd/secfoo --help
+docker run --rm ghcr.io/secfoo-com/secfoo --help
 ```
 
 No agent CLI? Use an API key:
@@ -241,7 +241,7 @@ steps:
 - **GitHub Action** with SARIF upload, job summary and severity outputs: [docs/CI.md](https://github.com/secfoo-com/secfoo/blob/main/docs/CI.md#github-actions)
 - **pre-commit**: `repo: https://github.com/secfoo-com/secfoo`, hooks `secfoo-secrets` and `secfoo` ([example](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/pre-commit-config.yaml))
 - **GitLab CI** job with SARIF artifact: [examples/ci/gitlab-ci.yml](https://github.com/secfoo-com/secfoo/blob/main/examples/ci/gitlab-ci.yml)
-- **Docker**: `docker run --rm ghcr.io/rakfortltd/secfoo --help`
+- **Docker**: `docker run --rm ghcr.io/secfoo-com/secfoo --help`
 - **Anywhere else**: `secfoo run ... --json --fail-on high`, then `secfoo findings export --format sarif`. Exit codes `0` clean, `1` run failed, `2` findings gate, `3` cost gate.
 
 ## Learn more
