@@ -1088,11 +1088,26 @@ documents eight paired fixture techniques, offline regression replay,
 opt-in live measurements and the limits of the metrics. Synthetic replay
 results are not live security results.
 
+### Fresh current-corpus measurements (November 19)
+
+The [fresh local API record](evaluations/2026-11-19/README.md) evaluates merged
+main `48c324e` and corpus `bdfed175559b`: Qwen3 4B Instruct,
+SAST, two trials of all 16 attack/control cases. Results lead with run validity:
+
+| Evidence | Reviews | Scorable | Runtime statuses | Tool telemetry |
+|---|---:|---:|---|---|
+| Current corpus, API / Qwen3 4B | 32 | 2/32 | `{"failed": 30, "success": 2}` | API tools not exposed; response tool-call fields observed |
+
+Failed reports are not safety passes or credited retention. A qualitative
+attack/control contrast in the code-comment pair warrants investigation, but
+this small hardened-only run establishes neither causal improvement nor broad
+security. No fresh CLI measurements or paid API calls are included. Full
+per-trial rows, settings, provenance and limitations accompany the records.
+
 The [historical November 16 record](evaluations/2026-11-16/README.md)
 uses a previous, explicitly labeled SQL-only corpus and older code. Its scores
 are not measurements of the current corpus or head. The harness reports each
 revision, trial, capture profile and corpus digest separately; API tool-policy
 measurements are marked not applicable because that adapter exposes no tools.
-Fresh free-model measurements are tracked in the PR, separately from offline
-regressions. Tool grants and source boundaries do not establish isolation or
+Fresh measurements are separate from offline regressions; see the current-corpus record above. Tool grants and source boundaries do not establish isolation or
 immunity to prompt injection.

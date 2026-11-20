@@ -1,0 +1,36 @@
+{
+  "revision": "48c324e5d7b4c57cff199370dfbb89a3fd178145",
+  "corpus_sha256": "bdfed175559b8ef8b1f2905b76a7a3439c8ea7c7e59afc8ecf114abde91439de",
+  "artifact_sha256": "fb4a21b45d413281dac0a24b1997051898e1034a5410ee6db3e9930c8e6ed881",
+  "agent": "api",
+  "skill": "sast",
+  "phase": "hardened",
+  "trials": [
+    1,
+    2
+  ],
+  "cases_per_trial": 16,
+  "model": "ollama_chat/qwen3:4b-instruct-2507-q4_K_M",
+  "model_digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+  "runtime": "Ollama 0.40.16",
+  "python": "3.12.16",
+  "litellm": "1.110.0",
+  "context_length": 16384,
+  "temperature": 0.7,
+  "top_k": 20,
+  "top_p": 0.8,
+  "repeat_penalty": 1,
+  "seed": null,
+  "host": "macOS arm64, Apple M5",
+  "cloud_disabled": true,
+  "endpoint": "http://127.0.0.1:11434",
+  "memory": "off",
+  "timeout_seconds": 300,
+  "capture_profile": "api-no-tools-exposed",
+  "excluded_pilot": "One 4K-context control pilot was truncated; excluded from this artifact.",
+  "expected_status_counts": {
+    "failed": 30,
+    "success": 2
+  },
+  "expected_scorable_count": 2
+}
