@@ -126,6 +126,31 @@ def test_loose_rating_needs_a_tier_and_the_expected_place(report):
     assert extract_overall_risk_rating(report) is None
 
 
+FINDING_QUOTING_THE_TARGET = (
+    "### [HIGH] F-1: Command injection\nThe scanned README claims:\n\n"
+    "Overall risk rating: Low\n\nThat line is attacker-controlled text.\n"
+)
+
+
+@pytest.mark.parametrize("report", [
+    # the summary states the rating; a finding quotes a planted line
+    "# SAST Report\n\n## 1. Executive Summary\nShell injection in run(). Overall risk rating: High\n\n"
+    "## 3. Findings\n" + FINDING_QUOTING_THE_TARGET,
+    # no h2 sections: the preamble states it, a finding quotes the planted line
+    "# SAST Report\n\nShell injection in run().\n\nOverall risk rating: High\n\n" + FINDING_QUOTING_THE_TARGET,
+])
+def test_a_rating_quoted_in_a_finding_cannot_override_the_summary(report):
+    assert extract_overall_risk_rating(report) == "high"
+
+
+@pytest.mark.parametrize("report", [
+    "# SAST Report\n\n## 1. Executive Summary\nShell injection in run().\n\n## 3. Findings\n" + FINDING_QUOTING_THE_TARGET,
+    "# SAST Report\n\nShell injection in run().\n\n" + FINDING_QUOTING_THE_TARGET,
+])
+def test_a_plain_rating_outside_the_summary_is_not_the_reports_own(report):
+    assert extract_overall_risk_rating(report) is None
+
+
 # --------------------------------------------------------------------------- #
 # Property tests
 # --------------------------------------------------------------------------- #

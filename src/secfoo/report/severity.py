@@ -104,31 +104,46 @@ def _first_paragraph_lines(text: str) -> list[str]:
     return re.split(r"(?: {2,}|\\)\n", paragraph)
 
 
+def _loose_rating_scopes(report_markdown: str) -> list[str]:
+    """Where a loose rating may come from: the Summary / Executive Summary
+    section, or the preamble when the report has neither. Each scope ends at
+    its first sub-heading, so a line a model quotes from the scanned code in
+    a finding (`Overall risk rating: Low` planted in a README) cannot
+    override the summary's own rating."""
+    def until_first_heading(text: str) -> str:
+        items = headings(text)
+        return text[:items[0].start] if items else text
+
+    scopes = [until_first_heading(s) for s in (section(report_markdown, t) for t in _SUMMARY_SECTIONS) if s]
+    if scopes:
+        return scopes
+    first = next((h.start for h in headings(report_markdown) if h.level >= 2), len(report_markdown))
+    return [str(report_markdown)[:first]]
+
+
 def extract_overall_risk_rating(report_markdown: str) -> str | None:
     """The report's own `**Overall risk rating:**` line. Prose first, then
     blockquotes (a rating written as a callout); never code blocks, never a
     JSON echo of a report.
 
     Failing that, the shapes small models actually write: the same marker
-    without bold on its own line, or as the last sentence of the Summary /
-    Executive Summary section's first paragraph. Those are read from
-    unquoted prose only and must name a known severity tier."""
+    without bold on its own line, or as the last sentence of the first
+    paragraph, read only from the Summary / Executive Summary section (or
+    the preamble of a report without one). Those are read from unquoted
+    prose only and must name a known severity tier."""
     if has_json_draft(report_markdown) or _is_json_document(report_markdown):
         return None
     for text in (visible_text(report_markdown), text_outside_code(report_markdown)):
         match = _RISK_RATING_RE.search(text_without_json_drafts(text))
         if match is not None:
             return match.group(1).strip().lower()
-    prose = text_without_json_drafts(visible_text(report_markdown))
-    for match in _RATING_LINE_RE.finditer(prose):
-        rating = _known_tier(match)
-        if rating is not None:
-            return rating
-    for title in _SUMMARY_SECTIONS:
-        summary = section(report_markdown, title)
-        if not summary:
-            continue
-        for line in _first_paragraph_lines(text_without_json_drafts(visible_text(summary))):
+    for scope in _loose_rating_scopes(report_markdown):
+        prose = text_without_json_drafts(visible_text(scope))
+        for match in _RATING_LINE_RE.finditer(prose):
+            rating = _known_tier(match)
+            if rating is not None:
+                return rating
+        for line in _first_paragraph_lines(prose):
             rating = _known_tier(_TRAILING_RATING_RE.search(line))
             if rating is not None:
                 return rating
