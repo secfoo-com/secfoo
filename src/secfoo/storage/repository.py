@@ -139,12 +139,37 @@ RESPONSIBLE_AI_RISK_BY_RATING = {
 }
 
 
+# RunRepository setup retries these on a fresh connection (see __init__).
+_TRANSIENT_OPEN_ERRORS = ("database is locked", "database schema has changed")
+_OPEN_RETRY_SECONDS = 10.0
+
+
 class RunRepository:
     def __init__(self, db_path: Path | None = None) -> None:
         ensure_store_dirs()
         self.db_path = db_path or _default_db_path.get() or DB_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.db_path)
+        # Several skills open the store at once in their own threads. On a
+        # new or pre-WAL database two setup steps can fail without waiting
+        # for busy_timeout: switching to WAL needs an exclusive lock that
+        # SQLite does not wait for ("database is locked"), and statements
+        # can lose the race against another connection creating the tables
+        # ("database schema has changed"). Every setup step is idempotent,
+        # so setup is retried on a fresh connection until a deadline.
+        deadline = time.monotonic() + _OPEN_RETRY_SECONDS
+        while True:
+            self._conn = sqlite3.connect(self.db_path)
+            try:
+                self._set_up()
+                return
+            except sqlite3.OperationalError as exc:
+                self._conn.close()
+                transient = any(message in str(exc) for message in _TRANSIENT_OPEN_ERRORS)
+                if not transient or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+
+    def _set_up(self) -> None:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         # Skills run concurrently in separate threads, each with its own
@@ -155,28 +180,14 @@ class RunRepository:
         # dashboard) proceed without blocking on a concurrent writer (a
         # run in progress) -- readers otherwise wait behind the default
         # rollback-journal's writer lock. Requires local disk, not
-        # NFS/EFS-backed storage, for the portal host.
-        self._enable_wal()
+        # NFS/EFS-backed storage, for the portal host. The mode persists in
+        # the file, so only the first open ever switches it.
+        self._conn.execute("PRAGMA journal_mode = WAL").fetchone()
         self._conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
         self._migrate()
         self._conn.executescript(SCHEMA_INDEXES_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
-
-    def _enable_wal(self, attempts: int = 100) -> None:
-        """Switches the file to WAL (persistent, so this is a no-op after the
-        first open). Switching a rollback-journal database needs an exclusive
-        lock, and SQLite returns "database is locked" for it at once instead
-        of honouring busy_timeout, so the first parallel open of a new or
-        pre-WAL database (several skills at once) retries briefly."""
-        for attempt in range(attempts):
-            try:
-                self._conn.execute("PRAGMA journal_mode = WAL").fetchone()
-                return
-            except sqlite3.OperationalError as exc:
-                if "locked" not in str(exc) or attempt == attempts - 1:
-                    raise
-                time.sleep(0.05)
 
     def _migrate(self) -> None:
         existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()}

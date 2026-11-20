@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import traceback
 import typing
 
 import pytest
@@ -156,9 +157,11 @@ def test_runs_without_any_status_check_are_left_alone(tmp_path):
 
 
 @pytest.mark.parametrize("make_db", ["old", "missing"])
-def test_parallel_first_opens_never_see_database_is_locked(tmp_path, make_db):
+def test_parallel_first_opens_never_fail(tmp_path, make_db):
     """Switching a database to WAL takes an exclusive lock that SQLite does
-    not wait for; parallel first opens used to fail about 1 in 20 times."""
+    not wait for, and a connection can lose the race against another one
+    creating the tables; parallel first opens used to fail about 1 in 20
+    times with "database is locked" or "database schema has changed"."""
     for attempt in range(25):
         db = tmp_path / f"{attempt}.db"
         if make_db == "old":
@@ -170,14 +173,60 @@ def test_parallel_first_opens_never_see_database_is_locked(tmp_path, make_db):
             try:
                 barrier.wait()
                 RunRepository(db_path=db).close()
-            except Exception as exc:  # noqa: BLE001 -- surfaced by the assert below
-                errors.append(exc)
+            except Exception:  # noqa: BLE001 -- surfaced by the assert below
+                errors.append(traceback.format_exc())
 
         threads = [threading.Thread(target=open_repo) for _ in range(6)]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
-        assert errors == []
+        assert not errors, "\n".join(errors)
         with sqlite3.connect(db) as conn:
             assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+
+
+@pytest.mark.parametrize("message", ["database is locked", "database schema has changed"])
+def test_setup_retries_a_transient_error_on_a_fresh_connection(tmp_path, monkeypatch, message):
+    real_set_up = RunRepository._set_up
+    connections = []
+
+    def flaky_set_up(self):
+        connections.append(self._conn)
+        if len(connections) < 3:
+            raise sqlite3.OperationalError(message)
+        real_set_up(self)
+
+    monkeypatch.setattr(RunRepository, "_set_up", flaky_set_up)
+    repo = RunRepository(db_path=tmp_path / "s.db")
+    try:
+        assert len(connections) == 3 and len({id(c) for c in connections}) == 3
+        assert repo._conn is connections[-1]
+        assert repo._conn.execute("SELECT count(*) FROM runs").fetchone()[0] == 0
+    finally:
+        repo.close()
+    with pytest.raises(sqlite3.ProgrammingError):  # the failed attempts' connections were closed
+        connections[0].execute("SELECT 1")
+
+
+def test_setup_does_not_retry_other_errors(tmp_path, monkeypatch):
+    calls = []
+
+    def broken_set_up(self):
+        calls.append(1)
+        raise sqlite3.OperationalError("no such table: runs")
+
+    monkeypatch.setattr(RunRepository, "_set_up", broken_set_up)
+    with pytest.raises(sqlite3.OperationalError, match="no such table"):
+        RunRepository(db_path=tmp_path / "s.db")
+    assert calls == [1]
+
+
+def test_setup_gives_up_after_the_deadline(tmp_path, monkeypatch):
+    from secfoo.storage import repository
+
+    monkeypatch.setattr(repository, "_OPEN_RETRY_SECONDS", 0.2)
+    monkeypatch.setattr(RunRepository, "_set_up", lambda self: (_ for _ in ()).throw(
+        sqlite3.OperationalError("database is locked")))
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        RunRepository(db_path=tmp_path / "s.db")
