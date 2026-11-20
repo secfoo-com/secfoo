@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,6 +118,8 @@ def _gemini_add_command(server: MCPServerConfig) -> list[str]:
 
 
 def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if shutil.which("gemini") is None:
+        return [SyncResult("*", False, "gemini isn't installed (not found on PATH)")]
     existing = _gemini_existing_names()
     results = []
     for server in servers:
@@ -135,6 +138,8 @@ def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
 
 
 def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if shutil.which("agent") is None:
+        return [SyncResult("*", False, "agent isn't installed (not found on PATH)")]
     CURSOR_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     existing: dict = {}
     if CURSOR_MCP_CONFIG_PATH.exists():
