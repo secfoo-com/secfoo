@@ -1,4 +1,4 @@
-"""Devin CLI adapter.
+r"""Devin CLI adapter.
 
 Answers the open question the Q4 sprint plan flagged for this integration
 ("check whether Devin offers a true local CLI vs. only a cloud session
@@ -64,6 +64,10 @@ this. Every flag above parses correctly against the real CLI, and
 `failed` status rather than crashing (same shape confirmed for the droid
 adapter) -- but no real report has been produced or inspected. Re-run
 the adapter tests plus one real assessment once an account is available.
+
+MCP servers from ~/.secfoo/config.toml reach Devin via `secfoo mcp sync
+--agent devin`, which merges into ~/.config/devin/mcp_config.json
+(%APPDATA%\devin\mcp_config.json on Windows).
 """
 
 from __future__ import annotations

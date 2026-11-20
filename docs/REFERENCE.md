@@ -961,16 +961,23 @@ your installed CLI version; an invalid ID is reported by that CLI.
 
 How MCP servers reach each agent varies by what its CLI actually supports:
 
-| Agent | Mechanism |
-|---|---|
-| `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
-| `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
-| `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
-| `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |
+| Agent | Mechanism | Guidance |
+|---|---|---|
+| `claude` | per-run | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
+| `agent` | sync | Run `secfoo mcp sync --agent agent` once to register persistently in `~/.cursor/mcp.json` |
+| `gemini` | sync | Run `secfoo mcp sync --agent gemini` once to register persistently via `gemini mcp add` |
+| `codex` | sync | Run `secfoo mcp sync --agent codex` once to merge persistently into `~/.codex/config.toml` without clobbering other settings |
+| `copilot` | sync | Run `secfoo mcp sync --agent copilot` once to register persistently in `~/.copilot/mcp-config.json` |
+| `opencode` | sync | Run `secfoo mcp sync --agent opencode` once to register persistently in `~/.config/opencode/opencode.json` |
+| `droid` | sync | Run `secfoo mcp sync --agent droid` once to register persistently in `~/.factory/mcp.json` |
+| `devin` | sync | Run `secfoo mcp sync --agent devin` once to register persistently in `~/.config/devin/mcp_config.json` (%APPDATA%\devin\mcp_config.json on Windows) |
+| `agy` | none | Not supported — the `agy` CLI has no MCP configuration mechanism as of 2026-11-20 (verified against Antigravity CLI 2.0) |
+| `api` | none | Not supported — the `api` agent calls model APIs directly and has no tool-use loop for MCP servers |
 
 ```bash
 secfoo mcp list                    # show what's configured
 secfoo mcp sync --agent gemini     # register into gemini's own config
+secfoo mcp sync                    # register into all supported persistent agents
 ```
 
 ## Pattern memory (`secfoo-memory`)
@@ -990,8 +997,9 @@ secfoo memory logout
 
 Once a key is saved, secfoo registers `secfoo-memory` as a default MCP
 server. `secfoo mcp list` shows it next to your own servers. `claude` picks
-it up on every run. For `gemini` or Cursor (`agent`), run
-`secfoo mcp sync --agent <agent>` once. The `api` agent has no tool loop,
+it up on every run. For persistent agents (`gemini`, `agent`, `codex`, `copilot`,
+`opencode`, `droid`, `devin`), run `secfoo mcp sync --agent <agent>` once (or
+`secfoo mcp sync` to sync all). The `api` agent has no tool loop,
 so memory doesn't apply to it. When memory is on, the prompt tells the
 agent when to use the three tools (`lookup_patterns`, `get_remediation`,
 `check_false_positive`) and how to phrase a query.

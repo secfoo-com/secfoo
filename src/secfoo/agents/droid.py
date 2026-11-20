@@ -38,6 +38,9 @@ against the real CLI (see above) but a full `secfoo run --agent droid`
 against a live account has not been exercised. Re-run the adapter tests
 plus one real assessment once a key is available, before relying on this
 in CI.
+
+MCP servers from ~/.secfoo/config.toml reach Droid via `secfoo mcp sync
+--agent droid`, which merges into ~/.factory/mcp.json.
 """
 
 from __future__ import annotations

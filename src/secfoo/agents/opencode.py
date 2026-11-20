@@ -3,6 +3,9 @@
 The non-interactive `run` command reads the prompt from stdin and rejects
 permission requests without --auto. Read-only permissions are configured via
 OPENCODE_CONFIG_CONTENT and OPENCODE_PERMISSION; --pure disables external plugins.
+
+MCP servers from ~/.secfoo/config.toml reach OpenCode via `secfoo mcp sync
+--agent opencode`, which merges into ~/.config/opencode/opencode.json.
 """
 
 from __future__ import annotations

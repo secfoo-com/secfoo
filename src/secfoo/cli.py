@@ -977,17 +977,19 @@ def serve_key_revoke(key_id: Annotated[int, typer.Argument(help="Key id from `se
 
 @app.command()
 def agents() -> None:
-    """List known agent adapters and whether their CLI is installed."""
+    """List known agent adapters, whether their CLI is installed, and MCP support."""
     table = Table(title="Agent adapters")
     table.add_column("Agent ID")
     table.add_column("Binary")
     table.add_column("Available")
+    table.add_column("MCP")
 
     for agent_id in ADAPTERS:
         adapter = get_adapter(agent_id)
         available = adapter.is_available()
         style = "green" if available else "red"
-        table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]")
+        mcp_mode = mcp_module.agent_mcp_mechanism(agent_id)
+        table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]", mcp_mode)
     console.print(table)
 
 
@@ -2639,19 +2641,22 @@ def mcp_list() -> None:
     console.print(table)
     console.print(
         "\n[bold]claude[/] picks these up automatically on every run (--mcp-config, "
-        "scoped to that run only).\nFor [bold]gemini[/] or [bold]agent[/] (Cursor), run "
-        "[bold]secfoo mcp sync --agent <agent>[/] once to register them persistently."
+        "scoped to that run only).\nFor persistent agents ([bold]gemini, agent, codex, copilot, "
+        "opencode, droid, devin[/]), run [bold]secfoo mcp sync --agent <agent>[/] (or [bold]secfoo mcp sync[/] "
+        "to sync all) to register them persistently."
     )
 
 
 @mcp_app.command(name="sync")
 def mcp_sync(
-    agent: AgentId = typer.Option(..., "--agent", "-a", help="Which agent's MCP config to update."),
+    agent: AgentId | None = typer.Option(
+        None, "--agent", "-a", help="Which agent's MCP config to update. Omit to sync all supported agents."
+    ),
 ) -> None:
-    """Register configured MCP servers persistently into gemini's or Cursor's own
-    config. claude doesn't need this -- it picks up ~/.secfoo/config.toml
-    automatically on every run. agy isn't supported (its CLI has no MCP
-    configuration mechanism yet).
+    """Register configured MCP servers persistently into agent CLI configs.
+
+    claude doesn't need this -- it picks up ~/.secfoo/config.toml automatically
+    on every run. agy and api are not supported (they have no CLI MCP mechanism).
     """
     try:
         cfg = load_config()
@@ -2664,22 +2669,27 @@ def mcp_sync(
         console.print(f"No MCP servers configured in {CONFIG_PATH} -- nothing to sync.")
         return
 
-    if agent.value == "claude":
+    if agent is not None and agent.value == "claude":
         console.print("[yellow]claude doesn't need syncing[/] -- it loads MCP servers automatically on every run.")
         return
 
-    try:
-        results = mcp_module.sync(agent.value, servers)
-    except ValueError as exc:
-        err_console.print(f"[red]Error:[/] {exc}")
-        raise typer.Exit(code=1) from None
-
+    target_agents = [agent.value] if agent is not None else sorted(mcp_module.SYNC_SUPPORTED_AGENTS)
     any_failed = False
-    for result in results:
-        style = "green" if result.ok else "red"
-        console.print(f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}")
-        if not result.ok:
-            any_failed = True
+    for target in target_agents:
+        if len(target_agents) > 1:
+            console.print(f"[bold]{target}:[/]")
+        try:
+            results = mcp_module.sync(target, servers)
+        except ValueError as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+
+        for result in results:
+            style = "green" if result.ok else "red"
+            console.print(f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}")
+            if not result.ok:
+                any_failed = True
+
     if any_failed:
         raise typer.Exit(code=1)
 

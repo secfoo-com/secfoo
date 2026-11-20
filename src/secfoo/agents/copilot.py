@@ -23,6 +23,9 @@ instruction, not by sandboxing, matching the same trust level the other
 adapters accept (none of claude.py/cursor.py/gemini.py/antigravity.py
 sandbox writes at the OS level either).
 
+MCP servers from ~/.secfoo/config.toml reach Copilot via `secfoo mcp sync
+--agent copilot`, which writes to ~/.copilot/mcp-config.json.
+
 `--output-format json` (JSONL events) replaces the earlier `-s` plain-text
 mode. SECFOO-10 E2E (Sep 2026, CLI 1.0.89) showed the quirk below is
 worse than cosmetic: the built-in scanner runs as a *subagent*

@@ -82,9 +82,11 @@ headers = { Authorization = "Bearer ..." }
 
 With `--agent claude` the configured servers are attached to each run
 automatically and nothing else (your global Claude config is not touched and
-the target's own `.mcp.json` is not loaded). For Gemini CLI and Cursor run
-`secfoo mcp sync --agent <agent>` once. Codex, Antigravity and the `api`
-agent cannot use MCP servers yet. Details in
+the target's own `.mcp.json` is not loaded). For persistent agents (`gemini`,
+`agent` (Cursor), `codex`, `copilot`, `opencode`, `droid`, `devin`), run
+`secfoo mcp sync --agent <agent>` once (or `secfoo mcp sync` to sync all).
+Antigravity (`agy`) and the `api` agent cannot use MCP servers (verified
+against Antigravity CLI 2.0 as of 2026-11-20). Details in
 [docs/REFERENCE.md](https://github.com/secfoo-com/secfoo/blob/main/docs/REFERENCE.md#configuration-secfooconfigtoml).
 
 ## A 30-second look at the dashboard

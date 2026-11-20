@@ -19,9 +19,9 @@ single total with no input/output split and no cost, so it is recorded as
 `secfoo cost` then shows the total under "Input tokens", "-" for output, and
 "-" for cost.
 
-MCP servers from ~/.secfoo/config.toml are not wired up for Codex yet
-(`secfoo mcp sync --agent codex` is a follow-up); Codex runs use whatever is
-already in the user's own ~/.codex/config.toml.
+MCP servers from ~/.secfoo/config.toml reach Codex via `secfoo mcp sync
+--agent codex`, which merges them into ~/.codex/config.toml without
+clobbering other settings. Codex runs use whatever is configured there.
 """
 
 from __future__ import annotations

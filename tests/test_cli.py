@@ -208,6 +208,10 @@ def test_run_command_shows_per_skill_progress(monkeypatch):
 def test_agents_command_lists_all_adapters():
     result = runner.invoke(app, ["agents"])
     assert result.exit_code == 0
+    assert "MCP" in result.stdout
+    assert "per-run" in result.stdout
+    assert "sync" in result.stdout
+    assert "none" in result.stdout
     for agent_id in ["claude", "agent", "agy", "gemini", "codex"]:
         assert agent_id in result.stdout
 
@@ -609,16 +613,39 @@ def test_mcp_sync_unsupported_agent_exits_nonzero(monkeypatch):
     )
     result = runner.invoke(app, ["mcp", "sync", "--agent", "agy"])
     assert result.exit_code == 1
+    assert "docs/REFERENCE.md" in result.output
+    assert "per-run" in result.output
 
 
-def test_mcp_sync_codex_is_reported_unsupported(monkeypatch):
+def test_mcp_sync_codex_dispatches_successfully(monkeypatch):
     servers = [MCPServerConfig(name="s", command="npx")]
     monkeypatch.setattr(
         "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
     )
+    monkeypatch.setattr(
+        mcp_module, "sync", lambda agent_id, servers: [mcp_module.SyncResult("s", True, "added")]
+    )
     result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
-    assert result.exit_code == 1
-    assert "codex" in result.output
+    assert result.exit_code == 0
+    assert "s: added" in result.output
+
+
+def test_mcp_sync_without_agent_syncs_all_supported_agents(monkeypatch):
+    servers = [MCPServerConfig(name="s", command="npx")]
+    monkeypatch.setattr(
+        "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
+    )
+    synced = []
+    monkeypatch.setattr(
+        mcp_module,
+        "sync",
+        lambda agent_id, servers: [
+            synced.append(agent_id) or mcp_module.SyncResult("s", True, "added")
+        ],
+    )
+    result = runner.invoke(app, ["mcp", "sync"])
+    assert result.exit_code == 0
+    assert set(synced) == mcp_module.SYNC_SUPPORTED_AGENTS
 
 
 @pytest.mark.parametrize("override,expected", [(None, "config-model"), ("override-model", "override-model")])

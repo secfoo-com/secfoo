@@ -24,6 +24,9 @@ renders as "no report content" in the dashboard rather than crashing;
 non-zero exit is captured as status="failed" with the stderr message
 preserved) -- but this suggests the CLI itself is still unstable this early
 in its release. If Antigravity runs are unreliable, prefer another agent.
+
+MCP: the `agy` CLI does not expose an MCP flag or configuration mechanism
+for non-interactive review runs as of 2026-11-20 (verified against Antigravity CLI 2.0).
 """
 
 from __future__ import annotations
