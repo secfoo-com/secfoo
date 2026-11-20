@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T12:19:57Z",
+  "generated_at": "2026-11-20T13:21:03Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -385,6 +385,42 @@
       "level": null
     },
     {
+      "login": "RiccardoBifulco",
+      "points": 6,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 2
+      },
+      "merged_prs": 2,
+      "awards": [
+        {
+          "pr": 155,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
+          "issue": 154,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
+          "issue_title": "Adversarial harness: record runtime provenance in every live record",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-20T11:45:17Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 158,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/158",
+          "issue": 120,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/120",
+          "issue_title": "Docs and packaging drift: `secfoo[api]` extra is obsolete, public version says 0.3.0 while PyPI is 0.3.1, install scripts point at another repo",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-20T13:20:52Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 8,
+      "level": null
+    },
+    {
       "login": "bfs2021",
       "points": 3,
       "counts": {
@@ -402,31 +438,6 @@
           "issue_title": "CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice",
           "contributor": "bfs2021",
           "merged_at": "2026-11-15T14:29:52Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 8,
-      "level": null
-    },
-    {
-      "login": "RiccardoBifulco",
-      "points": 3,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 1
-      },
-      "merged_prs": 1,
-      "awards": [
-        {
-          "pr": 155,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
-          "issue": 154,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
-          "issue_title": "Adversarial harness: record runtime provenance in every live record",
-          "contributor": "RiccardoBifulco",
-          "merged_at": "2026-11-20T11:45:17Z",
           "difficulty": "low",
           "points": 3
         }
@@ -514,6 +525,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 158,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/158",
+      "issue": 120,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/120",
+      "issue_title": "Docs and packaging drift: `secfoo[api]` extra is obsolete, public version says 0.3.0 while PyPI is 0.3.1, install scripts point at another repo",
+      "contributor": "RiccardoBifulco",
+      "merged_at": "2026-11-20T13:20:52Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 155,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
