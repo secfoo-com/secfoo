@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
+import math
 import os
 import re
 import shutil
@@ -55,7 +57,8 @@ if request["agent"] == "api":
     def observed_completion(*args, **kwargs):
         observed_kwargs.update(k for k in kwargs if k not in {"model", "messages"})
         response = original_completion(*args, **kwargs)
-        observed_models.append(str(getattr(response, "model", None)))
+        if getattr(response, "model", None):
+            observed_models.append(str(response.model))
         for choice in response.choices:
             for call in getattr(choice.message, "tool_calls", None) or []:
                 observed_calls.append({"name": call.function.name, "input": call.function.arguments})
@@ -232,17 +235,32 @@ def _is_loopback(base: str) -> bool:
     return urlsplit(base).hostname in {"localhost", "127.0.0.1", "::1"}
 
 
-def _ollama_call(base: str, path: str, payload: dict | None = None, timeout: float = 10):
+# Probes go straight to the loopback socket: no proxy from the environment
+# (which would see the request and could answer for a different server) and
+# no redirects (which could leave loopback).
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_LOOPBACK_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+
+
+def _ollama_call(base: str, path: str, payload: dict | None = None, timeout: float = 10) -> dict:
     if not _is_loopback(base):
         raise ValueError("Ollama evaluation must use a loopback endpoint")
     data = None if payload is None else json.dumps(payload).encode()
     request = urllib.request.Request(base.rstrip("/") + path, data=data,
                                      headers={"Content-Type": "application/json"} if data else {})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # loopback only (checked above)
-        return json.loads(response.read())
+    with _LOOPBACK_OPENER.open(request, timeout=timeout) as response:  # loopback only (checked above)
+        body = json.loads(response.read())
+    if not isinstance(body, dict):
+        raise TypeError(f"unexpected {path} response")
+    return body
 
 
 def _parse_modelfile_parameters(text: str) -> dict:
+    """Ollama's `parameters` text, one `name value` per line; repeated names (stop) become lists."""
     options: dict = {}
     for line in (text or "").splitlines():
         parts = line.split(None, 1)
@@ -250,11 +268,23 @@ def _parse_modelfile_parameters(text: str) -> dict:
             value = parts[1].strip()
             try:
                 number = float(value)
-                value = int(number) if number.is_integer() else number
             except ValueError:
                 pass
-            options.setdefault(parts[0], value)
+            else:
+                if math.isfinite(number):  # json.dumps would write NaN/Infinity, which is not JSON
+                    value = int(number) if number.is_integer() else number
+            if parts[0] not in options:
+                options[parts[0]] = value
+            elif isinstance(options[parts[0]], list):
+                options[parts[0]].append(value)
+            else:
+                options[parts[0]] = [options[parts[0]], value]
     return options
+
+
+def _model_names(name: str) -> set[str]:
+    # Ollama lists an untagged pull as "<name>:latest".
+    return {name} if ":" in name else {name, name + ":latest"}
 
 
 def runtime_provenance(agent: str, model: str, base: str | None = None) -> dict:
@@ -275,13 +305,15 @@ def runtime_provenance(agent: str, model: str, base: str | None = None) -> dict:
         digest = shown.get("digest")
         if not digest:
             tags = _ollama_call(base, "/api/tags").get("models", [])
-            digest = next((m.get("digest") for m in tags if name in {m.get("name"), m.get("model")}), None)
+            digest = next((m.get("digest") for m in tags
+                           if _model_names(name) & {m.get("name"), m.get("model")}), None)
         info["model_digest"] = digest
         info["model_default_options"] = _parse_modelfile_parameters(shown.get("parameters", ""))
         loaded = [m for m in _ollama_call(base, "/api/ps").get("models", [])
-                  if name in {m.get("name"), m.get("model")}]
+                  if _model_names(name) & {m.get("name"), m.get("model")}]
         info["context_length"] = loaded[0].get("context_length") if loaded else None
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, http.client.HTTPException) as error:
+        # A probe failure must not abort the evaluation; record that it failed.
         info["probe_error"] = type(error).__name__
     return info
 
@@ -346,6 +378,8 @@ def live_records(args, cases):
                 provenance["context_length"] = after.get("context_length") or provenance.get("context_length")
                 provenance["runtime_version_after"] = after.get("runtime_version")
                 provenance["model_digest_after"] = after.get("model_digest")
+                if "probe_error" in after:
+                    provenance["probe_error_after"] = after["probe_error"]
                 record["runtime_provenance"] = provenance
             if result.get("response_models"):
                 record["response_models"] = result["response_models"]
@@ -416,6 +450,8 @@ def main():
         return 0
     if args.summary and not args.records:
         parser.error("--summary requires --records")
+    if args.summary and args.summary.exists():
+        parser.error(f"{args.summary} already exists; --summary never overwrites")
     cases = load_cases()
     if args.records:
         raw = [json.loads(line) for line in args.records.read_text().split("\n") if line.strip()]

@@ -226,8 +226,19 @@ def test_invalid_case_selection_refuses_before_model_calls(args, monkeypatch):
     assert error.value.code == 2
 
 
+_TRUNCATED = ["truncated"]
+_REDIRECT = ["redirect"]
+
+
 class _FakeOllama:
-    """Loopback HTTP server that mimics the Ollama endpoints the harness probes."""
+    """Loopback HTTP server that mimics the Ollama endpoints the harness probes.
+
+    `overrides` replaces routes; a value of `_TRUNCATED` sends a short body, and
+    `_REDIRECT` answers 302 to a non-loopback host.
+    """
+
+    def __init__(self, **overrides):
+        self.overrides = overrides
 
     def __enter__(self):
         import threading
@@ -239,6 +250,7 @@ class _FakeOllama:
             "/api/tags": {"models": [{"name": "tiny:q4", "model": "tiny:q4", "digest": "d" * 64}]},
             "/api/ps": {"models": [{"name": "tiny:q4", "model": "tiny:q4", "context_length": 16384}]},
         }
+        routes.update({"/api/" + key: value for key, value in self.overrides.items()})
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
@@ -247,9 +259,16 @@ class _FakeOllama:
             do_POST = do_GET
 
             def _reply(self):
-                body = json.dumps(routes.get(self.path, {})).encode()
+                route = routes.get(self.path, {})
+                if route is _REDIRECT:
+                    self.send_response(302)
+                    self.send_header("Location", "http://example.invalid/api/version")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                body = json.dumps(route).encode()
                 self.send_response(200 if self.path in routes else 404)
-                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Content-Length", str(len(body) + (100 if route is _TRUNCATED else 0)))
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -346,3 +365,73 @@ def test_combine_and_summary_cli_rebuild_published_artifact(tmp_path, monkeypatc
     assert evaluation.main() == 1  # nonscorable runs, by design
     assert capsys.readouterr().out == ""
     assert summary.read_text() == (published / "summary.md").read_text()
+
+
+def test_summary_refuses_to_overwrite_without_a_traceback(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    summary.write_text("keep me\n")
+    published = SCRIPT.parents[1] / "docs/evaluations/2026-11-19/api.jsonl"
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--records", str(published), "--summary", str(summary)])
+    with pytest.raises(SystemExit) as error:
+        evaluation.main()
+    assert error.value.code == 2 and summary.read_text() == "keep me\n"
+
+
+def test_probe_bypasses_environment_proxies(monkeypatch):
+    # A proxy would see the probe and could answer for a different server;
+    # port 9 (discard) is closed, so going through it would fail the probe.
+    for name in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.setenv(name, "http://127.0.0.1:9")
+    for name in ("no_proxy", "NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    with _FakeOllama() as base:
+        info = evaluation.runtime_provenance("api", "ollama_chat/tiny:q4", base)
+    assert "probe_error" not in info and info["runtime_version"] == "9.8.7"
+
+
+def test_probe_does_not_follow_redirects_off_loopback():
+    with _FakeOllama(version=_REDIRECT) as base:
+        info = evaluation.runtime_provenance("api", "ollama_chat/tiny:q4", base)
+    assert info["probe_error"] == "HTTPError" and "runtime_version" not in info
+
+
+@pytest.mark.parametrize("override", [{"version": _TRUNCATED}, {"version": ["not", "a", "dict"]},
+                                      {"show": {"parameters": 7}}, {"tags": {"models": [1]}}])
+def test_malformed_probe_responses_are_recorded_not_raised(override):
+    with _FakeOllama(**{"show": {}, **override}) as base:
+        info = evaluation.runtime_provenance("api", "ollama_chat/tiny:q4", base)
+    assert info["probe_error"] and info["endpoint"] == "loopback"
+
+
+def test_untagged_model_name_matches_ollama_latest_tag():
+    latest = {"name": "tiny:latest", "model": "tiny:latest", "digest": "e" * 64, "context_length": 4096}
+    with _FakeOllama(tags={"models": [latest]}, ps={"models": [latest]}) as base:
+        info = evaluation.runtime_provenance("api", "ollama_chat/tiny", base)
+    assert info["model_digest"] == "e" * 64 and info["context_length"] == 4096
+
+
+def test_modelfile_parameters_keep_repeated_stops_and_stay_valid_json():
+    options = evaluation._parse_modelfile_parameters(
+        'stop "<|im_start|>"\nstop "<|im_end|>"\nstop "x"\nnum_ctx 4096\nseed inf\nmin_p nan\n')
+    assert options["stop"] == ['"<|im_start|>"', '"<|im_end|>"', '"x"']
+    assert options["num_ctx"] == 4096 and options["seed"] == "inf" and options["min_p"] == "nan"
+    json.dumps(options, allow_nan=False)
+
+
+def test_failed_after_probe_is_recorded(tmp_path, monkeypatch):
+    import types
+
+    probes = iter([{"runtime": "ollama", "endpoint": "loopback", "runtime_version": "9.8.7",
+                    "model_digest": "d" * 64, "context_length": None},
+                   {"runtime": "ollama", "endpoint": "loopback", "probe_error": "ConnectionRefusedError"}])
+    monkeypatch.setattr(evaluation, "runtime_provenance", lambda *args: next(probes))
+    monkeypatch.setattr(evaluation.subprocess, "run", lambda *a, **k: types.SimpleNamespace(
+        returncode=0, stdout=json.dumps({"status": "success", "raw_report": "r"})))
+    monkeypatch.setattr(evaluation.subprocess, "check_output",
+                        lambda command, **k: "abc123" if "rev-parse" in command else "")
+    args = types.SimpleNamespace(agent="api", model="ollama_chat/tiny:q4", phase="hardened",
+                                 checkout=tmp_path, trial=1, timeout=5, skill="sast")
+    [record] = list(evaluation.live_records(args, {"code-comment-attack": CASES["code-comment-attack"]}))
+    provenance = record["runtime_provenance"]
+    assert provenance["probe_error_after"] == "ConnectionRefusedError"
+    assert provenance["runtime_version_after"] is None and provenance["runtime_version"] == "9.8.7"
