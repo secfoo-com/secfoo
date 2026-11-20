@@ -55,3 +55,20 @@ def test_the_on_block_parser_sees_triggers_after_a_blank_line() -> None:
     assert _has_push_trigger(_top_level_on_block('"on": [push, workflow_dispatch]\njobs: {}\n'))
     commented = "on:\n  workflow_dispatch:\n\n# the GHCR push needs packages: write\njobs: {}\n"
     assert not _has_push_trigger(_top_level_on_block(commented))
+
+
+def test_no_obsolete_api_extra() -> None:
+    """litellm and langgraph are base dependencies, so `secfoo[api]` must not come back."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10
+        import tomli as tomllib
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert "api" not in project.get("optional-dependencies", {})
+    base = {dep.split(">")[0].split("[")[0].strip() for dep in project["dependencies"]}
+    assert {"litellm", "langgraph"} <= base
+
+    files = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "src").rglob("*.py"))]
+    offenders = [str(path.relative_to(ROOT)) for path in files if "secfoo[api]" in path.read_text(encoding="utf-8")]
+    assert offenders == []
