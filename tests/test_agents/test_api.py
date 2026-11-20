@@ -234,14 +234,19 @@ def test_run_strips_a_trailing_newline_from_the_key(tmp_path, monkeypatch):
     assert api.os.environ["OPENAI_API_KEY"] == "sk-test"
 
 
-def test_run_without_litellm_installed_says_how_to_install_it(tmp_path, monkeypatch):
+def test_run_without_litellm_installed_says_to_reinstall_secfoo(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setitem(sys.modules, "litellm", None)  # makes `import litellm` raise ImportError
 
     result = ApiAdapter().run("prompt", workdir=tmp_path)
 
     assert result.status == "failed"
-    assert "secfoo[api]" in result.stderr
+    # litellm/langgraph are base dependencies; there is no `secfoo[api]` extra to point at.
+    assert "secfoo[api]" not in result.stderr
+    assert "litellm" in result.stderr
+    # README's first install channel is pipx, where `pip install` would hit the wrong environment.
+    assert "pipx reinstall secfoo" in result.stderr
+    assert "pip install --force-reinstall secfoo" in result.stderr
 
 
 def test_incomplete_report_is_reformatted_once_without_resending_source(tmp_path, monkeypatch):

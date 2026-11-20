@@ -59,16 +59,35 @@ def test_the_on_block_parser_sees_triggers_after_a_blank_line() -> None:
     assert not _has_push_trigger(_top_level_on_block(commented))
 
 
-def test_product_description_is_the_same_everywhere() -> None:
-    """The Typer help, CITATION.cff abstract and PyPI description tell one story."""
+def _project() -> dict:
     try:
         import tomllib
     except ModuleNotFoundError:  # Python 3.10
         import tomli as tomllib
 
+    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+
+
+def test_no_obsolete_api_extra() -> None:
+    """litellm and langgraph are base dependencies, so `secfoo[api]` must not come back."""
+    project = _project()
+    assert "api" not in project.get("optional-dependencies", {})
+    base = {re.split(r"[\s<>=!~;\[]", dep, maxsplit=1)[0].lower() for dep in project["dependencies"]}
+    assert {"litellm", "langgraph"} <= base
+
+    files = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "action.yml", ROOT / "Dockerfile",
+             *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "src").rglob("*.py")),
+             *sorted((ROOT / "npm").rglob("*.md")), *sorted((ROOT / "examples").rglob("*.yml"))]
+    files = [path for path in files if path.is_file()]
+    offenders = [str(path.relative_to(ROOT)) for path in files if "secfoo[api]" in path.read_text(encoding="utf-8")]
+    assert offenders == []
+
+
+def test_product_description_is_the_same_everywhere() -> None:
+    """The Typer help, CITATION.cff abstract and PyPI description tell one story."""
     from secfoo.cli import app
 
-    description = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["description"]
+    description = _project()["description"]
     abstract = re.search(r'^abstract:\s*"(.*)"\s*$', (ROOT / "CITATION.cff").read_text(encoding="utf-8"), re.MULTILINE)
     assert abstract, "CITATION.cff has no abstract"
     assert abstract.group(1) == description

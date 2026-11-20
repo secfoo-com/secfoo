@@ -322,9 +322,17 @@ class ApiAdapter(AgentAdapter):
         try:
             import litellm
             from langgraph.graph import END, START, StateGraph
-        except ImportError:
+        except ImportError as exc:
+            # litellm and langgraph are regular dependencies of secfoo, so a failed
+            # import means a broken or partial install, not a missing extra.
             return self._result(
-                "failed", started, stderr='litellm/langgraph are not installed. Run: pip install "secfoo[api]"'
+                "failed",
+                started,
+                stderr=(
+                    f"litellm/langgraph could not be imported ({exc}). Both are installed with secfoo, "
+                    "so reinstall it the way you installed it: pipx reinstall secfoo, "
+                    "or pip install --force-reinstall secfoo"
+                ),
             )
         try:
             final = build_graph(litellm, StateGraph, START, END).invoke({
