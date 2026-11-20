@@ -153,3 +153,31 @@ def test_runs_without_any_status_check_are_left_alone(tmp_path):
     conn.close()
     RunRepository(db_path=db).close()
     assert "CHECK (status" not in _runs_sql(db)
+
+
+@pytest.mark.parametrize("make_db", ["old", "missing"])
+def test_parallel_first_opens_never_see_database_is_locked(tmp_path, make_db):
+    """Switching a database to WAL takes an exclusive lock that SQLite does
+    not wait for; parallel first opens used to fail about 1 in 20 times."""
+    for attempt in range(25):
+        db = tmp_path / f"{attempt}.db"
+        if make_db == "old":
+            _old_db(db)
+        errors = []
+        barrier = threading.Barrier(6)
+
+        def open_repo(db=db, barrier=barrier, errors=errors):
+            try:
+                barrier.wait()
+                RunRepository(db_path=db).close()
+            except Exception as exc:  # noqa: BLE001 -- surfaced by the assert below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=open_repo) for _ in range(6)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert errors == []
+        with sqlite3.connect(db) as conn:
+            assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"

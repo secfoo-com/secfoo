@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -155,12 +156,27 @@ class RunRepository:
         # run in progress) -- readers otherwise wait behind the default
         # rollback-journal's writer lock. Requires local disk, not
         # NFS/EFS-backed storage, for the portal host.
-        self._conn.execute("PRAGMA journal_mode = WAL")
+        self._enable_wal()
         self._conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
         self._migrate()
         self._conn.executescript(SCHEMA_INDEXES_PATH.read_text(encoding="utf-8"))
         self._conn.commit()
+
+    def _enable_wal(self, attempts: int = 100) -> None:
+        """Switches the file to WAL (persistent, so this is a no-op after the
+        first open). Switching a rollback-journal database needs an exclusive
+        lock, and SQLite returns "database is locked" for it at once instead
+        of honouring busy_timeout, so the first parallel open of a new or
+        pre-WAL database (several skills at once) retries briefly."""
+        for attempt in range(attempts):
+            try:
+                self._conn.execute("PRAGMA journal_mode = WAL").fetchone()
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) or attempt == attempts - 1:
+                    raise
+                time.sleep(0.05)
 
     def _migrate(self) -> None:
         existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()}
