@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-20 23:07:05 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-20 23:13:12 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -16,6 +16,7 @@ _Updated 2026-11-20 23:07:05 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 8 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
 | 9 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
 | 10 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **6** | — | 0 | 0 | 2 | 2 |
+| 11 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
@@ -41,6 +42,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-20 | [@cnYui](https://github.com/cnYui) | [#181](https://github.com/secfoo-com/secfoo/pull/181) | [#169](https://github.com/secfoo-com/secfoo/issues/169) Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed | low | +3 |
 | 2026-11-20 | [@bfs2021](https://github.com/bfs2021) | [#180](https://github.com/secfoo-com/secfoo/pull/180) | [#170](https://github.com/secfoo-com/secfoo/issues/170) Bug: `secfoo mcp sync --agent agent` crashes on a non-object ~/.cursor/mcp.json and drops its other keys | low | +3 |
 | 2026-11-20 | [@aaas72](https://github.com/aaas72) | [#162](https://github.com/secfoo-com/secfoo/pull/162) | [#153](https://github.com/secfoo-com/secfoo/issues/153) Overall risk rating: accept the rating line small models actually write (30 of 32 fresh evaluation runs failed on it) | medium | +6 |
 | 2026-11-20 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#158](https://github.com/secfoo-com/secfoo/pull/158) | [#120](https://github.com/secfoo-com/secfoo/issues/120) Docs and packaging drift: `secfoo[api]` extra is obsolete, public version says 0.3.0 while PyPI is 0.3.1, install scripts point at another repo | low | +3 |
@@ -65,7 +67,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#90](https://github.com/secfoo-com/secfoo/pull/90) | [#57](https://github.com/secfoo-com/secfoo/issues/57) Runtime evidence in the SCA dashboard | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#86](https://github.com/secfoo-com/secfoo/pull/86) | [#32](https://github.com/secfoo-com/secfoo/issues/32) api agent: pre-flight prompt-size cap, and a distinct exit code when --max-cost is exceeded | low | +3 |
 | 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#65](https://github.com/secfoo-com/secfoo/pull/65) | [#50](https://github.com/secfoo-com/secfoo/issues/50) Docs: per-agent setup and troubleshooting guide | low | +3 |
-| 2026-11-10 | [@dbdefault](https://github.com/dbdefault) | [#64](https://github.com/secfoo-com/secfoo/pull/64) | [#48](https://github.com/secfoo-com/secfoo/issues/48) Use a distinct exit code when a run stops at `--max-cost` | low | +3 |
 
 ## Needs a difficulty label
 

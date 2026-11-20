@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T23:07:05Z",
+  "generated_at": "2026-11-20T23:13:12Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -482,6 +482,31 @@
       "level": null
     },
     {
+      "login": "cnYui",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 181,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/181",
+          "issue": 169,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/169",
+          "issue_title": "Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed",
+          "contributor": "cnYui",
+          "merged_at": "2026-11-20T23:13:02Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 11,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -491,7 +516,7 @@
       },
       "merged_prs": 31,
       "awards": [],
-      "rank": 11,
+      "rank": 12,
       "level": null
     },
     {
@@ -504,7 +529,7 @@
       },
       "merged_prs": 9,
       "awards": [],
-      "rank": 12,
+      "rank": 13,
       "level": null
     },
     {
@@ -517,7 +542,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 13,
+      "rank": 14,
       "level": null
     },
     {
@@ -530,7 +555,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 14,
+      "rank": 15,
       "level": null
     },
     {
@@ -543,7 +568,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 15,
+      "rank": 16,
       "level": null
     },
     {
@@ -556,11 +581,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 16,
+      "rank": 17,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 181,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/181",
+      "issue": 169,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/169",
+      "issue_title": "Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed",
+      "contributor": "cnYui",
+      "merged_at": "2026-11-20T23:13:02Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 180,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/180",
