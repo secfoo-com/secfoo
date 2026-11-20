@@ -47,6 +47,7 @@ AUTH_STATES = frozenset({"anonymous", "authenticated"})
 MAX_LINE_BYTES = 64 * 1024
 MAX_TEXT = 1024
 MAX_STACK_FRAMES = 50
+MAX_COUNT = 2**63 - 1  # SQLite INTEGER; anything larger can't be stored
 
 _FRAME_RE = re.compile(rf"^\S.{{0,{MAX_TEXT - 8}}}:\d+$")
 _CONCRETE_URL_RE = re.compile(r"://|[?#]")
@@ -82,7 +83,18 @@ def _text(event: dict, key: str, *, required: bool = False) -> str | None:
         raise EvidenceError(f"{key!r} must be a non-empty string")
     if len(value) > MAX_TEXT:
         raise EvidenceError(f"{key!r} is longer than {MAX_TEXT} characters")
+    _require_utf8(value, key)
     return value
+
+
+def _require_utf8(value: str, key: str) -> None:
+    """JSON escapes like "\\ud800" decode to lone surrogates, which SQLite
+    can't store; without this the whole batch failed with UnicodeEncodeError
+    (#121)."""
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise EvidenceError(f"{key!r} must be valid Unicode text (no lone surrogates)") from None
 
 
 def _timestamp(event: dict, key: str, *, required: bool = False) -> str | None:
@@ -105,12 +117,15 @@ def _count(event: dict, key: str, *, required: bool = False, minimum: int = 0) -
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise EvidenceError(f"{key!r} must be an integer >= {minimum}")
+    if value > MAX_COUNT:
+        raise EvidenceError(f"{key!r} must be at most {MAX_COUNT}")
     return value
 
 
 def _frame(value: object, key: str) -> str:
     if not isinstance(value, str) or not _FRAME_RE.match(value):
         raise EvidenceError(f"{key!r} frames must be 'file:line', never variables or arguments")
+    _require_utf8(value, key)
     return value
 
 
@@ -194,11 +209,23 @@ def parse_lines(lines: Iterable[str]) -> Iterator[tuple[int, dict | None, str | 
             yield number, None, f"line is longer than {MAX_LINE_BYTES} bytes"
             continue
         try:
-            yield number, validate_event(json.loads(raw)), None
+            decoded = json.loads(raw)
         except json.JSONDecodeError as exc:
             yield number, None, f"not valid JSON ({exc.msg})"
+            continue
+        except (ValueError, RecursionError) as exc:
+            # json.loads raises these, not JSONDecodeError, for an integer over
+            # 4300 digits or nesting deeper than the stack. Uncaught, one such
+            # line rolled back the whole batch (a 500 on the ingest API, #121).
+            # Only the decode is covered: a bug in validation must surface.
+            yield number, None, f"not valid JSON ({exc.__class__.__name__})"
+            continue
+        try:
+            event = validate_event(decoded)
         except EvidenceError as exc:
             yield number, None, str(exc)
+            continue
+        yield number, event, None
 
 
 # ---------- storage ----------

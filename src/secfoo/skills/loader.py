@@ -129,7 +129,13 @@ def _parse_frontmatter(text: str, *, source: str) -> tuple[dict[str, str], str]:
 
 def _build_skill(raw: bytes, *, source: str, path: Path | None, origin: str = "") -> Skill:
     label = str(path) if path is not None else origin
-    fields, body = _parse_frontmatter(raw.decode("utf-8"), source=label)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        # A --skill-file URL or `skills validate` gets this too, not only the
+        # user-folder loader that happens to catch UnicodeDecodeError (#121).
+        raise SkillLoadError(f"{label}: not valid UTF-8 (byte {exc.start})") from None
+    fields, body = _parse_frontmatter(text, source=label)
     try:
         skill = Skill(
             id=fields["id"],

@@ -1,0 +1,4 @@
+[[mcp_servers]]
+name = 'a'
+command = 'npx'
+args = [1, 2]

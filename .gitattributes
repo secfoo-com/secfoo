@@ -1,0 +1,3 @@
+# Fuzz corpora are exact byte inputs (crash reproducers included): never
+# let core.autocrlf rewrite their line endings on checkout.
+fuzz/corpus/** -text

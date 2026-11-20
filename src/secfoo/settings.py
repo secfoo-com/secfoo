@@ -81,7 +81,51 @@ class SecfooConfig:
     skill_paths: list[str] = field(default_factory=list)
 
 
+MCP_TRANSPORTS = ("stdio", "sse", "http")
+
+
+def _check_mcp_types(name: str, raw: dict) -> dict:
+    """These values end up in a subprocess argument list (`claude mcp add`,
+    `gemini mcp add`) or an agent's JSON config, where a number or a nested
+    table crashed with TypeError instead of naming the bad key (#121).
+
+    Returns `raw` with the shapes that have always worked normalised rather
+    than rejected: a blank `command`/`url` is unset, scalar `env`/`headers`
+    values (`PORT = 8080`, `DEBUG = true`) become strings. Only values that
+    used to crash raise ConfigError."""
+    raw = dict(raw)
+    for key in ("command", "url"):
+        value = raw.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ConfigError(f"mcp_servers.{name}.{key} must be a string")
+        if not value.strip():
+            raw[key] = None
+    args = raw.get("args", [])
+    if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+        raise ConfigError(f"mcp_servers.{name}.args must be an array of strings")
+    for key in ("env", "headers"):
+        table = raw.get(key, {})
+        if not isinstance(table, dict):
+            raise ConfigError(f"mcp_servers.{name}.{key} must be a table")
+        normalised = {}
+        for k, v in table.items():
+            if isinstance(v, bool):
+                normalised[k] = "true" if v else "false"
+            elif isinstance(v, (str, int, float)):
+                normalised[k] = str(v)
+            else:
+                raise ConfigError(f"mcp_servers.{name}.{key}.{k} must be a string, number or boolean")
+        raw[key] = normalised
+    transport = raw.get("transport", "stdio")
+    if not isinstance(transport, str) or not transport.strip():
+        raise ConfigError(f"mcp_servers.{name}.transport must be a non-empty string, e.g. {', '.join(MCP_TRANSPORTS)}")
+    return raw
+
+
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
+    raw = _check_mcp_types(name, raw)
     hosts_raw = raw.get("hosts", [])
     if not isinstance(hosts_raw, list) or not all(isinstance(h, str) for h in hosts_raw):
         raise ConfigError(f"mcp_servers.{name}.hosts must be an array of strings")
@@ -128,10 +172,16 @@ def load_config(path: Path | None = None) -> SecfooConfig:
 
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"{path}: not valid UTF-8 (byte {exc.start})") from None
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"{path}: invalid TOML: {exc}") from exc
 
+    # Every section is checked for its shape before it's read: valid TOML
+    # like `defaults = 1` used to escape as AttributeError (#121).
     defaults_raw = data.get("defaults", {})
+    if not isinstance(defaults_raw, dict):
+        raise ConfigError("[defaults] must be a table")
     exclude_raw = defaults_raw.get("exclude", [])
     if not isinstance(exclude_raw, list) or not all(isinstance(p, str) for p in exclude_raw):
         raise ConfigError("defaults.exclude must be an array of strings")
@@ -143,6 +193,17 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         if isinstance(max_cost_usd, bool) or not isinstance(max_cost_usd, (int, float)) or max_cost_usd <= 0:
             raise ConfigError("defaults.max_cost_usd must be a positive number")
         max_cost_usd = float(max_cost_usd)
+    for key in ("agent", "depth"):
+        value = defaults_raw.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ConfigError(f"defaults.{key} must be a non-empty string")
+    timeout = defaults_raw.get("timeout")
+    # A whole-number float (`timeout = 1800.0`) has always worked; keep it.
+    if isinstance(timeout, float) and timeout.is_integer():
+        timeout = int(timeout)
+        defaults_raw = {**defaults_raw, "timeout": timeout}
+    if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0):
+        raise ConfigError("defaults.timeout must be a positive integer (seconds)")
     context_raw = defaults_raw.get("context", [])
     if not isinstance(context_raw, list) or not all(isinstance(c, str) and c.strip() for c in context_raw):
         raise ConfigError("defaults.context must be an array of non-empty strings")
@@ -177,10 +238,15 @@ def load_config(path: Path | None = None) -> SecfooConfig:
 
     servers = []
     seen_names: set[str] = set()
-    for entry in data.get("mcp_servers", []):
+    servers_raw = data.get("mcp_servers", [])
+    if not isinstance(servers_raw, list) or not all(isinstance(entry, dict) for entry in servers_raw):
+        raise ConfigError("mcp_servers must be an array of tables ([[mcp_servers]])")
+    for entry in servers_raw:
         name = entry.get("name")
         if not name:
             raise ConfigError("mcp_servers entry missing required `name` field")
+        if not isinstance(name, str):
+            raise ConfigError(f"mcp_servers: name must be a string, got {name!r}")
         if name in seen_names:
             raise ConfigError(f"mcp_servers: duplicate server name {name!r}")
         seen_names.add(name)

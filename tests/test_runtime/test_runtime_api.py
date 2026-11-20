@@ -85,6 +85,26 @@ def test_malformed_lines_are_reported_not_fatal(client, store):
     assert resp.json()["hits"] == 1 and resp.json()["skipped"][0]["line"] == 2
 
 
+@pytest.mark.parametrize(("bad_line", "reason"), [
+    ("[" * 20000 + "]" * 20000, "not valid JSON (RecursionError)"),
+    ('{"type":"hit","count":1' + "0" * 5000 + "}", "not valid JSON (ValueError)"),
+    (json.dumps({**SESSION, "id": "s-2", "app": "\ud800"}), "'app' must be valid Unicode text"),
+    (json.dumps({**HIT, "count": 2**64}), "'count' must be at most"),
+    (json.dumps({**HIT, "entry_frame": "app/\udcff.py:3"}), "'entry_frame' must be valid Unicode text"),
+], ids=["deep-nesting", "int-over-4300-digits", "lone-surrogate", "count-over-int64", "surrogate-frame"])
+def test_lines_that_used_to_500_are_skipped_and_the_rest_is_stored(client, store, bad_line, reason):
+    """#121: each of these escaped ingest_events as RecursionError, ValueError,
+    UnicodeEncodeError or OverflowError, rolling back the whole batch and
+    returning a 500. Now only that line is skipped."""
+    body = _ndjson(SESSION) + bad_line.encode() + b"\n" + _ndjson(HIT)
+    for params in ({"project": PROJECT}, {"project": PROJECT, "app": "payments-api"}):  # with and without _with_app_env
+        resp = client.post("/api/runtime/v1/events", params=params, content=body, headers=_auth(store["key"]))
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["sessions"] == 1 and resp.json()["hits"] == 1
+        [skipped] = resp.json()["skipped"]
+        assert skipped["line"] == 2 and skipped["reason"].startswith(reason)
+
+
 # ---------- auth and access ----------
 
 
@@ -194,6 +214,18 @@ def test_heartbeat_registers_the_sensor_and_sums_drops(client, store):
     bad = client.post("/api/runtime/v1/heartbeat", params={"project": PROJECT}, headers=_auth(store["key"]),
                       json={"dropped": 1})
     assert bad.status_code == 422
+
+
+@pytest.mark.parametrize("body", [
+    b"[" * 20000 + b"]" * 20000,                                 # RecursionError in json.loads
+    b'{"sensor_id": "s", "instances": ' + b"9" * 5000 + b"}",    # ValueError: int over 4300 digits
+    b'{"sensor_id": "s", "instances": 18446744073709551616}',     # over 64 bits: SQLite OverflowError
+    b'{"sensor_id": "\\ud800"}',                                 # lone surrogate: UnicodeEncodeError
+])
+def test_heartbeat_bodies_that_used_to_500_are_rejected_cleanly(client, store, body):
+    resp = client.post("/api/runtime/v1/heartbeat", params={"project": PROJECT}, headers=_auth(store["key"]),
+                       content=body)
+    assert resp.status_code in (400, 422), resp.text
 
 
 def test_evidence_endpoint_reads_runtime_state_per_finding(client, store):

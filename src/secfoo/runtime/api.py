@@ -160,7 +160,7 @@ def _with_app_env(lines: list[str], app: str | None, env: str | None) -> list[st
     for line in lines:
         try:
             event = json.loads(line)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):  # JSONDecodeError, 4300+ digit ints, deep nesting (#121)
             out.append(line)  # ingest_events reports it with its line number
             continue
         if isinstance(event, dict) and event.get("type") == "session":
@@ -200,13 +200,17 @@ def _bounded_text(payload: dict, key: str, *, required: bool = False) -> str | N
         return None
     if not isinstance(value, str) or not value.strip() or len(value) > 200:
         raise _error(422, f"{key!r} must be a non-empty string of at most 200 characters")
+    try:
+        value.encode("utf-8")  # "\ud800" decodes to a lone surrogate SQLite can't store (#121)
+    except UnicodeEncodeError:
+        raise _error(422, f"{key!r} must be valid Unicode text") from None
     return value
 
 
 def _count(payload: dict, key: str) -> int:
     value = payload.get(key, 0)
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise _error(422, f"{key!r} must be a non-negative integer")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2**63 - 1:
+        raise _error(422, f"{key!r} must be a non-negative integer that fits in 64 bits")
     return value
 
 
@@ -214,7 +218,7 @@ def _count(payload: dict, key: str) -> int:
 async def post_heartbeat(request: Request, who: Annotated[_Caller, Depends(caller)]):
     try:
         payload = json.loads(await _read_body(request) or b"{}")
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):  # JSONDecodeError, 4300+ digit ints, deep nesting (#121)
         raise _error(400, "heartbeat body must be JSON") from None
     if not isinstance(payload, dict):
         raise _error(400, "heartbeat body must be a JSON object")
