@@ -24,7 +24,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from secfoo.config import STORE_DIR
+from secfoo.config import STORE_DIR, write_private_text
 from secfoo.settings import MCPServerConfig
 
 CLAUDE_MCP_CONFIG_PATH = STORE_DIR / "claude-mcp-config.json"
@@ -81,10 +81,9 @@ def write_claude_mcp_config(servers: list[MCPServerConfig]) -> Path | None:
         return None
     payload = {"mcpServers": {s.name: _server_to_standard_shape(s) for s in servers}}
     STORE_DIR.mkdir(parents=True, exist_ok=True)
-    CLAUDE_MCP_CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     # Header values (the secfoo-memory bearer key, or any user server's
     # auth header) are secrets -- same 0600 as cloud.toml/memory.toml.
-    CLAUDE_MCP_CONFIG_PATH.chmod(0o600)
+    write_private_text(CLAUDE_MCP_CONFIG_PATH, json.dumps(payload, indent=2))
     return CLAUDE_MCP_CONFIG_PATH
 
 

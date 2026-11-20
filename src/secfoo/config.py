@@ -21,10 +21,38 @@ CLOUD_CONFIG_PATH = STORE_DIR / "cloud.toml"
 
 
 def ensure_store_dirs() -> None:
-    STORE_DIR.mkdir(parents=True, exist_ok=True)
+    # Reports hold the scanned source, prompts and a map of its weaknesses,
+    # and the DB holds findings and key hashes: owner-only, like ~/.ssh.
+    # 0700 on the root is enough to keep other local users out of all of it.
+    STORE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _make_private(STORE_DIR)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _make_private(directory: Path) -> None:
+    try:
+        if directory.stat().st_mode & 0o077:
+            directory.chmod(0o700)
+    except OSError:  # not ours (a shared SECFOO_HOME) or a read-only mount: leave it
+        pass
+
+
+def write_private_text(path: Path, text: str) -> None:
+    """Write a secret-bearing file that is never readable by others, not even
+    between creation and a later chmod (and tighten an existing file first)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        if hasattr(os, "fchmod"):  # POSIX; O_CREAT's mode does not apply to an existing file
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = -1
+            handle.write(text)
+    finally:
+        if fd != -1:
+            os.close(fd)
 
 
 def run_dir(run_uuid: str) -> Path:

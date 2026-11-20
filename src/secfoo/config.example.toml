@@ -59,11 +59,13 @@ enabled = true
 
 # Example: Atlassian (Confluence/Jira) via the official Rovo MCP server,
 # bridged through the `mcp-remote` npm package (stdio transport: secfoo
-# just needs a command + args to run).
-[[mcp_servers]]
-name = "Atlassian-Rovo-MCP"
-command = "npx"
-args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+# just needs a command + args to run). Uncomment to enable: every claude run
+# then starts this command, and `npx -y` downloads the package if needed --
+# consider pinning a version you have reviewed instead of @latest.
+# [[mcp_servers]]
+# name = "Atlassian-Rovo-MCP"
+# command = "npx"
+# args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
 
 # Example: a plain remote MCP server reachable directly over HTTP/SSE
 # (no bridge needed) -- use `url` + `transport` instead of `command`.
