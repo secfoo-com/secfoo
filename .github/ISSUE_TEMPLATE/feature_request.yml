@@ -1,0 +1,47 @@
+name: Feature request
+description: Suggest a skill, flag, CI integration or dashboard improvement
+labels: ["enhancement", "needs difficulty"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended ideas, [Ideas discussions](https://github.com/secfoo-com/secfoo/discussions/categories/ideas) work better. Use this form when you can describe a concrete problem.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task or workflow, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What's missing or awkward today?
+      description: What you tried, and where it falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Commands, flags, output or screens you'd expect. Optional, but it helps.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Skills / report content
+        - Agent adapters
+        - CI / SARIF / exports
+        - Dashboard
+        - MCP / documentation context
+        - Runtime sensor / SCA reachability
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself
