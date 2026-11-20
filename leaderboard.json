@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T10:19:45Z",
+  "generated_at": "2026-11-20T10:30:27Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -24,13 +24,13 @@
   "contributors": [
     {
       "login": "karthickmk2001",
-      "points": 82,
+      "points": 88,
       "counts": {
         "hard": 4,
-        "medium": 6,
+        "medium": 7,
         "low": 2
       },
-      "merged_prs": 19,
+      "merged_prs": 20,
       "awards": [
         {
           "pr": 86,
@@ -161,6 +161,17 @@
           "issue_title": "Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI",
           "contributor": "karthickmk2001",
           "merged_at": "2026-11-19T20:55:26Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 149,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/149",
+          "issue": 121,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/121",
+          "issue_title": "Run the fuzz harness in CI and extend it to the SARIF/JSONL exporters, the skill loader and the config parser",
+          "contributor": "karthickmk2001",
+          "merged_at": "2026-11-20T10:30:11Z",
           "difficulty": "medium",
           "points": 6
         }
@@ -478,6 +489,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 149,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/149",
+      "issue": 121,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/121",
+      "issue_title": "Run the fuzz harness in CI and extend it to the SARIF/JSONL exporters, the skill loader and the config parser",
+      "contributor": "karthickmk2001",
+      "merged_at": "2026-11-20T10:30:11Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 152,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/152",

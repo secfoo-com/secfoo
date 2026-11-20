@@ -1,12 +1,12 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-20 10:19:45 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-20 10:30:27 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
-| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **82** | Silver | 4 | 6 | 2 | 19 |
+| 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **88** | Silver | 4 | 7 | 2 | 20 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
 | 4 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
@@ -39,6 +39,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-20 | [@karthickmk2001](https://github.com/karthickmk2001) | [#149](https://github.com/secfoo-com/secfoo/pull/149) | [#121](https://github.com/secfoo-com/secfoo/issues/121) Run the fuzz harness in CI and extend it to the SARIF/JSONL exporters, the skill loader and the config parser | medium | +6 |
 | 2026-11-20 | [@oliarmak-web](https://github.com/oliarmak-web) | [#152](https://github.com/secfoo-com/secfoo/pull/152) | [#150](https://github.com/secfoo-com/secfoo/issues/150) Adversarial evaluation: fresh measurements on the current corpus and code (follow-up to #117) | medium | +6 |
 | 2026-11-19 | [@oliarmak-web](https://github.com/oliarmak-web) | [#147](https://github.com/secfoo-com/secfoo/pull/147) | [#117](https://github.com/secfoo-com/secfoo/issues/117) Adversarial validation: prompt injection from the repository being scanned | hard | +10 |
 | 2026-11-19 | [@saryeljaramany](https://github.com/saryeljaramany) | [#146](https://github.com/secfoo-com/secfoo/pull/146) | [#125](https://github.com/secfoo-com/secfoo/issues/125) `--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one | medium | +6 |
