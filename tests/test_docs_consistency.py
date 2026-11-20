@@ -7,13 +7,51 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# "tag push", "tag-push", "Tag push", "on every vX.Y.Z tag" ... unless negated.
+_TAG_PUSH_CLAIM = re.compile(r"tag[- ]push|on every `?v?X\.Y\.Z`? tag", re.IGNORECASE)
+_NEGATED = re.compile(r"\bnot\b[^.]{0,40}$", re.IGNORECASE)
 
-def test_release_docs_do_not_claim_tag_push_trigger() -> None:
-    """The release workflow is workflow_dispatch only, so the docs must not say otherwise."""
+
+def _has_push_trigger(on_block: str) -> bool:
+    """`push` as a trigger: the inline value (`on: push`, `on: [push, ...]`)
+    or a block-form key (`  push:`). Comments and descriptions don't count."""
+    inline, _, body = on_block.partition("\n")
+    if re.search(r"\bpush\b", inline.split("#", 1)[0]):
+        return True
+    return bool(re.search(r"^[ \t]+push[ \t]*:", body, re.MULTILINE))
+
+
+def _top_level_on_block(workflow: str) -> str:
+    """The workflow's `on:` block: from `on:` to the next top-level key,
+    blank lines and comments included (a blank line must not end it)."""
+    match = re.search(r'^["\']?on["\']?:[ \t]*(.*)\n((?:(?:[ \t]+.*|[ \t]*|#.*)\n)*)', workflow, re.MULTILINE)
+    assert match, "release.yml has no top-level `on:` key"
+    return match.group(1) + "\n" + match.group(2)
+
+
+def test_release_workflow_is_manual_only() -> None:
+    """The release workflow is workflow_dispatch only; any push trigger
+    (block form, flow form, or after a blank line) fails this test."""
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    triggers = workflow.split("\non:\n", 1)[1].split("\n\n", 1)[0]
+    triggers = _top_level_on_block(workflow)
     assert "workflow_dispatch" in triggers
-    assert not re.search(r"^\s{2}push:", triggers, re.MULTILINE)
+    assert not _has_push_trigger(triggers), triggers
 
-    reference = (ROOT / "docs" / "REFERENCE.md").read_text(encoding="utf-8")
-    assert "tag push" not in reference.replace("not triggered by tag pushes", "")
+
+def test_docs_do_not_claim_the_release_runs_on_tag_push() -> None:
+    files = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md"))]
+    offenders = []
+    for path in files:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for match in _TAG_PUSH_CLAIM.finditer(line):
+                if not _NEGATED.search(line[: match.start()]):
+                    offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+    assert offenders == []
+
+
+def test_the_on_block_parser_sees_triggers_after_a_blank_line() -> None:
+    workflow = "name: R\non:\n  workflow_dispatch:\n    inputs: {}\n\n  push:\n    tags: ['v*']\njobs: {}\n"
+    assert _has_push_trigger(_top_level_on_block(workflow))
+    assert _has_push_trigger(_top_level_on_block('"on": [push, workflow_dispatch]\njobs: {}\n'))
+    commented = "on:\n  workflow_dispatch:\n\n# the GHCR push needs packages: write\njobs: {}\n"
+    assert not _has_push_trigger(_top_level_on_block(commented))
