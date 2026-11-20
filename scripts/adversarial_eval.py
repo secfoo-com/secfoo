@@ -7,15 +7,19 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
+import math
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from secfoo.report.evidence import scrub_evidence
 from secfoo.report.markdown import MD, MalformedReportError
@@ -45,11 +49,16 @@ prompt = render_prompt(skill, TargetContext("local", target, str(target)), depth
 adapter = get_adapter(request["agent"])
 adapter.configure_model(request["model"])
 observed_calls = []
+observed_models = []
+observed_kwargs = set()
 if request["agent"] == "api":
     import litellm
     original_completion = litellm.completion
     def observed_completion(*args, **kwargs):
+        observed_kwargs.update(k for k in kwargs if k not in {"model", "messages"})
         response = original_completion(*args, **kwargs)
+        if getattr(response, "model", None):
+            observed_models.append(str(response.model))
         for choice in response.choices:
             for call in getattr(choice.message, "tool_calls", None) or []:
                 observed_calls.append({"name": call.function.name, "input": call.function.arguments})
@@ -58,7 +67,9 @@ if request["agent"] == "api":
 result = dataclasses.asdict(adapter.run(prompt, workdir=target, timeout=request["timeout"]))
 if request["agent"] == "api":
     result.update(tool_observation="complete", tool_calls=observed_calls,
-                  tool_allowlist=[], telemetry_source="litellm-response-tool-calls")
+                  tool_allowlist=[], telemetry_source="litellm-response-tool-calls",
+                  response_models=sorted(set(observed_models)),
+                  request_options=sorted(observed_kwargs))
 result["prompt_sha256"] = hashlib.sha256(prompt.encode()).hexdigest()
 print(json.dumps(result))
 '''
@@ -209,9 +220,8 @@ def evaluation_environment(agent: str, model: str, checkout: Path, target: Path)
         env[key] = os.environ[key]
     if agent == "api" and provider in {"ollama", "ollama_chat"}:
         # Local-only route: LiteLLM's adapter still needs a nonempty sentinel.
-        from urllib.parse import urlsplit
         base = os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
-        if urlsplit(base).hostname not in {"localhost", "127.0.0.1", "::1"}:
+        if not _is_loopback(base):
             raise ValueError("Ollama evaluation must use a loopback endpoint")
         env.update(OLLAMA_API_BASE=base, OPENAI_API_KEY="local-placeholder-not-a-real-key")
     home = target / ".eval-home"
@@ -219,6 +229,93 @@ def evaluation_environment(agent: str, model: str, checkout: Path, target: Path)
     env.update(HOME=str(home), USERPROFILE=str(home), PYTHONPATH=str(checkout / "src"),
                SECFOO_HOME=str(target / ".eval-secfoo-home"))
     return env
+
+
+def _is_loopback(base: str) -> bool:
+    return urlsplit(base).hostname in {"localhost", "127.0.0.1", "::1"}
+
+
+# Probes go straight to the loopback socket: no proxy from the environment
+# (which would see the request and could answer for a different server) and
+# no redirects (which could leave loopback).
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_LOOPBACK_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+
+
+def _ollama_call(base: str, path: str, payload: dict | None = None, timeout: float = 10) -> dict:
+    if not _is_loopback(base):
+        raise ValueError("Ollama evaluation must use a loopback endpoint")
+    data = None if payload is None else json.dumps(payload).encode()
+    request = urllib.request.Request(base.rstrip("/") + path, data=data,
+                                     headers={"Content-Type": "application/json"} if data else {})
+    with _LOOPBACK_OPENER.open(request, timeout=timeout) as response:  # loopback only (checked above)
+        body = json.loads(response.read())
+    if not isinstance(body, dict):
+        raise TypeError(f"unexpected {path} response")
+    return body
+
+
+def _parse_modelfile_parameters(text: str) -> dict:
+    """Ollama's `parameters` text, one `name value` per line; repeated names (stop) become lists."""
+    options: dict = {}
+    for line in (text or "").splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            value = parts[1].strip()
+            try:
+                number = float(value)
+            except ValueError:
+                pass
+            else:
+                if math.isfinite(number):  # json.dumps would write NaN/Infinity, which is not JSON
+                    value = int(number) if number.is_integer() else number
+            if parts[0] not in options:
+                options[parts[0]] = value
+            elif isinstance(options[parts[0]], list):
+                options[parts[0]].append(value)
+            else:
+                options[parts[0]] = [options[parts[0]], value]
+    return options
+
+
+def _model_names(name: str) -> set[str]:
+    # Ollama lists an untagged pull as "<name>:latest".
+    return {name} if ":" in name else {name, name + ":latest"}
+
+
+def runtime_provenance(agent: str, model: str, base: str | None = None) -> dict:
+    """Runtime facts for one live run. Never records hosts other than loopback.
+
+    For Ollama: version, full model digest, the model's default options and the
+    context length the server reports as loaded. Failures are recorded as
+    unavailable rather than guessed.
+    """
+    provider, _, name = model.partition("/")
+    if agent != "api" or provider not in {"ollama", "ollama_chat"}:
+        return {}
+    base = base or os.environ.get("OLLAMA_API_BASE", "http://127.0.0.1:11434")
+    info: dict = {"runtime": "ollama", "endpoint": "loopback"}
+    try:
+        info["runtime_version"] = _ollama_call(base, "/api/version")["version"]
+        shown = _ollama_call(base, "/api/show", {"model": name})
+        digest = shown.get("digest")
+        if not digest:
+            tags = _ollama_call(base, "/api/tags").get("models", [])
+            digest = next((m.get("digest") for m in tags
+                           if _model_names(name) & {m.get("name"), m.get("model")}), None)
+        info["model_digest"] = digest
+        info["model_default_options"] = _parse_modelfile_parameters(shown.get("parameters", ""))
+        loaded = [m for m in _ollama_call(base, "/api/ps").get("models", [])
+                  if _model_names(name) & {m.get("name"), m.get("model")}]
+        info["context_length"] = loaded[0].get("context_length") if loaded else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, http.client.HTTPException) as error:
+        # A probe failure must not abort the evaluation; record that it failed.
+        info["probe_error"] = type(error).__name__
+    return info
 
 
 def live_records(args, cases):
@@ -252,6 +349,7 @@ def live_records(args, cases):
                 launcher.chmod(0o700)
                 env.update(CLAUDE_EVAL_BINARY=binary, CLAUDE_EVAL_CAPTURE_DIR=str(capture_dir))
                 env["PATH"] = str(launchers) + os.pathsep + env.get("PATH", "")
+            provenance = runtime_provenance(args.agent, args.model)
             request = {"target": str(target), "agent": args.agent, "model": args.model,
                        "timeout": args.timeout, "skill": getattr(args, "skill", "sast")}
             try:
@@ -273,6 +371,19 @@ def live_records(args, cases):
                       "tool_calls": result.get("tool_calls"),
                       "tool_allowlist": result.get("tool_allowlist", []),
                       "telemetry_source": result.get("telemetry_source")}
+            if provenance:
+                # Context length is only reported while the model is loaded, so
+                # re-probe after the request that loaded it.
+                after = runtime_provenance(args.agent, args.model)
+                provenance["context_length"] = after.get("context_length") or provenance.get("context_length")
+                provenance["runtime_version_after"] = after.get("runtime_version")
+                provenance["model_digest_after"] = after.get("model_digest")
+                if "probe_error" in after:
+                    provenance["probe_error_after"] = after["probe_error"]
+                record["runtime_provenance"] = provenance
+            if result.get("response_models"):
+                record["response_models"] = result["response_models"]
+                record["request_options"] = result.get("request_options", [])
             if args.agent == "claude":
                 captures = list(capture_dir.glob("*.json")) if capture_dir.exists() else []
                 if len(captures) == 1:
@@ -283,6 +394,21 @@ def live_records(args, cases):
                                   telemetry_source="claude-stream-json")
                     record["capture"] = capture
             yield scrub_evidence(record)
+
+
+def combine_artifacts(inputs: list[Path], output: Path) -> None:
+    """Concatenate JSONL artifacts byte-for-byte in the order given (like cat)."""
+    chunks = []
+    for path in inputs:
+        data = path.read_bytes()
+        if not data.strip() or not data.endswith(b"\n"):
+            raise ValueError(f"{path.name} must be non-empty and end with a newline")
+        for line in data.split(b"\n"):
+            if line.strip():
+                json.loads(line)
+        chunks.append(data)
+    with output.open("xb") as handle:
+        handle.write(b"".join(chunks))
 
 
 def corpus_digest():
@@ -306,10 +432,26 @@ def main():
     parser.add_argument("--skill", default="sast", choices=sorted(builtin_skills()), help="built-in skill id, recorded in every result")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--trial", type=int, default=1)
-    parser.add_argument("--output", type=Path, help="new live JSONL artifact (never overwrite)")
+    parser.add_argument("--output", "-o", type=Path, help="new live JSONL artifact or --combine result (never overwrite)")
+    parser.add_argument("--combine", nargs="+", type=Path, metavar="TRIAL.jsonl",
+                        help="concatenate trial artifacts in the given order into --output")
+    parser.add_argument("--summary", type=Path, metavar="SUMMARY.md",
+                        help="with --records, write the summary to this new file instead of stdout")
     args = parser.parse_args()
     if args.timeout <= 0 or args.trial <= 0:
         parser.error("--timeout and --trial must be positive")
+    if args.combine:
+        if not args.output or args.live or args.records or args.summary:
+            parser.error("--combine requires --output and cannot be used with --live, --records or --summary")
+        try:
+            combine_artifacts(args.combine, args.output)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        return 0
+    if args.summary and not args.records:
+        parser.error("--summary requires --records")
+    if args.summary and args.summary.exists():
+        parser.error(f"{args.summary} already exists; --summary never overwrites")
     cases = load_cases()
     if args.records:
         raw = [json.loads(line) for line in args.records.read_text().split("\n") if line.strip()]
@@ -338,7 +480,12 @@ def main():
         if not args.records:
             parser.error("provide --records for offline replay, or explicitly request --live")
         records = read_records(args.records, cases)
-    print(summarize(records, cases), end="")
+    summary = summarize(records, cases)
+    if args.summary:
+        with args.summary.open("x", encoding="utf-8") as handle:
+            handle.write(summary)
+    else:
+        print(summary, end="")
     return 1 if any(not score(r, cases[r["case_id"]])["scorable"] for r in records) else 0
 
 
