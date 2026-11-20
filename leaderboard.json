@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T10:16:03Z",
+  "generated_at": "2026-11-20T10:19:45Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -216,6 +216,42 @@
       "level": null
     },
     {
+      "login": "oliarmak-web",
+      "points": 16,
+      "counts": {
+        "hard": 1,
+        "medium": 1,
+        "low": 0
+      },
+      "merged_prs": 2,
+      "awards": [
+        {
+          "pr": 147,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/147",
+          "issue": 117,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/117",
+          "issue_title": "Adversarial validation: prompt injection from the repository being scanned",
+          "contributor": "oliarmak-web",
+          "merged_at": "2026-11-19T21:52:12Z",
+          "difficulty": "hard",
+          "points": 10
+        },
+        {
+          "pr": 152,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/152",
+          "issue": 150,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/150",
+          "issue_title": "Adversarial evaluation: fresh measurements on the current corpus and code (follow-up to #117)",
+          "contributor": "oliarmak-web",
+          "merged_at": "2026-11-20T10:19:34Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 3,
+      "level": null
+    },
+    {
       "login": "dbdefault",
       "points": 12,
       "counts": {
@@ -257,31 +293,6 @@
           "merged_at": "2026-11-10T17:11:30Z",
           "difficulty": "low",
           "points": 3
-        }
-      ],
-      "rank": 3,
-      "level": null
-    },
-    {
-      "login": "oliarmak-web",
-      "points": 10,
-      "counts": {
-        "hard": 1,
-        "medium": 0,
-        "low": 0
-      },
-      "merged_prs": 1,
-      "awards": [
-        {
-          "pr": 147,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/147",
-          "issue": 117,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/117",
-          "issue_title": "Adversarial validation: prompt injection from the repository being scanned",
-          "contributor": "oliarmak-web",
-          "merged_at": "2026-11-19T21:52:12Z",
-          "difficulty": "hard",
-          "points": 10
         }
       ],
       "rank": 4,
@@ -467,6 +478,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 152,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/152",
+      "issue": 150,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/150",
+      "issue_title": "Adversarial evaluation: fresh measurements on the current corpus and code (follow-up to #117)",
+      "contributor": "oliarmak-web",
+      "merged_at": "2026-11-20T10:19:34Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 147,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/147",

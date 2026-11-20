@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-20 10:16:03 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-20 10:19:45 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -8,8 +8,8 @@ _Updated 2026-11-20 10:16:03 UTC by [`leaderboard.yml`](https://github.com/secfo
 |---:|---|---:|---|---:|---:|---:|---:|
 | 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **82** | Silver | 4 | 6 | 2 | 19 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
-| 3 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 4 | [@oliarmak-web](https://github.com/oliarmak-web) | **10** | — | 1 | 0 | 0 | 1 |
+| 3 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
+| 4 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 5 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
 | 6 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
 | 7 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
@@ -39,6 +39,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-20 | [@oliarmak-web](https://github.com/oliarmak-web) | [#152](https://github.com/secfoo-com/secfoo/pull/152) | [#150](https://github.com/secfoo-com/secfoo/issues/150) Adversarial evaluation: fresh measurements on the current corpus and code (follow-up to #117) | medium | +6 |
 | 2026-11-19 | [@oliarmak-web](https://github.com/oliarmak-web) | [#147](https://github.com/secfoo-com/secfoo/pull/147) | [#117](https://github.com/secfoo-com/secfoo/issues/117) Adversarial validation: prompt injection from the repository being scanned | hard | +10 |
 | 2026-11-19 | [@saryeljaramany](https://github.com/saryeljaramany) | [#146](https://github.com/secfoo-com/secfoo/pull/146) | [#125](https://github.com/secfoo-com/secfoo/issues/125) `--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one | medium | +6 |
 | 2026-11-19 | [@karthickmk2001](https://github.com/karthickmk2001) | [#148](https://github.com/secfoo-com/secfoo/pull/148) | [#115](https://github.com/secfoo-com/secfoo/issues/115) Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI | medium | +6 |
