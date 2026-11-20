@@ -330,7 +330,8 @@ class ApiAdapter(AgentAdapter):
                 started,
                 stderr=(
                     f"litellm/langgraph could not be imported ({exc}). Both are installed with secfoo, "
-                    "so reinstall it: pip install --force-reinstall secfoo"
+                    "so reinstall it the way you installed it: pipx reinstall secfoo, "
+                    "or pip install --force-reinstall secfoo"
                 ),
             )
         try:

@@ -66,9 +66,12 @@ def test_no_obsolete_api_extra() -> None:
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert "api" not in project.get("optional-dependencies", {})
-    base = {dep.split(">")[0].split("[")[0].strip() for dep in project["dependencies"]}
+    base = {re.split(r"[\s<>=!~;\[]", dep, maxsplit=1)[0].lower() for dep in project["dependencies"]}
     assert {"litellm", "langgraph"} <= base
 
-    files = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "src").rglob("*.py"))]
+    files = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "action.yml", ROOT / "Dockerfile",
+             *sorted((ROOT / "docs").rglob("*.md")), *sorted((ROOT / "src").rglob("*.py")),
+             *sorted((ROOT / "npm").rglob("*.md")), *sorted((ROOT / "examples").rglob("*.yml"))]
+    files = [path for path in files if path.is_file()]
     offenders = [str(path.relative_to(ROOT)) for path in files if "secfoo[api]" in path.read_text(encoding="utf-8")]
     assert offenders == []

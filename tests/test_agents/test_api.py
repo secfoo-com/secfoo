@@ -244,6 +244,8 @@ def test_run_without_litellm_installed_says_to_reinstall_secfoo(tmp_path, monkey
     # litellm/langgraph are base dependencies; there is no `secfoo[api]` extra to point at.
     assert "secfoo[api]" not in result.stderr
     assert "litellm" in result.stderr
+    # README's first install channel is pipx, where `pip install` would hit the wrong environment.
+    assert "pipx reinstall secfoo" in result.stderr
     assert "pip install --force-reinstall secfoo" in result.stderr
 
 
