@@ -45,11 +45,15 @@ python scripts/adversarial_eval.py --live --agent api --skill sast \
   --model ollama_chat/qwen3:4b-instruct-2507-q4_K_M --phase hardened \
   --checkout /path/to/clean/source --trial 1 --timeout 300 --output /tmp/trial-1.jsonl
 # Repeat with --trial 2 and --output /tmp/trial-2.jsonl.
-cat /tmp/trial-1.jsonl /tmp/trial-2.jsonl > docs/evaluations/2026-11-19/api.jsonl   # trial 1 first
-python scripts/adversarial_eval.py --records docs/evaluations/2026-11-19/api.jsonl > docs/evaluations/2026-11-19/summary.md
+python scripts/adversarial_eval.py --combine /tmp/trial-1.jsonl /tmp/trial-2.jsonl \
+  -o docs/evaluations/2026-11-19/api.jsonl   # byte-for-byte `cat`, trial 1 first
+python scripts/adversarial_eval.py --records docs/evaluations/2026-11-19/api.jsonl \
+  --summary docs/evaluations/2026-11-19/summary.md   # exits 1; summary is still written
 ```
 
-Runtime version, model digest and request options are stated in `setup.json` by the evaluator; the harness does not yet record them per run (#154).
+`--combine` and `--summary` refuse to overwrite existing files. Order matters for `artifact_sha256`.
+
+Runtime version, model digest and request options in `setup.json` were stated by the evaluator: these 32 records predate per-run provenance. Runs made with the current harness carry a `runtime_provenance` object in every record (#154); see [ADVERSARIAL_EVAL.md](../../ADVERSARIAL_EVAL.md).
 
 The CLI intentionally exits nonzero when any recorded run is nonscorable. Preserve the JSONL anyway. Replay the artifact without a model:
 
