@@ -40,6 +40,12 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          # tests/fixtures holds deliberately vulnerable code (the adversarial
+          # evaluation corpus needs a real bug for the agent to find), so its
+          # findings are expected and must not land in the Security tab.
+          config: |
+            paths-ignore:
+              - tests/fixtures/**
 
       - name: Analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

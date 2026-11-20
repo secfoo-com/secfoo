@@ -44,7 +44,8 @@ def test_every_harness_has_a_seed_corpus():
         assert any((CORPUS / name).iterdir()), f"fuzz/corpus/{name} is empty"
 
 
-@pytest.mark.parametrize("path", sorted(CORPUS.rglob("*.*")), ids=lambda p: f"{p.parent.name}/{p.name}")
+@pytest.mark.parametrize("path", sorted(p for p in CORPUS.rglob("*") if p.is_file() and p.parent != CORPUS),
+                         ids=lambda p: f"{p.parent.name}/{p.name}")
 def test_corpus_file_replays_without_a_crash(path):
     HARNESSES[path.parent.name].check(path.read_bytes())
 
@@ -235,9 +236,11 @@ def test_the_documented_example_config_still_loads(tmp_path):
     ("[mcp_servers]\nname = 'a'", "array of tables"),
     ("[[mcp_servers]]\nname = [1]\ncommand = 'x'", "name must be a string"),
     ("[[mcp_servers]]\nname = 'a'\ncommand = 'npx'\nargs = [1]", r"mcp_servers\.a\.args must be an array of strings"),
-    ("[[mcp_servers]]\nname = 'a'\ncommand = 5", r"mcp_servers\.a\.command must be a non-empty string"),
-    ("[[mcp_servers]]\nname = 'a'\ncommand = 'x'\nenv = { A = 1 }", r"mcp_servers\.a\.env must be a table of strings"),
-    ("[[mcp_servers]]\nname = 'a'\nurl = 'https://x'\ntransport = 'ftp'", "transport must be one of stdio, sse, http"),
+    ("[[mcp_servers]]\nname = 'a'\ncommand = 5", r"mcp_servers\.a\.command must be a string"),
+    ("[[mcp_servers]]\nname = 'a'\ncommand = 'x'\nenv = { A = { b = 1 } }",
+     r"mcp_servers\.a\.env\.A must be a string, number or boolean"),
+    ("[[mcp_servers]]\nname = 'a'\ncommand = 'x'\nenv = [1]", r"mcp_servers\.a\.env must be a table"),
+    ("[[mcp_servers]]\nname = 'a'\nurl = 'https://x'\ntransport = 5", "transport must be a non-empty string"),
     ("[defaults]\ntimeout = 'soon'", "defaults.timeout must be a positive integer"),
     ("[defaults]\nagent = 3", "defaults.agent must be a non-empty string"),
 ])
@@ -364,3 +367,80 @@ def test_one_bad_line_no_longer_loses_the_whole_batch(path, tmp_path):
         assert report.sessions >= 1  # the good session line before the bad one was committed
         assert len(report.skipped) >= 1
         assert repo.connection.execute("SELECT COUNT(*) FROM runtime_sessions").fetchone()[0] >= 1
+
+
+
+# ---------- review follow-ups (#149) ----------
+
+def test_a_stale_config_agent_or_depth_does_not_block_explicit_flags(monkeypatch):
+    """CLI flags always win over config: an unknown defaults.agent/depth is
+    only an error when the config value would actually be used."""
+    from typer.testing import CliRunner
+
+    from secfoo.cli import app
+    from secfoo.settings import Defaults, SecfooConfig
+    config = SecfooConfig(defaults=Defaults(agent="newagent", depth="deep"), mcp_servers=[])
+    monkeypatch.setattr("secfoo.cli.load_config", lambda: config)
+    captured = {}
+    monkeypatch.setattr("secfoo.cli.execute_runs", lambda **kw: captured.update(kw) or [])
+    result = CliRunner().invoke(app, ["run", "--skill", "sast", "--agent", "claude", "--depth", "quick"])
+    assert "defaults.agent" not in result.output and captured.get("agent_id") == "claude"
+    result = CliRunner().invoke(app, ["run", "--skill", "sast", "--depth", "quick"])
+    assert result.exit_code == 1 and "defaults.agent must be one of" in result.output
+
+
+def test_config_shapes_that_always_worked_still_load(tmp_path):
+    from secfoo.settings import load_config
+    path = tmp_path / "config.toml"
+    path.write_text(
+        "[defaults]\ntimeout = 1800.0\n\n"
+        "[[mcp_servers]]\nname = \"local\"\ncommand = \"npx\"\nurl = \"\"\nenv = { PORT = 8080, DEBUG = true }\n\n"
+        "[[mcp_servers]]\nname = \"remote\"\ncommand = \"\"\nurl = \"https://mcp.example.com/mcp\"\n"
+        "transport = \"streamable-http\"\nheaders = { X-Retries = 3 }\n",
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    assert config.defaults.timeout == 1800
+    local, remote = config.mcp_servers
+    assert vars(local)["env"] == {"PORT": "8080", "DEBUG": "true"} and local.url is None
+    assert remote.command is None and remote.transport == "streamable-http"
+    assert vars(remote)["headers"] == {"X-Retries": "3"}
+
+
+def test_config_values_that_used_to_crash_are_named(tmp_path):
+    import pytest as _pytest
+
+    from secfoo.settings import ConfigError, load_config
+    path = tmp_path / "config.toml"
+    path.write_text("[[mcp_servers]]\nname = \"x\"\ncommand = \"npx\"\nheaders = { NESTED = { a = 1 } }\n",
+                    encoding="utf-8")
+    with _pytest.raises(ConfigError, match="headers.NESTED"):
+        load_config(path)
+
+
+def test_zero_padded_sarif_lines_keep_their_region():
+    from secfoo.report.sarif import _location
+    region = _location({"location_file": "app.py", "location_line": "0000000042"})["physicalLocation"]["region"]
+    assert region == {"startLine": 42}
+    assert "region" not in _location({"location_file": "app.py", "location_line": "1" + "0" * 12})["physicalLocation"]
+    assert "region" not in _location({"location_file": "app.py", "location_line": "000"})["physicalLocation"]
+
+
+def test_a_validation_bug_is_not_reported_as_bad_json(monkeypatch):
+    import pytest as _pytest
+
+    from secfoo.runtime import evidence
+    def broken(_event):
+        raise ValueError("bug in validation")
+    monkeypatch.setattr(evidence, "validate_event", broken)
+    with _pytest.raises(ValueError, match="bug in validation"):
+        list(evidence.parse_lines(['{"type": "session"}']))
+    [(_, event, reason)] = list(evidence.parse_lines(["[" * 5000]))  # decode errors are still skipped
+    assert event is None and "not valid JSON" in reason
+
+
+def test_the_ingest_harness_judges_each_input_on_its_own():
+    harness = HARNESSES["runtime_ingest"]
+    harness.check((CORPUS / "runtime_ingest" / "batch.ndjson").read_bytes())
+    harness.check(b"")
+    assert harness._repo.connection.execute("SELECT COUNT(*) FROM runtime_sessions").fetchone()[0] == 0

@@ -31,15 +31,18 @@ in `fuzz/`:
 
 | Harness | Target | Contract |
 | --- | --- | --- |
-| `fuzz_parsers.py` | report severities, skill frontmatter, severity filters | never raises |
+| `fuzz_parsers.py` | report severities and ratings, documentation-coverage tables, skill frontmatter, severity filters | malformed reports raise only `MalformedReportError`; the coverage parser never raises |
 | `fuzz_sarif_export.py` | `findings export` (SARIF and JSONL) | valid SARIF 2.1.0; JSONL round-trips |
 | `fuzz_skill_loader.py` | skill files (`--skill-file`, folders, URLs) | a `Skill` or `SkillLoadError` |
 | `fuzz_config.py` | `~/.secfoo/config.toml` | correctly typed config or `ConfigError` |
 | `fuzz_docext.py` | uploaded PDF / DOCX / PPTX | text or `""`, within a time limit |
 | `fuzz_runtime_ingest.py` | runtime sensor NDJSON batches | every line stored or skipped, never a 500 |
 
-The `Fuzz` workflow runs each harness for 60 seconds on PRs that touch
-these parsers, and nightly. To run one locally (Linux or macOS):
+The `Fuzz` workflow first replays every harness's seed corpus and committed
+crash reproducers (blocking), then fuzzes each harness: for 30 seconds,
+non-blocking, on PRs that touch the parsed code, and for 60 seconds,
+blocking, nightly. A crash found on a PR is attached to the run as an
+artifact. To run one locally (Linux or macOS):
 
 ```sh
 pip install atheris

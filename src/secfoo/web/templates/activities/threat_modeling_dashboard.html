@@ -1,3 +1,6 @@
+{% if tm_dash.unparsable_reports %}
+<p class="alert alert--warning" role="status">{{ tm_dash.unparsable_reports|unique|list|length }} stored report(s) could not be parsed and were excluded. Open the original report to inspect it; these results are not a clean scan.</p>
+{% endif %}
 {# Extended Threat Modeling dashboard: coverage, a portfolio-total STRIDE x
    asset-class matrix plus one per project, threat disposition (tested vs.
    untested mitigations), accepted threats reconciled with recorded human

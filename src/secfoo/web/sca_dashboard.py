@@ -16,8 +16,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from secfoo import osv
-from secfoo.report.sca import SKILL_ID
 from secfoo.report.sca import (
+    SKILL_ID,
     extract_cve_by_dependency_id,
     extract_narrative_by_dependency_id,
     extract_risk_register_rows,
@@ -76,6 +76,7 @@ class ScaVulnerability:
 
 @dataclass
 class ScaDashboard:
+    unparsable_reports: list[str] = field(default_factory=list)
     coverage_reviewed: int = 0
     coverage_in_scope: int = 0
     coverage_pct: float = 0.0
@@ -120,7 +121,7 @@ def build(repo: RunRepository) -> ScaDashboard:
     unmapped_ecosystem_count = 0
 
     for project in projects:
-        text = _read(project.get("latest_success_report_path"))
+        text = _read(project.get("latest_success_report_path"), errors=dash.unparsable_reports)
         if not text:
             continue
 

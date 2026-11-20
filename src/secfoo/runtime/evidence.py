@@ -209,16 +209,23 @@ def parse_lines(lines: Iterable[str]) -> Iterator[tuple[int, dict | None, str | 
             yield number, None, f"line is longer than {MAX_LINE_BYTES} bytes"
             continue
         try:
-            yield number, validate_event(json.loads(raw)), None
+            decoded = json.loads(raw)
         except json.JSONDecodeError as exc:
             yield number, None, f"not valid JSON ({exc.msg})"
-        except EvidenceError as exc:
-            yield number, None, str(exc)
+            continue
         except (ValueError, RecursionError) as exc:
             # json.loads raises these, not JSONDecodeError, for an integer over
             # 4300 digits or nesting deeper than the stack. Uncaught, one such
             # line rolled back the whole batch (a 500 on the ingest API, #121).
+            # Only the decode is covered: a bug in validation must surface.
             yield number, None, f"not valid JSON ({exc.__class__.__name__})"
+            continue
+        try:
+            event = validate_event(decoded)
+        except EvidenceError as exc:
+            yield number, None, str(exc)
+            continue
+        yield number, event, None
 
 
 # ---------- storage ----------

@@ -32,7 +32,16 @@ _repo.upsert_sca_finding(project_id=_project, fingerprint=FINGERPRINT, run_id=_r
                          current_ref="D1", package="fuzz-pkg", severity="High")
 
 
+# Tables ingest writes. Cleared before every input so each one is judged on its
+# own: otherwise sessions stored by earlier inputs change how later lines are
+# handled, and a crash libFuzzer reports would not reproduce from its file.
+_INGEST_TABLES = ("runtime_evidence", "runtime_packages", "runtime_sessions")
+
+
 def check(data: bytes) -> None:
+    for table in _INGEST_TABLES:
+        _repo.connection.execute(f"DELETE FROM {table}")  # noqa: S608 -- fixed table names
+    _repo.connection.commit()
     lines = data.decode("utf-8", errors="replace").splitlines()  # exactly as post_events decodes
     lines = _with_app_env(lines, "fuzz-app", "fuzz-env")
     report = ingest_events(_repo.connection, _project, lines)

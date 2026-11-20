@@ -30,6 +30,27 @@ Cap spend with `--max-cost`; Claude and the `api` agent report real USD,
 Gemini reports tokens only, Cursor and Antigravity report nothing (those
 runs count as `unpriced_runs` in the JSON and never pass a cap as "$0").
 
+## Passing documentation context in CI
+
+Pass architecture docs, threat models, or wiki specifications to the agent with `--context`:
+
+```bash
+secfoo run --agent claude --target . --depth quick --json \
+  --skill security-architecture-review --skill threat-modeling \
+  --context https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 \
+  --context ../external-specs/architecture.pdf > secfoo-result.json
+```
+
+- **HTTPS URLs:** Require an MCP server configured on the runner for that host (e.g. in `~/.secfoo/config.toml`), otherwise the agent cannot query the service and the source will be recorded as not reached in the coverage table. `--agent api` cannot read URL sources and records them as not reached, while local files work with every agent because secfoo inlines them.
+- **Local files:** Must live **outside** the target checkout being scanned (e.g. checked out to a sibling directory or staged from an external workflow artifact). Passing a file or folder inside the scanned target is rejected with exit code `2`.
+- **Failing CI on unreached documentation:** If your pipeline requires all declared context sources to be verified and reached by the agent, check the `--json` output with `jq`:
+
+```bash
+jq -e '[.runs[].context_sources[] | select(.reached | not)] | length == 0' secfoo-result.json
+```
+
+A URL source is only reachable when the agent has an MCP server for it, so CI that gates on `reached` will also fail for that reason.
+
 ## GitHub Actions
 
 ### The Action

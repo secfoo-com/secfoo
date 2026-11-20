@@ -216,6 +216,18 @@ def test_heartbeat_registers_the_sensor_and_sums_drops(client, store):
     assert bad.status_code == 422
 
 
+@pytest.mark.parametrize("body", [
+    b"[" * 20000 + b"]" * 20000,                                 # RecursionError in json.loads
+    b'{"sensor_id": "s", "instances": ' + b"9" * 5000 + b"}",    # ValueError: int over 4300 digits
+    b'{"sensor_id": "s", "instances": 18446744073709551616}',     # over 64 bits: SQLite OverflowError
+    b'{"sensor_id": "\\ud800"}',                                 # lone surrogate: UnicodeEncodeError
+])
+def test_heartbeat_bodies_that_used_to_500_are_rejected_cleanly(client, store, body):
+    resp = client.post("/api/runtime/v1/heartbeat", params={"project": PROJECT}, headers=_auth(store["key"]),
+                       content=body)
+    assert resp.status_code in (400, 422), resp.text
+
+
 def test_evidence_endpoint_reads_runtime_state_per_finding(client, store):
     client.post("/api/runtime/v1/events", params={"project": PROJECT}, content=_ndjson(SESSION, HIT),
                 headers=_auth(store["key"]))

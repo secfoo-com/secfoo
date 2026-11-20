@@ -8,8 +8,13 @@ best-effort annotation, never a requirement.
 
 from __future__ import annotations
 
+import json
+import logging
 import re
+from dataclasses import dataclass
+from functools import lru_cache
 from html import unescape
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from markdown_it import MarkdownIt
@@ -212,3 +217,237 @@ def render_report_html(markdown_text: str) -> str:
     html = _prepare_mermaid_blocks(html)
     html = _style_tables(html)
     return _strip_outbound_markup(html)
+
+
+MD = MarkdownIt('commonmark').disable(['html_block', 'html_inline'])
+FINDING = re.compile(r'^ {0,3}###\s*\[(?P<severity>[A-Za-z]+)\]\s*(?P<id>[A-Za-z]\d+)?:?')
+
+
+class MalformedReportError(ValueError):
+    """Report structure cannot be safely counted or persisted."""
+
+
+@dataclass(frozen=True)
+class Heading:
+    level: int
+    text: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ParsedReport:
+    source: str
+    headings: tuple[Heading, ...]
+    excluded: tuple[tuple[int, int], ...]   # code blocks and blockquotes
+    code: tuple[tuple[int, int], ...] = ()  # code blocks only
+
+
+class ReportText(str):
+    """A source view carrying the already parsed report through extractors."""
+
+    def __new__(cls, source: str, parsed: ParsedReport, start: int = 0):
+        value = super().__new__(cls, source)
+        value.parsed = parsed
+        value.start = start
+        return value
+
+    def view(self, start: int, end: int) -> ReportText:
+        return ReportText(self[start:end], self.parsed, self.start + start)
+
+
+@lru_cache(maxsize=64)
+def _parse_report(source: str) -> ReportText:
+    # Match markdown-it's newline normalization exactly. Unicode separators
+    # and C0 controls are source characters, never additional token-map lines.
+    source = source.replace('\r\n', '\n').replace('\r', '\n')
+    pieces = source.split('\n')
+    lines = [line + '\n' for line in pieces[:-1]] + [pieces[-1]]
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+    result = []
+    excluded = []
+    code = []
+    ignored = set()
+    for token in MD.parse(source):
+        if token.type in {'fence', 'code_block', 'blockquote_open'} and token.map:
+            a, b = token.map
+            ignored.update(range(a, b))
+            excluded.append((offsets[a], offsets[b]))
+            if token.type != 'blockquote_open':
+                code.append((offsets[a], offsets[b]))
+        if token.type == 'fence' and token.map:
+            a, b = token.map
+            last = lines[b - 1].rstrip('\r\n')
+            if token.level > 0:
+                last = re.sub(r'^(?: {0,3}> ?)+', '', last).lstrip(' \t')
+            closing = re.fullmatch(r' {0,3}' + re.escape(token.markup[0]) +
+                                  '{' + str(len(token.markup)) + r',}[ \t]*', last)
+            if not closing or b - a < 2:
+                raise MalformedReportError('Unclosed Markdown code fence')
+        if token.type == 'heading_open' and token.level == 0 and token.map:
+            a, b = token.map
+            result.append(Heading(int(token.tag[1]), lines[a].rstrip('\r\n').lstrip(' '), offsets[a], offsets[b]))
+    real = {h.start for h in result if h.level == 3}
+    for i, line in enumerate(lines):
+        if i not in ignored and FINDING.match(line) and offsets[i] not in real:
+            raise MalformedReportError('Finding-like text is not a valid top-level Markdown heading')
+    parsed = ParsedReport(source, tuple(result), tuple(excluded), tuple(code))
+    return ReportText(source, parsed)
+
+
+def parse_report(report: str) -> ReportText:
+    """Parse once; the bounded cache also shares work between dashboard readers."""
+    return report if isinstance(report, ReportText) else _parse_report(report)
+
+
+def headings(report: str) -> list[Heading]:
+    report = parse_report(report)
+    return [Heading(h.level, h.text, h.start - report.start, h.end - report.start)
+            for h in report.parsed.headings
+            if report.start <= h.start and h.end <= report.start + len(report)]
+
+
+def section(report: str, title: str) -> str:
+    report = parse_report(report)
+    items = headings(report)
+    for i, item in enumerate(items):
+        if item.level == 2 and re.match(r'^##\s+(?:\d+\.\s*)?' + re.escape(title) + r'(?:\s|$)', item.text):
+            end = next((x.start for x in items[i + 1:] if x.level <= 2), len(report))
+            return report.view(item.end, end)
+    return report.view(0, 0)
+
+
+def detail_blocks(report: str, pattern: re.Pattern | None = None) -> list[tuple[str, str]]:
+    report = parse_report(report)
+    items = headings(report)
+    blocks = []
+    for i, item in enumerate(items):
+        if item.level != 3:
+            continue
+        match = pattern.match(item.text) if pattern else None
+        if pattern and match is None:
+            continue
+        # An explanatory h3 (e.g. "Fix") belongs to this finding. Only the
+        # next finding or a higher-level section terminates its narrative.
+        end = next((x.start for x in items[i + 1:]
+                    if x.level < 3 or (x.level == 3 and
+                        (pattern.match(x.text) if pattern else FINDING.match(x.text)))), len(report))
+        blocks.append((match.group('id') if match else item.text, report.view(item.end, end)))
+    return blocks
+
+
+def _blank(report: ReportText, ranges) -> str:
+    chars = list(report)
+    for start, end in ranges:
+        for i in range(max(start - report.start, 0), min(end - report.start, len(report))):
+            if chars[i] != '\n':
+                chars[i] = ' '
+    return ''.join(chars)
+
+
+def prose_source(report: str) -> str:
+    """Blank examples without changing source offsets or re-parsing sections."""
+    report = parse_report(report)
+    return _blank(report, report.parsed.excluded)
+
+
+def text_outside_code(report: str) -> str:
+    """Like prose_source, but keeps blockquotes: a summary line a model put
+    in a callout is still the report's own text."""
+    report = parse_report(report)
+    return _blank(report, report.parsed.code)
+
+
+def visible_text(report: str) -> str:
+    """Unquoted prose including list items, excluding code examples."""
+    return prose_source(report)
+
+
+def example_finding_ids(report: str) -> set[str]:
+    report = parse_report(report)
+    identifiers = set()
+    for start, end in report.parsed.excluded:
+        a, b = max(start - report.start, 0), min(end - report.start, len(report))
+        for line in report[a:b].split('\n'):
+            match = FINDING.match(line.lstrip(' >\t'))
+            if match and match.group('id'):
+                identifiers.add(match.group('id'))
+    return identifiers
+
+
+def _json_draft_ranges(report: str) -> list[tuple[int, int]]:
+    text = str(report)
+    decoder = json.JSONDecoder()
+    ranges = []
+    for match in re.finditer(r'[\{"]', text):
+        try:
+            value, end = decoder.raw_decode(text, match.start())
+        except ValueError:
+            continue
+        envelope = isinstance(value, dict) and isinstance(value.get('draft_report'), str)
+        serialized_report = (isinstance(value, str) and '\n' in value and
+                             re.search(r'(?:^|\n)#{1,6}\s|\*\*Overall risk rating:', value))
+        if envelope or serialized_report:
+            ranges.append((match.start(), end))
+    return ranges
+
+
+def text_without_json_drafts(report: str) -> str:
+    """JSON examples cannot supply the report's own risk rating."""
+    chars = list(report)
+    for start, end in _json_draft_ranges(report):
+        for i in range(start, end):
+            if chars[i] != '\n':
+                chars[i] = ' '
+    return ''.join(chars)
+
+
+def has_json_draft(report: str) -> bool:
+    """Reject an envelope masquerading as a report, even with a fake title.
+
+    A real finding or independent report rating distinguishes a report that
+    discusses JSON from an echoed draft with only a Markdown heading added.
+    """
+    report = parse_report(report)
+    if not _json_draft_ranges(report):
+        return False
+    items = headings(report)
+    if any(h.level == 3 and FINDING.match(h.text) for h in items):
+        return False
+    own_text = text_without_json_drafts(text_outside_code(report))
+    own_rating = re.search(r'\*\*Overall risk rating:\*\*\s*[A-Za-z]+', own_text, re.IGNORECASE)
+    return not (items and own_rating)
+
+
+def read_stored_report(path: str | Path | None, *, errors: list[str] | None = None) -> str:
+    """Older malformed reports are unavailable data, never a dashboard crash.
+
+    Cached by (path, mtime, size): stored reports don't change, and the
+    assessments list and dashboards read the same files on every page load."""
+    if not path:
+        return ''
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return ''
+    text, error = _read_stored_report_cached(str(path), stat.st_mtime_ns, stat.st_size)
+    if error is not None and errors is not None:
+        errors.append(str(path))
+    return text
+
+
+@lru_cache(maxsize=1024)
+def _read_stored_report_cached(path: str, _mtime_ns: int, _size: int) -> tuple[str, str | None]:
+    try:
+        text = Path(path).read_text(encoding='utf-8', errors='replace')
+        parsed = parse_report(text)
+        if has_json_draft(parsed):
+            raise MalformedReportError('JSON draft wrapper is not a report')
+        return parsed, None
+    except MalformedReportError as error:
+        logging.getLogger(__name__).warning('Unparsable stored report %s: %s', path, error)
+        return '', str(error)
+    except OSError:
+        return '', None

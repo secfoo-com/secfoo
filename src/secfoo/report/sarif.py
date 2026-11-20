@@ -35,8 +35,9 @@ def _location(record: dict) -> dict | None:
     # or short: int() refuses more than 4300 digits (#121), and no source
     # file has a billion lines.
     line = str(record.get("location_line") or "").strip()
-    if re.fullmatch(r"[0-9]{1,9}", line) and int(line) > 0:
-        physical["region"] = {"startLine": int(line)}
+    digits = line.lstrip("0")  # "0000000042" is line 42; the length cap is on the value
+    if re.fullmatch(r"[0-9]+", line) and 1 <= len(digits) <= 9:
+        physical["region"] = {"startLine": int(digits)}
     return {"physicalLocation": physical}
 
 

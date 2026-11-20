@@ -6,9 +6,8 @@ reviews.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from secfoo.report.architecture import count_trust_boundaries
+from secfoo.report.markdown import read_stored_report
 from secfoo.storage.repository import RunRepository
 
 
@@ -20,15 +19,8 @@ def percentile(values: list[float], pct: float) -> float | None:
     return ordered[index]
 
 
-def read_report(path: str | None) -> str:
-    if not path:
-        return ""
-    file = Path(path)
-    if not file.is_file():
-        return ""
-    # errors="replace": reports written by older versions on Windows used the
-    # locale code page, not UTF-8 -- show them with placeholders, never crash.
-    return file.read_text(encoding="utf-8", errors="replace")
+def read_report(path: str | None, *, errors: list[str] | None = None) -> str:
+    return read_stored_report(path, errors=errors)
 
 
 def append_boundary_changed_projects(

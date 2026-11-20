@@ -47,7 +47,29 @@ jobs:
         run: ruff check . || true
 
       - name: Test (secfoo core)
-        run: pytest tests
+        # Coverage is collected here and gated in its own last step, so a
+        # coverage-only drop never hides the conformance and skills checks.
+        run: pytest tests --cov=secfoo --cov-report=term --cov-report=xml
+
+      - name: Coverage summary
+        # The per-file table, lowest first, so a drop is visible on the PR.
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### Coverage (py${{ matrix.python-version }})"
+            echo
+            echo '```'
+            coverage report --sort=cover --skip-covered || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage.xml
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
 
       - name: Runtime probe conformance (reference Python probe, #73)
         run: secfoo sensor conformance -- python -m secfoo.sensor -m secfoo.runtime.conformance.sample_app
@@ -55,3 +77,10 @@ jobs:
       - name: Validate example custom skills
         # Same check a team's own skills repo would run (docs/SKILLS.md).
         run: secfoo skills validate examples/skills
+
+      - name: Coverage floor (#115)
+        # The job fails if total line coverage drops below the floor. Set just
+        # under today's ~92%; raise it when a PR lifts coverage, never lower
+        # it to make a PR pass.
+        if: ${{ !cancelled() }}
+        run: coverage report --fail-under=90

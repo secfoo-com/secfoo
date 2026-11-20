@@ -744,11 +744,12 @@ SARIF upload) is covered in [CI.md](CI.md).
 # Run a skill against the current directory with Claude Code
 secfoo run --skill security-architecture-review --agent claude
 
-# Run multiple skills against a GitHub repo, with Confluence context
+# Run multiple skills against a GitHub repo, with documentation context
 secfoo run \
   --skill security-architecture-review --skill threat-modeling \
   --target https://github.com/org/repo \
-  --confluence https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 \
+  --context https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 \
+  --context ../design-docs/architecture.pdf \
   --agent agent
 
 # See what's on PATH
@@ -796,6 +797,78 @@ only, `agent`/`agy` report nothing. Runs with no reported cost count as
 ingest — spend can't be recomputed server-side from report text the way
 severity counts are.
 
+### Providing documentation context (`--context`)
+
+Security assessments are more accurate when the agent has design context (architecture specifications, threat models, API definitions, or runbooks) alongside source code. Pass external documentation with `--context`:
+
+```bash
+secfoo run --skill security-architecture-review \
+  --target . \
+  --context https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 \
+  --context ../shared-docs/architecture.pdf \
+  --context ../docs/threat-model.docx \
+  --context ../specs/
+```
+
+- **Repeatable & types supported:**
+  - **HTTPS URLs:** Any `https://` documentation link (Confluence, Jira, SharePoint, Notion, Google Docs, etc.).
+  - **Local files:** Markdown (`.md`, `.markdown`), plain text (`.txt`), and document files (`.pdf`, `.docx`, `.pptx`).
+  - **Local folders:** Directories containing supported file types.
+  - `--confluence` / `-c` is retained as a backwards-compatible alias for `--context`.
+- **Path resolution & deduplication:**
+  Relative paths are resolved against the directory secfoo is run from, `~` is expanded, and the same value written two ways counts once.
+- **Merge order:**
+  Context sources are merged in this order:
+  1. Config file `[defaults].context` (in `~/.secfoo/config.toml`)
+  2. `--confluence` CLI flags
+  3. `--context` CLI flags
+- **Validation and rejection rules (exit code 2):**
+  Inputs are validated strictly before runs start. Any invalid source causes `secfoo run` to exit immediately with code `2`:
+  - Plain `http://` is forbidden (must use `https://`).
+  - URLs with embedded credentials (e.g. `https://user:pass@host`) are rejected.
+  - URLs missing a hostname or containing whitespace are rejected.
+  - Local paths that do not exist trigger an error (scheme-less URLs like `wiki.example.com` receive a hint that URLs require the `https://` prefix).
+  - Unsupported local file extensions are rejected (supported: `.docx`, `.markdown`, `.md`, `.pdf`, `.pptx`, `.txt`).
+  - **Target boundary enforcement:** Local context files and folders must live *outside* the target being scanned, and cannot contain the target (a target folder cannot be inside a context folder). secfoo checks real filesystem identity (resolving symlinks, casing, and path traversals, failing closed on permission error) to ensure context files are strictly external reference material, not code under review.
+- **How sources are presented to the agent:**
+  - **HTTPS URLs:** Grouped and classified in the prompt brief by host kind (`confluence`, `jira`, `sharepoint`, `notion`, `google_docs`, `other`). secfoo checks the host against configured `[[mcp_servers]]` (including server `hosts` patterns) and names the likely MCP server for the agent to invoke (matching server names, commands, or URLs from `[[mcp_servers]]`; credentials and environment values are never printed). If no matching MCP server is configured, secfoo states a coverage gap in the brief. Only URLs provided via `--confluence` or classified as Confluence populate `confluence_urls` for skill prompts with dedicated Confluence instructions; other URL kinds are presented purely as reference context with their likely reader tools.
+  - **Local files and folders:** Extracted directly by secfoo and inlined into the prompt brief as untrusted reference material (the prompt explicitly instructs the agent to treat context as reference data and never follow instructions found within it). Local extraction is bounded by plain limits:
+    - 20,000 characters per source (text files read up to 80,000 bytes; documents up to 25 MB).
+    - 60,000 characters in total across all local sources.
+    - 50 files per folder examined. Symlinks are never followed. A folder that exceeds the file cap is marked truncated in its note and still counts as reached. When post-truncation file inspection reaches the safety limit (10,000 files), the note reports `truncated: at least <k> more files not read (<reason>)`.
+    - Two local files with the same name are labelled with enough parent folder names to tell them apart (e.g. `a/README.md` and `b/README.md`).
+- **Web dashboard integration:**
+  The web dashboard's Run Assessment form (`/assessments/{id}/runs`) includes a "Documentation context (optional)" field, accepting one HTTPS URL or local file/folder path per line. It merges with `[defaults].context`, enforces the same target boundary and URL validation rules, and passes resolved context sources into the run.
+- **Configuring default context sources:**
+  In `~/.secfoo/config.toml`:
+  ```toml
+  [defaults]
+  context = [
+    "https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123",
+    "/shared/docs/security-baseline.md",
+  ]
+  ```
+- **Documentation coverage table & reporting:**
+  When one or more context sources are given, the prompt asks the agent to add a `### Documentation coverage` table at the end of its Coverage Notes section (Secret Scanning uses its section 5 for it). The table may sit under any heading level (such as `##`, `###`, `####`, or numbered headings like `## 5. Documentation coverage`), with the columns shown:
+  ```markdown
+  | Source | Type | Reached | Notes |
+  |---|---|---|---|
+  | https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123 | Confluence page | Yes | Reviewed architecture and trust boundaries |
+  | architecture.pdf | local file | Yes | Inlined by secfoo |
+  ```
+  On run completion, secfoo parses this table and reconciles each declared context source (marking whether it was reached and preserving the agent's notes). Matching rule: a row matches a source only when its Source cell is that source's label (a URL or a file/folder name; markdown links and one trailing "(note)" are tolerated); there is no fuzzy or positional matching; a source with no matching row is recorded as not reported ("not reported by the agent"). If the run itself does not complete, URL sources are recorded as not reached ("run did not complete") while local files secfoo already inlined stay reached. The coverage is saved in the local database (`context_sources` table per run) and displayed in the web dashboard run detail view (with a `documentation sources: X of Y reached` receipt line and a Documentation coverage table card with status badges).
+- **Machine-readable JSON output:**
+  When passing `--json`, each run object in `runs` includes a `context_sources` array:
+  ```json
+  {
+    "source": "https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123",
+    "type": "Confluence page",
+    "reached": true,
+    "notes": "Reviewed architecture and trust boundaries"
+  }
+  ```
+  Values for `type` produced by secfoo are `Confluence page`, `Jira`, `SharePoint`, `Notion`, `Google Docs`, `other URL`, `local file`, and `local folder`. Rows the agent adds beyond the declared sources use the agent's own type text.
+
 ## Assessments
 
 An **assessment** is a case-file container -- an Application ID / Security
@@ -841,6 +914,8 @@ secfoo config init      # writes a starter ~/.secfoo/config.toml
 [defaults]
 agent = "claude"
 depth = "quick"
+# Default documentation sources (HTTPS URLs, local files or folders)
+context = ["https://yourcompany.atlassian.net/wiki/spaces/SEC/pages/123"]
 # Vendored copies / unrelated repos checked out inside a project. Added to
 # the built-in exclusions (node_modules/, .git/, ...), never replacing them.
 exclude = ["vendor/", "some-cloned-repo/"]
@@ -859,7 +934,10 @@ max_input_tokens = 150000
 name = "Atlassian-Rovo-MCP"
 command = "npx"
 args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+hosts = ["wiki.internal.example", "*.atlassian.net"]
 ```
+
+The optional `hosts` array specifies hostnames or domain patterns served by this MCP server (e.g. `["wiki.internal.example", "*.atlassian.net"]`). A `*.` pattern matches subdomains only; list the bare domain too if needed. secfoo uses `hosts` to route URL context sources to their likely MCP readers and classify internal enterprise Confluence / Jira URLs.
 
 CLI flags always override `[defaults]`. See
 [`src/secfoo/config.example.toml`](../src/secfoo/config.example.toml) for the
@@ -949,8 +1027,13 @@ Every install channel above is built on the same foundation: standalone,
 self-contained binaries (bundled Python interpreter + all dependencies —
 nothing needs to be pre-installed) for macOS (arm64/x64), Linux
 (x64/arm64), and Windows (x64), built by CI (`.github/workflows/release.yml`)
-on every `vX.Y.Z` tag push and attached to the matching GitHub Release
-along with a `SHA256SUMS` file.
+when a maintainer with write access runs the Release workflow by hand
+(Actions tab, `workflow_dispatch`) for an existing `vX.Y.Z` tag whose
+`src/secfoo/__about__.py` (at that tag) has the same version. It is
+deliberately not triggered by tag pushes. The run creates the GitHub Release
+for that tag, attaches the binaries and a `SHA256SUMS` file, and in the same
+run publishes to PyPI, npm and GHCR. A PyPI version cannot be re-uploaded, so
+dispatch it only for a version you mean to release.
 
 - **pip**: the "real"/native path — a normal Python sdist+wheel, published
   to PyPI as usual.
@@ -992,3 +1075,29 @@ Homebrew is a planned follow-up (a tap formula in a separate
 See [`design-system/README.md`](../design-system/README.md) for the design
 system used by the dashboard.
 
+## Malicious repositories and adversarial validation
+
+Repository text is untrusted evidence, including files named `AGENTS.md`,
+`CLAUDE.md` and `.cursorrules`. Secfoo's review brief rejects instructions to
+suppress findings, change severity, copy fabricated reports, or execute
+commands from the target. The API adapter separates the brief into a system
+message, quotes filenames, and preserves source lines inside random per-file
+boundaries. Report consumers share a Markdown heading/section iterator.
+Fenced and quoted examples are ignored; unclosed fences and malformed finding
+headings fail the run instead of passing severity gates with zero findings.
+
+These controls do not establish that a malicious repository cannot influence
+an agent. Tool grants are not an operating-system sandbox, and model behavior
+must be measured. The [adversarial evaluation guide](ADVERSARIAL_EVAL.md)
+documents eight paired fixture techniques, offline regression replay,
+opt-in live measurements and the limits of the metrics. Synthetic replay
+results are not live security results.
+
+The [historical November 16 record](evaluations/2026-11-16/README.md)
+uses a previous, explicitly labeled SQL-only corpus and older code. Its scores
+are not measurements of the current corpus or head. The harness reports each
+revision, trial, capture profile and corpus digest separately; API tool-policy
+measurements are marked not applicable because that adapter exposes no tools.
+Fresh free-model measurements are tracked in the PR, separately from offline
+regressions. Tool grants and source boundaries do not establish isolation or
+immunity to prompt injection.

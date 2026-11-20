@@ -35,6 +35,8 @@ class MCPServerConfig:
     transport: str = "stdio"  # stdio | sse | http
     env: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
+    # Documentation hostnames this server can read, e.g. a self-hosted Confluence or Jira; not the server's own `url`
+    hosts: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if bool(self.command) == bool(self.url):
@@ -56,6 +58,9 @@ class Defaults:
     # max_cost_usd: fail the run when the summed reported spend exceeds this.
     fail_on: str | None = None
     max_cost_usd: float | None = None
+    # Documentation sources read on every run: https:// URLs or local files
+    # and folders (#125). Merged with --context; see context_sources.py.
+    context: list[str] = field(default_factory=list)
 
 
 VALID_FAIL_ON = ("critical", "high", "medium", "low")
@@ -79,28 +84,70 @@ class SecfooConfig:
 MCP_TRANSPORTS = ("stdio", "sse", "http")
 
 
-def _check_mcp_types(name: str, raw: dict) -> None:
+def _check_mcp_types(name: str, raw: dict) -> dict:
     """These values end up in a subprocess argument list (`claude mcp add`,
     `gemini mcp add`) or an agent's JSON config, where a number or a nested
-    table crashed with TypeError instead of naming the bad key (#121)."""
+    table crashed with TypeError instead of naming the bad key (#121).
+
+    Returns `raw` with the shapes that have always worked normalised rather
+    than rejected: a blank `command`/`url` is unset, scalar `env`/`headers`
+    values (`PORT = 8080`, `DEBUG = true`) become strings. Only values that
+    used to crash raise ConfigError."""
+    raw = dict(raw)
     for key in ("command", "url"):
         value = raw.get(key)
-        if value is not None and (not isinstance(value, str) or not value.strip()):
-            raise ConfigError(f"mcp_servers.{name}.{key} must be a non-empty string")
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ConfigError(f"mcp_servers.{name}.{key} must be a string")
+        if not value.strip():
+            raw[key] = None
     args = raw.get("args", [])
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
         raise ConfigError(f"mcp_servers.{name}.args must be an array of strings")
     for key in ("env", "headers"):
         table = raw.get(key, {})
-        if not isinstance(table, dict) or not all(isinstance(v, str) for v in table.values()):
-            raise ConfigError(f"mcp_servers.{name}.{key} must be a table of strings")
+        if not isinstance(table, dict):
+            raise ConfigError(f"mcp_servers.{name}.{key} must be a table")
+        normalised = {}
+        for k, v in table.items():
+            if isinstance(v, bool):
+                normalised[k] = "true" if v else "false"
+            elif isinstance(v, (str, int, float)):
+                normalised[k] = str(v)
+            else:
+                raise ConfigError(f"mcp_servers.{name}.{key}.{k} must be a string, number or boolean")
+        raw[key] = normalised
     transport = raw.get("transport", "stdio")
-    if transport not in MCP_TRANSPORTS:
-        raise ConfigError(f"mcp_servers.{name}.transport must be one of {', '.join(MCP_TRANSPORTS)}, got {transport!r}")
+    if not isinstance(transport, str) or not transport.strip():
+        raise ConfigError(f"mcp_servers.{name}.transport must be a non-empty string, e.g. {', '.join(MCP_TRANSPORTS)}")
+    return raw
 
 
 def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
-    _check_mcp_types(name, raw)
+    raw = _check_mcp_types(name, raw)
+    hosts_raw = raw.get("hosts", [])
+    if not isinstance(hosts_raw, list) or not all(isinstance(h, str) for h in hosts_raw):
+        raise ConfigError(f"mcp_servers.{name}.hosts must be an array of strings")
+
+    hosts: list[str] = []
+    seen_hosts: set[str] = set()
+    for h in hosts_raw:
+        cleaned = h.strip().lower()
+        if not cleaned:
+            raise ConfigError(f"mcp_servers.{name}.hosts contains an empty host entry")
+        if any(ch in cleaned for ch in ("/", ":", "@")) or any(ch.isspace() for ch in cleaned):
+            raise ConfigError(
+                f"mcp_servers.{name}.hosts entry {h!r} contains invalid characters ('/', ':', '@', or whitespace)"
+            )
+        test_part = cleaned.removeprefix("*.")
+        if not test_part or "*" in test_part:
+            raise ConfigError(f"mcp_servers.{name}.hosts invalid pattern {h!r}")
+
+        if cleaned not in seen_hosts:
+            seen_hosts.add(cleaned)
+            hosts.append(cleaned)
+
     try:
         return MCPServerConfig(
             name=name,
@@ -110,6 +157,7 @@ def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
             transport=raw.get("transport", "stdio"),
             env=dict(raw.get("env", {})),
             headers=dict(raw.get("headers", {})),
+            hosts=hosts,
         )
     except ConfigError:
         raise
@@ -150,8 +198,15 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         if value is not None and (not isinstance(value, str) or not value.strip()):
             raise ConfigError(f"defaults.{key} must be a non-empty string")
     timeout = defaults_raw.get("timeout")
+    # A whole-number float (`timeout = 1800.0`) has always worked; keep it.
+    if isinstance(timeout, float) and timeout.is_integer():
+        timeout = int(timeout)
+        defaults_raw = {**defaults_raw, "timeout": timeout}
     if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0):
         raise ConfigError("defaults.timeout must be a positive integer (seconds)")
+    context_raw = defaults_raw.get("context", [])
+    if not isinstance(context_raw, list) or not all(isinstance(c, str) and c.strip() for c in context_raw):
+        raise ConfigError("defaults.context must be an array of non-empty strings")
     defaults = Defaults(
         agent=defaults_raw.get("agent"),
         depth=defaults_raw.get("depth"),
@@ -159,6 +214,7 @@ def load_config(path: Path | None = None) -> SecfooConfig:
         exclude=list(exclude_raw),
         fail_on=fail_on,
         max_cost_usd=max_cost_usd,
+        context=list(context_raw),
     )
 
     agents_raw = data.get("agents", {})

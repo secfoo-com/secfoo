@@ -4,6 +4,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+# pytest --cov output (CI uploads coverage.xml as an artifact instead).
+.coverage
+.coverage.*
+coverage.xml
 build/
 dist/
 .DS_Store

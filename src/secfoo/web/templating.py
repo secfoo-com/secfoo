@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from fastapi.templating import Jinja2Templates
 
+from secfoo.context_sources import https_url_problem
 from secfoo.cost import format_cost, format_tokens
 from secfoo.cvss import CvssError, parse_vector
 from secfoo.cvss import rating as cvss_rating
@@ -313,10 +313,10 @@ def https_url(value: str | None) -> str:
     javascript: and data: links are XSS; other schemes are not rendered."""
     if not value:
         return ""
-    parts = urlsplit(value.strip())
-    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+    cleaned = value.strip()
+    if https_url_problem(cleaned) is not None:
         return ""
-    return value.strip()
+    return cleaned
 
 
 templates.env.filters["https_url"] = https_url

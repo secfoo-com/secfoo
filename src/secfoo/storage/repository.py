@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secfoo.config import DB_PATH, ensure_store_dirs
+from secfoo.report.markdown import read_stored_report
 
 # Lets a host process that serves multiple SQLite files (the multi-tenant
 # portal, one file per tenant) select which file `RunRepository()` opens
@@ -39,6 +40,7 @@ from secfoo.report.severity import SeverityCounts, extract_overall_risk_rating
 from secfoo.storage.models import (
     AssessmentRecord,
     AttachmentRecord,
+    ContextSourceRecord,
     CostRow,
     ExceptionRecord,
     OsvLookupRecord,
@@ -522,6 +524,44 @@ class RunRepository:
         ).fetchone()
         return self._row_to_run(row) if row else None
 
+    def replace_context_sources(self, run_uuid: str, rows: list[tuple[str, str, bool, str]]) -> None:
+        """Replace all context sources recorded for a run in one transaction (#125)."""
+        run_row = self._conn.execute("SELECT id FROM runs WHERE run_uuid = ?", (run_uuid,)).fetchone()
+        if not run_row:
+            return
+        run_id = run_row["id"]
+        with self._conn:
+            self._conn.execute("DELETE FROM context_sources WHERE run_id = ?", (run_id,))
+            for position, (source, type_, reached, notes) in enumerate(rows):
+                self._conn.execute(
+                    "INSERT INTO context_sources (run_id, position, source, type, reached, notes) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (run_id, position, source, type_, 1 if reached else 0, notes),
+                )
+
+    def list_context_sources(self, run_uuid: str) -> list[ContextSourceRecord]:
+        """List context sources recorded for a run ordered by position (#125)."""
+        run_row = self._conn.execute("SELECT id FROM runs WHERE run_uuid = ?", (run_uuid,)).fetchone()
+        if not run_row:
+            return []
+        rows = self._conn.execute(
+            "SELECT id, run_id, position, source, type, reached, notes FROM context_sources "
+            "WHERE run_id = ? ORDER BY position ASC",
+            (run_row["id"],),
+        ).fetchall()
+        return [
+            ContextSourceRecord(
+                id=row["id"],
+                run_id=row["run_id"],
+                position=row["position"],
+                source=row["source"],
+                type=row["type"],
+                reached=bool(row["reached"]),
+                notes=row["notes"],
+            )
+            for row in rows
+        ]
+
     def previous_skill_sha256(self, *, skill_id: str, before_started_at: str, exclude_run_uuid: str) -> str | None:
         """The skill_sha256 of the most recent earlier run of `skill_id`
         (#93's "definition changed" marker on the run detail page) --
@@ -715,7 +755,10 @@ class RunRepository:
         path = Path(row["report_path"])
         if not path.exists():
             return None, None
-        rating = extract_overall_risk_rating(path.read_text(encoding="utf-8", errors="replace"))
+        text = read_stored_report(path)
+        if not text:
+            return None, None
+        rating = extract_overall_risk_rating(text)
         risk = RESPONSIBLE_AI_RISK_BY_RATING.get(rating or "")
         if risk is None:
             return None, None

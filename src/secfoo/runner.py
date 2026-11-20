@@ -24,15 +24,19 @@ from typing import Literal
 from secfoo import cloud, cvss, memory, osv
 from secfoo.agents.registry import get_adapter
 from secfoo.config import ensure_store_dirs, run_dir
+from secfoo.context_brief import build_context_brief
+from secfoo.context_sources import ContextSource
 from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
-from secfoo.report.markdown import strip_preamble
+from secfoo.report.context_coverage import CoverageRecord, coverage_for_run
+from secfoo.report.markdown import MalformedReportError, parse_report, strip_preamble
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
 from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
 from secfoo.report.sca import osv_keys_for_report
 from secfoo.report.secret_scanning import SKILL_ID as SECRET_SKILL_ID
-from secfoo.report.severity import count_severities
+from secfoo.report.severity import SeverityCounts, count_severities
+from secfoo.settings import MCPServerConfig
 from secfoo.skills.loader import load_skill
 from secfoo.skills.renderer import TargetContext, render_prompt
 from secfoo.stack import Stack, detect_stack, language_for_ecosystem, language_for_path
@@ -124,6 +128,11 @@ class RunOutcome:
     medium_count: int = 0
     low_count: int = 0
     info_count: int = 0
+    # Why a run that produced a report still failed (e.g. "malformed report:
+    # Unclosed Markdown code fence"), so CI can tell it from an agent crash.
+    failure_reason: str | None = None
+    # Documentation sources provided or discovered, reconciled against the report (#125).
+    context_sources: tuple[CoverageRecord, ...] = ()
 
 
 def _project_display_name(resolved: ResolvedTarget) -> str:
@@ -481,15 +490,24 @@ def _run_single_skill(
             # Memory Bank: capture HEAD SHA so future runs can diff against this baseline.
             target_commit = _git_head_commit(target_ctx.local_path)
 
-            if on_skill_complete:
-                on_skill_complete(skill.name, result.status)
-
             (report_dir / "stdout.log").write_text(result.stdout, encoding="utf-8")
             (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
             report_path = report_dir / "report.md"
             report_text = strip_preamble(result.raw_report)
             report_path.write_text(report_text, encoding="utf-8")
-            severity = count_severities(report_text)
+            failure_reason = None
+            try:
+                report_text = parse_report(report_text)
+                severity = count_severities(report_text)
+            except MalformedReportError as error:
+                failure_reason = f"malformed report: {error}"
+                result.status = "failed"
+                result.exit_code = 1
+                result.stderr = (result.stderr + "\n" if result.stderr else "") + failure_reason
+                (report_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
+                severity = SeverityCounts()
+            if on_skill_complete:
+                on_skill_complete(skill.name, result.status)
 
             repo.complete_run(
                 run_uuid,
@@ -516,6 +534,17 @@ def _run_single_skill(
             # either way, so callers see exactly what they did before.
             _mark_run_crashed(repo, run_uuid, duration_seconds=time.monotonic() - started)
             raise
+
+        context_records: tuple[CoverageRecord, ...] = ()
+        if target_ctx.context_brief is not None:
+            try:
+                records = coverage_for_run(
+                    target_ctx.context_brief, report_text, run_succeeded=result.status == "success",
+                )
+                repo.replace_context_sources(run_uuid, [(r.source, r.type, r.reached, r.notes) for r in records])
+                context_records = tuple(records)
+            except Exception:
+                logger.exception("Failed to record documentation coverage for run %s", run_uuid)
 
         if result.status == "success":
             _try_cloud_sync(repo, run_uuid)
@@ -556,6 +585,8 @@ def _run_single_skill(
             medium_count=severity.medium,
             low_count=severity.low,
             info_count=severity.info,
+            failure_reason=failure_reason,
+            context_sources=context_records,
         )
     finally:
         repo.close()
@@ -566,6 +597,8 @@ def execute_runs(
     skill_ids: list[str],
     target: str | None,
     confluence_urls: list[str],
+    context_sources: list[ContextSource] | None = None,
+    mcp_servers: list[MCPServerConfig] | None = None,
     agent_id: str,
     model: str | None = None,
     max_input_tokens: int | None = None,
@@ -587,6 +620,10 @@ def execute_runs(
     after -- callers (e.g. the CLI) use these to show live progress, since
     an individual agent invocation can take minutes with no output of its
     own. Both may be called concurrently from different threads.
+
+    `context_sources` and `mcp_servers` feed the prompt's documentation brief:
+    URLs are classified with likely MCP readers named, and local files or
+    folders are extracted and inlined by secfoo.
 
     `project_id`, when given, attaches every run to that EXISTING project
     instead of the one `resolve_target(target)` would normally
@@ -652,12 +689,14 @@ def execute_runs(
                 )
         db_path = repo.db_path
 
+        context_brief = build_context_brief(context_sources, mcp_servers) if context_sources else None
         with _target_workdir(resolved) as workdir:
             target_ctx = TargetContext(
                 kind=resolved.kind.value,  # type: ignore[arg-type]
                 local_path=workdir,
                 display_source=resolved.display_name,
                 confluence_urls=confluence_urls,
+                context_brief=context_brief,
             )
             # Once per target, not per skill: every skill scans the same tree.
             stack = detect_stack(workdir)

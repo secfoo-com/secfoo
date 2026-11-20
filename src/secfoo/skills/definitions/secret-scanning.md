@@ -8,7 +8,7 @@ version: 1
 
 Hunt for exposed secrets across code *and* documentation. Documentation is
 a first-class target here, not an afterthought — a credential pasted into a
-runbook or Confluence page is as dangerous as one committed to code, and
+runbook or documentation source is as dangerous as one committed to code, and
 far less likely to be caught by other tooling.
 
 1. **Source & config.** Scan for API keys, tokens, passwords, private
@@ -26,12 +26,13 @@ far less likely to be caught by other tooling.
    from the working tree does **not** remove it from history. Report these
    separately, since remediation differs (rotate *and* rewrite history).
 
-4. **Documentation & Confluence.** If Confluence pages or other docs were
-   provided (or are reachable via MCP tooling), scan them for pasted
+4. **Documentation sources.** If documentation sources were provided (or
+   other docs are reachable via MCP tooling), scan them for pasted
    credentials, connection strings, internal hostnames with embedded
-   tokens, and "temporary" passwords in onboarding or runbook pages. If
-   you could not reach the documentation, say so explicitly under Coverage
-   Notes rather than silently skipping it.
+   tokens, and "temporary" passwords in onboarding or runbook pages. Record
+   each source and whether you reached it in the Documentation coverage
+   table, noting why any unreachable source could not be read rather than
+   silently skipping it.
 
 5. **Distinguish real from placeholder.** `password = "changeme"`,
    `sk-xxxxxxxx`, `<YOUR_API_KEY>`, and obvious test fixtures are not

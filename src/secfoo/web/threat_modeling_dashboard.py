@@ -91,6 +91,8 @@ class ThreatModelingDashboard:
     post_build_recent: list = field(default_factory=list)
     falsified_assumptions: list[dict] = field(default_factory=list)
     falsified_preview: list[dict] = field(default_factory=list)
+    # Stored reports that could not be parsed (shown as a warning: not a clean scan).
+    unparsable_reports: list[str] = field(default_factory=list)
 
 
 def build(repo: RunRepository) -> ThreatModelingDashboard:
@@ -117,7 +119,7 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
     aggregate_stride_counts = _empty_stride_counts()
 
     for project in projects:
-        text = _read(project.get("latest_success_report_path"))
+        text = _read(project.get("latest_success_report_path"), errors=dash.unparsable_reports)
         if not text:
             continue
 
@@ -280,7 +282,7 @@ def build(repo: RunRepository) -> ThreatModelingDashboard:
     # different projects.
     archetype_counter: Counter[str] = Counter()
     for run in repo.list_runs(skill_id=SKILL_ID, status="success", limit=500):
-        text = _read(run.report_path)
+        text = _read(run.report_path, errors=dash.unparsable_reports)
         if not text:
             continue
         for row in extract_threat_register_rows(text):

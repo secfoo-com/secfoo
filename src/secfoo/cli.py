@@ -12,6 +12,7 @@ from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -25,6 +26,8 @@ from secfoo.aibom import AIBOMParseError, parse_ai_bom
 from secfoo.attachments import infer_attachment_kind
 from secfoo.cloud import CloudConfig, CloudError
 from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
+from secfoo.context_run import resolve_run_context
+from secfoo.context_sources import ContextSourceError
 from secfoo.cost import format_cost, format_tokens, sum_optional
 from secfoo.report.jsonl import findings_to_jsonl
 from secfoo.report.sarif import findings_to_sarif
@@ -295,8 +298,14 @@ def run(
         None, "--target", "-t", help="GitHub URL or local directory. Defaults to the current directory."
     ),
     confluence: list[str] = typer.Option(
-        [], "--confluence", "-c", help="Confluence page URL for extra context. Repeatable."
+        [], "--confluence", "-c", help="Alias of --context, kept for existing scripts. Repeatable."
     ),
+    context: Annotated[list[str] | None, typer.Option(
+        "--context",
+        help="Documentation source for the agent to read: an https:// URL (Confluence, Jira, "
+        "SharePoint, Notion, Google Docs) or a local Markdown, text, PDF, DOCX or PPTX file or "
+        "folder. Repeatable, and added on top of [defaults].context in ~/.secfoo/config.toml.",
+    )] = None,
     agent: Optional[AgentId] = typer.Option(
         None,
         "--agent",
@@ -399,12 +408,6 @@ def run(
     but the --fail-on gate tripped, 3 all runs succeeded but the --max-cost
     gate tripped.
     """
-    for url in confluence:
-        if not url.strip().lower().startswith(("http://", "https://")):
-            (err_console if json_output else console).print(
-                f"[yellow]Warning:[/] {url!r} doesn't look like a URL — passing it through anyway."
-            )
-
     skill_file_entries = skill_file or []
     skill_sha256_entries = skill_sha256 or []
     if len(skill_sha256_entries) > len(skill_file_entries):
@@ -450,9 +453,11 @@ def run(
         memory_module.disable_for_this_process()
 
     # config.toml names these as plain strings; an unknown one used to escape
-    # as a ValueError traceback from the enum (#121).
-    for key, value, choices in (("agent", file_defaults.agent, AgentId), ("depth", file_defaults.depth, DepthId)):
-        if value and value not in {c.value for c in choices}:
+    # as a ValueError traceback from the enum (#121). Only checked when the
+    # config value is actually used: a --agent / --depth flag always wins.
+    for key, value, choices, flag in (("agent", file_defaults.agent, AgentId, agent),
+                                      ("depth", file_defaults.depth, DepthId, depth)):
+        if flag is None and value and value not in {c.value for c in choices}:
             err_console.print(f"[red]Error in {CONFIG_PATH}:[/] defaults.{key} must be one of "
                               f"{', '.join(c.value for c in choices)}, got {value!r}")
             raise typer.Exit(code=1)
@@ -488,6 +493,22 @@ def run(
     # Exclusions are additive rather than override: --exclude adds to the
     # config's list, so naming one path can't silently drop the others.
     exclude_paths = _merge_excludes(file_defaults.exclude, exclude)
+
+    try:
+        scanned_dir = resolve_target(target).path
+    except TargetResolutionError:
+        scanned_dir = None  # execute_runs reports the bad target below
+    try:
+        run_context = resolve_run_context(
+            defaults_context=file_defaults.context,
+            confluence_values=confluence,
+            context_values=context or [],
+            target_dir=scanned_dir,
+            mcp_servers=file_config.mcp_servers,
+        )
+    except ContextSourceError as exc:
+        err_console.print(f"[red]Error:[/] {escape(str(exc))}")
+        raise typer.Exit(code=2) from None
 
     # Memory Bank: on a terminal, ask before repeating a scan of a commit that
     # was already scanned. Only here, never in execute_runs(), which the
@@ -548,7 +569,9 @@ def run(
             outcomes = execute_runs(
                 skill_ids=skill_ids,
                 target=target,
-                confluence_urls=confluence,
+                confluence_urls=run_context.confluence_urls,
+                context_sources=run_context.sources,
+                mcp_servers=file_config.mcp_servers,
                 agent_id=agent.value,
                 model=model,
                 max_input_tokens=max_input_tokens,
@@ -609,6 +632,7 @@ def run(
                     "skill_id": o.skill_id,
                     "skill_name": o.skill_name,
                     "status": o.status,
+                    "failure_reason": o.failure_reason,
                     "exit_code": o.exit_code,
                     "duration_seconds": o.duration_seconds,
                     "report_path": o.report_path,
@@ -622,6 +646,10 @@ def run(
                         "low": o.low_count,
                         "info": o.info_count,
                     },
+                    "context_sources": [
+                        {"source": c.source, "type": c.type, "reached": c.reached, "notes": c.notes}
+                        for c in o.context_sources
+                    ],
                 }
                 for o in outcomes
             ],
@@ -645,9 +673,12 @@ def run(
         for outcome in outcomes:
             style = _STATUS_STYLE.get(outcome.status, "white")
             duration = f"{outcome.duration_seconds:.1f}s" if outcome.duration_seconds else "-"
+            status_cell = f"[{style}]{outcome.status}[/]"
+            if outcome.failure_reason:
+                status_cell += f"\n[dim]{escape(outcome.failure_reason)}[/]"
             table.add_row(
                 outcome.skill_name,
-                f"[{style}]{outcome.status}[/]",
+                status_cell,
                 duration,
                 f"{outcome.critical_count}/{outcome.high_count}/{outcome.medium_count}/{outcome.low_count}",
                 format_cost(outcome.cost_usd),

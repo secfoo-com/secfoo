@@ -89,8 +89,9 @@ belong to SAST and dependency risk to SCA.
     explicitly rather than guessing at a rating you have no evidence for.
 
 11. **Documented vs. implemented.** Compare architecture documentation
-    (Confluence, README, ADRs) against what the code actually does. State
-    which side you trust and why. A mismatch is a finding.
+    (the provided documentation sources, README, ADRs) against what the code
+    actually does. State which side you trust and why. A mismatch is a
+    finding.
 
 Severity: **High** = an exploitable design flaw, a missing control on a
 trust boundary, a fail-open path, or uncontained blast radius. **Medium** =
