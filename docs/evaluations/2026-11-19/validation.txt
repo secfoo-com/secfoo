@@ -1,0 +1,12 @@
+Focused evidence/evaluator/hardening tests:
+........................................................................ [ 74%]
+.........................                                                [100%]
+97 passed in 2.34s
+
+Full local suite:
+=========================== short test summary info ============================
+FAILED tests/test_sensor/test_python_probe.py::test_sensor_dying_mid_run_drops_events_without_blocking
+1 failed, 1719 passed in 36.02s
+
+Known macOS sensor lifecycle failure was reproduced before this evidence-only change.
+Ruff changed test: passed. git diff --check: passed. Remote CI is not claimed.
