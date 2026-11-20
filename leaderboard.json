@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T10:30:27Z",
+  "generated_at": "2026-11-20T11:45:28Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -410,6 +410,31 @@
       "level": null
     },
     {
+      "login": "RiccardoBifulco",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 155,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
+          "issue": 154,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
+          "issue_title": "Adversarial harness: record runtime provenance in every live record",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-20T11:45:17Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 9,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -419,7 +444,7 @@
       },
       "merged_prs": 26,
       "awards": [],
-      "rank": 9,
+      "rank": 10,
       "level": null
     },
     {
@@ -432,7 +457,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 10,
+      "rank": 11,
       "level": null
     },
     {
@@ -445,7 +470,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 11,
+      "rank": 12,
       "level": null
     },
     {
@@ -458,7 +483,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 12,
+      "rank": 13,
       "level": null
     },
     {
@@ -471,7 +496,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 13,
+      "rank": 14,
       "level": null
     },
     {
@@ -484,11 +509,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 14,
+      "rank": 15,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 155,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
+      "issue": 154,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
+      "issue_title": "Adversarial harness: record runtime provenance in every live record",
+      "contributor": "RiccardoBifulco",
+      "merged_at": "2026-11-20T11:45:17Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 149,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/149",
