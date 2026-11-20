@@ -1,7 +1,7 @@
 {
   "name": "@rakfortltd/secfoo",
   "version": "0.1.1",
-  "description": "Context-based security architectural assessment orchestrator (threat modeling, SAST/SCA checks, and OWASP-aligned reporting via your choice of coding-agent CLI)",
+  "description": "AI security review CLI: SAST, secret scanning, SCA, threat modeling and architecture review with Claude Code, Copilot, Codex, Gemini, Cursor or an API key. Reads your design docs, Confluence and Jira through MCP. SARIF output for CI.",
   "bin": {
     "secfoo": "bin/secfoo.js"
   },

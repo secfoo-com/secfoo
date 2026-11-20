@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import json
 import re
 from pathlib import Path
 
@@ -57,14 +59,18 @@ def test_the_on_block_parser_sees_triggers_after_a_blank_line() -> None:
     assert not _has_push_trigger(_top_level_on_block(commented))
 
 
-def test_no_obsolete_api_extra() -> None:
-    """litellm and langgraph are base dependencies, so `secfoo[api]` must not come back."""
+def _project() -> dict:
     try:
         import tomllib
     except ModuleNotFoundError:  # Python 3.10
         import tomli as tomllib
 
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+
+
+def test_no_obsolete_api_extra() -> None:
+    """litellm and langgraph are base dependencies, so `secfoo[api]` must not come back."""
+    project = _project()
     assert "api" not in project.get("optional-dependencies", {})
     base = {re.split(r"[\s<>=!~;\[]", dep, maxsplit=1)[0].lower() for dep in project["dependencies"]}
     assert {"litellm", "langgraph"} <= base
@@ -75,3 +81,23 @@ def test_no_obsolete_api_extra() -> None:
     files = [path for path in files if path.is_file()]
     offenders = [str(path.relative_to(ROOT)) for path in files if "secfoo[api]" in path.read_text(encoding="utf-8")]
     assert offenders == []
+
+
+def test_product_description_is_the_same_everywhere() -> None:
+    """The Typer help, CITATION.cff abstract and PyPI description tell one story."""
+    from secfoo.cli import app
+
+    description = _project()["description"]
+    abstract = re.search(r'^abstract:\s*"(.*)"\s*$', (ROOT / "CITATION.cff").read_text(encoding="utf-8"), re.MULTILINE)
+    assert abstract, "CITATION.cff has no abstract"
+    assert abstract.group(1) == description
+    assert app.info.help
+    assert description.startswith(app.info.help.rstrip("."))
+    # `secfoo --help` can show the root callback's docstring instead of Typer(help=...).
+    assert inspect.getdoc(app.registered_callback.callback) == app.info.help
+    # The npm package page is the third public listing.
+    npm = json.loads((ROOT / "npm/secfoo/package.json").read_text(encoding="utf-8"))
+    assert npm["description"] == description
+    for path in (ROOT / "src/secfoo/cli.py", ROOT / "CITATION.cff", ROOT / "npm/secfoo/package.json",
+                 ROOT / "npm/secfoo/README.md"):
+        assert "Context-based security architectural assessment" not in path.read_text(encoding="utf-8"), path
