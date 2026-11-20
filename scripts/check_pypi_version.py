@@ -12,11 +12,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def parse(version: str) -> tuple[int, ...]:
-    match = re.match(r"^(\d+(?:\.\d+)*)", version)
+# Pre-releases sort below the final release, post-releases above it:
+# 0.3.2.dev0 < 0.3.2a1 < 0.3.2rc1 < 0.3.2 < 0.3.2.post1 (PEP 440).
+_VERSION = re.compile(r"^(\d+(?:\.\d+)*)(?:\.?(dev|a|b|rc|post)\.?(\d*))?$")
+_RANK = {"dev": 0, "a": 1, "b": 2, "rc": 3, None: 4, "post": 5}
+
+
+def parse(version: str) -> tuple:
+    match = _VERSION.match(version.strip().lower())
     if not match:
         raise ValueError(f"unparseable version: {version!r}")
-    return tuple(int(part) for part in match.group(1).split("."))
+    release = [int(part) for part in match.group(1).split(".")]
+    while len(release) > 1 and release[-1] == 0:  # 0.3 == 0.3.0
+        release.pop()
+    return (tuple(release), _RANK[match.group(2)], int(match.group(3) or 0))
 
 
 def local_version() -> str:
@@ -28,7 +37,7 @@ def local_version() -> str:
 
 
 def pypi_version(package: str = "secfoo") -> str:
-    with urllib.request.urlopen(f"https://pypi.org/pypi/{package}/json", timeout=20) as resp:
+    with urllib.request.urlopen(f"https://pypi.org/pypi/{package}/json", timeout=20) as resp:  # fixed https URL
         return json.load(resp)["info"]["version"]
 
 

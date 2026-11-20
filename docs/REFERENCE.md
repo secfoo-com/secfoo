@@ -1036,6 +1036,9 @@ run publishes to PyPI, npm and GHCR. A PyPI version cannot be re-uploaded, so
 dispatch it only for a version you mean to release. Releases, tags and
 the GitHub Release assets are cut from `secfoo-com/secfoo`; the tag must
 already exist and match `src/secfoo/__about__.py`.
+Between releases `main` carries the next development version (for example
+`0.3.2.dev0`); the release commit sets it to the final `X.Y.Z` before tagging.
+CI fails if `__about__.py` is ever behind the latest PyPI release.
 
 - **pip**: the "real"/native path — a normal Python sdist+wheel, published
   to PyPI as usual.
