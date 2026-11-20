@@ -100,7 +100,9 @@ and `request_options` (names of the keyword options sent beyond model and
 messages; the harness sets no sampling options, so effective sampling is the
 model default plus the server configuration). Only loopback endpoints are probed
 and recorded as `loopback`; no keys, other hosts or user paths are stored
-(`scrub_evidence` still applies). A failed probe is recorded as `probe_error`.
+(`scrub_evidence` still applies); probes ignore proxy settings and refuse
+redirects. A failed probe is recorded as `probe_error` (`probe_error_after` for
+the post-run probe) instead of stopping the evaluation.
 Claude CLI records have no such block.
 
 To rebuild a multi-trial artifact and its summary:
