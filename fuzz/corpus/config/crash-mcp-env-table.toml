@@ -1,0 +1,4 @@
+[[mcp_servers]]
+name = 'a'
+command = 'x'
+env = { A = { B = 1 } }

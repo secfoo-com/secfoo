@@ -1,0 +1,89 @@
+name: Fuzz
+
+# Coverage-guided fuzzing (#121) of the parsers that turn untrusted input --
+# agent output, skill files, config.toml, uploaded documents, runtime
+# sensor batches -- into exit codes and dashboard content. Every run first
+# replays the seed corpus and the committed crash reproducers in
+# fuzz/corpus/<harness>/ (deterministic, blocking). Then each harness fuzzes:
+# 60 s and blocking nightly / on dispatch; 30 s and non-blocking on pull
+# requests, so a long-standing crash found by chance never fails an unrelated
+# PR -- its reproducer is still uploaded. This replaces parser-fuzz.yml.
+#
+# Reproduce a crash on any platform, without Atheris:
+#   python fuzz/fuzz_<harness>.py crash-<sha1>
+# then add it to fuzz/corpus/<harness>/ with the fix (any file name; renaming
+# it crash-<what>.<ext> helps), so tests/test_property_fuzz_targets.py and the
+# replay step below run it on every build.
+
+on:
+  pull_request:
+    paths:
+      - "src/secfoo/report/**"
+      - "src/secfoo/skills/**"
+      - "src/secfoo/settings.py"
+      - "src/secfoo/docext.py"
+      - "src/secfoo/runtime/**"
+      - "src/secfoo/web/finding_filters.py"
+      - "fuzz/**"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    - cron: "17 3 * * *"  # nightly, so slow-to-find crashes surface between PRs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.harness }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [parsers, sarif_export, skill_loader, config, docext, runtime_ingest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # PR code is installed and run below
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install package + Atheris
+        run: pip install -e ".[dev]" "atheris==3.1.0"
+
+      - name: Replay the seed corpus and crash reproducers
+        # -runs=0: run every committed input once and stop. Blocking, and
+        # deterministic: a fixed crash that comes back fails here.
+        run: python fuzz/fuzz_${{ matrix.harness }}.py fuzz/corpus/${{ matrix.harness }} -runs=0
+
+      - name: Fuzz
+        id: fuzz
+        # New inputs libFuzzer finds go to work/ (the first folder), never
+        # into the committed seed corpus. -timeout catches hangs (a
+        # pathological PDF), -rss_limit_mb decompression bombs.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: |
+          mkdir -p work artifacts
+          python fuzz/fuzz_${{ matrix.harness }}.py work fuzz/corpus/${{ matrix.harness }} \
+            -max_total_time=${{ github.event_name == 'pull_request' && 30 || 60 }} \
+            -timeout=30 -rss_limit_mb=2560 -artifact_prefix=artifacts/ -print_final_stats=1
+
+      - name: Report a non-blocking crash
+        if: ${{ !cancelled() && steps.fuzz.outcome == 'failure' && github.event_name == 'pull_request' }}
+        run: |
+          echo "::warning::Fuzzing found a crash in the ${{ matrix.harness }} harness. It may predate this PR; the reproducer is attached as an artifact."
+
+      - name: Upload the crash reproducer
+        if: ${{ !cancelled() && steps.fuzz.outcome == 'failure' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.harness }}
+          path: artifacts/
+          if-no-files-found: ignore
