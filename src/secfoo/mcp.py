@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,8 +93,17 @@ def write_claude_mcp_config(servers: list[MCPServerConfig]) -> Path | None:
 _GEMINI_LIST_NAME_RE = re.compile(r"^[^\sA-Za-z0-9]*\s*([^\s:]+):")
 
 
+def _run_cli(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    """subprocess.run, launching exactly the binary shutil.which found.
+    Popen ignores PATHEXT on Windows, so a bare "gemini" never finds npm's
+    `gemini.cmd` shim and raises FileNotFoundError even when the CLI is
+    installed (same fix as BaseAdapter.run)."""
+    resolved = shutil.which(cmd[0]) or cmd[0]
+    return subprocess.run([resolved, *cmd[1:]], capture_output=True, text=True, timeout=30, check=False)
+
+
 def _gemini_existing_names() -> set[str]:
-    proc = subprocess.run(["gemini", "mcp", "list"], capture_output=True, text=True, timeout=30)
+    proc = _run_cli(["gemini", "mcp", "list"])
     names = set()
     for line in proc.stdout.splitlines():
         match = _GEMINI_LIST_NAME_RE.match(line.strip())
@@ -117,13 +127,15 @@ def _gemini_add_command(server: MCPServerConfig) -> list[str]:
 
 
 def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if shutil.which("gemini") is None:
+        return [SyncResult("*", False, "gemini isn't installed (not found on PATH)")]
     existing = _gemini_existing_names()
     results = []
     for server in servers:
         if server.name in existing:
             results.append(SyncResult(server.name, True, "already configured, skipped"))
             continue
-        proc = subprocess.run(_gemini_add_command(server), capture_output=True, text=True, timeout=30)
+        proc = _run_cli(_gemini_add_command(server))
         if proc.returncode == 0:
             results.append(SyncResult(server.name, True, "added"))
         else:
@@ -135,6 +147,8 @@ def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
 
 
 def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if shutil.which("agent") is None:
+        return [SyncResult("*", False, "agent isn't installed (not found on PATH)")]
     CURSOR_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     root: dict = {}
     existing: dict = {}
@@ -164,7 +178,7 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
         root["mcpServers"] = existing
         CURSOR_MCP_CONFIG_PATH.write_text(json.dumps(root, indent=2), encoding="utf-8")
         for name in newly_added:
-            proc = subprocess.run(["agent", "mcp", "enable", name], capture_output=True, text=True, timeout=30)
+            proc = _run_cli(["agent", "mcp", "enable", name])
             if proc.returncode != 0:
                 for result in results:
                     if result.server_name == name:

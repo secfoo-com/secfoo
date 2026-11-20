@@ -8,6 +8,13 @@ import pytest
 from secfoo import mcp
 from secfoo.settings import MCPServerConfig
 
+
+@pytest.fixture(autouse=True)
+def _agent_clis_on_path(monkeypatch):
+    # Existing sync tests assume the gemini/agent CLIs are installed.
+    monkeypatch.setattr(mcp.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+
 STDIO_SERVER = MCPServerConfig(
     name="Atlassian-Rovo-MCP",
     command="npx",
@@ -98,7 +105,7 @@ def test_sync_gemini_adds_new_server(monkeypatch):
     results = mcp.sync_gemini([STDIO_SERVER])
     assert results[0].ok is True
     assert results[0].message == "added"
-    assert captured["cmd"][:4] == ["gemini", "mcp", "add", "--scope"]
+    assert captured["cmd"][:4] == ["/usr/bin/gemini", "mcp", "add", "--scope"]
     assert "Atlassian-Rovo-MCP" in captured["cmd"]
 
 
@@ -211,3 +218,51 @@ def test_sync_unsupported_agent_raises():
         mcp.sync("agy", [])
     with pytest.raises(ValueError):
         mcp.sync("claude", [])
+
+
+def test_sync_gemini_reports_missing_cli_instead_of_crashing(monkeypatch):
+    monkeypatch.setattr(mcp.shutil, "which", lambda name: None)
+
+    def fail_if_called(cmd, **kwargs):
+        raise AssertionError("should not run gemini when the CLI is missing")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fail_if_called)
+    results = mcp.sync_gemini([STDIO_SERVER])
+
+    assert len(results) == 1
+    assert results[0].ok is False
+    assert "gemini" in results[0].message
+
+
+def test_sync_cursor_reports_missing_cli_before_writing_config(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+    monkeypatch.setattr(mcp.shutil, "which", lambda name: None)
+
+    def fail_if_called(cmd, **kwargs):
+        raise AssertionError("should not run agent when the CLI is missing")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fail_if_called)
+    results = mcp.sync_cursor([STDIO_SERVER])
+
+    assert len(results) == 1
+    assert results[0].ok is False
+    assert "agent" in results[0].message
+    assert not cursor_path.exists()
+
+
+def test_sync_launches_the_resolved_cli_path(tmp_path, monkeypatch):
+    # On Windows npm installs `gemini.cmd`; shutil.which finds it but a bare
+    # "gemini" passed to subprocess raises FileNotFoundError.
+    monkeypatch.setattr(mcp.shutil, "which", lambda name: rf"C:\npm\{name}.CMD")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", tmp_path / "mcp.json")
+    launched = []
+
+    def fake_run(cmd, **kwargs):
+        launched.append(cmd[0])
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fake_run)
+    mcp.sync_gemini([STDIO_SERVER])
+    mcp.sync_cursor([STDIO_SERVER])
+    assert launched == [r"C:\npm\gemini.CMD", r"C:\npm\gemini.CMD", r"C:\npm\agent.CMD"]
