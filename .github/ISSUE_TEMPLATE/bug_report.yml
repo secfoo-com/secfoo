@@ -1,0 +1,91 @@
+name: Bug report
+description: Something in the secfoo CLI or dashboard doesn't work as expected
+labels: ["bug", "needs difficulty"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A reproducible command plus `stderr.log` usually lets us fix it the same week.
+        **Security vulnerabilities:** please don't file them here. See [SECURITY.md](https://github.com/secfoo-com/secfoo/blob/main/SECURITY.md).
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      description: The exact command, with secrets removed.
+      render: shell
+      placeholder: secfoo run --skill sast --target . --agent claude --depth quick
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Error output, wrong findings, a traceback, a broken dashboard page...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: secfoo version
+      description: Output of `secfoo --version`
+      placeholder: "0.3.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - claude
+        - agent (Cursor)
+        - agy (Antigravity)
+        - gemini
+        - codex
+        - copilot
+        - droid
+        - devin
+        - opencode
+        - api
+        - Not agent-related (dashboard, export, config...)
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent CLI version
+      description: For example the output of `claude --version`. Leave blank for `api` or if this isn't agent-related.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Docker image
+        - CI runner (say which below)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed secfoo
+      options:
+        - pip / pipx / uv
+        - install.sh / install.ps1
+        - npm
+        - Docker (ghcr.io/secfoo-com/secfoo)
+        - From source (pip install -e .)
+        - GitHub Action
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: For a run failure, paste or attach `~/.secfoo/reports/<run-uuid>/stderr.log`. It's usually the fastest way to diagnose an agent problem. Remove any secrets first.
+      render: text

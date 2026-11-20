@@ -1,0 +1,63 @@
+name: New agent adapter
+description: Propose support for another coding-agent CLI (`secfoo run --agent <id>`)
+title: "New agent adapter: <CLI name>"
+labels: ["enhancement", "needs difficulty"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Adapters live in `src/secfoo/agents/` (one file per CLI) and are registered in `ADAPTERS`. `docs/agents.md` documents every adapter's exact command line. The questions below are what a reviewer needs to judge whether the CLI can run a **read-only, non-interactive** review.
+  - type: input
+    id: cli
+    attributes:
+      label: CLI name and official docs link
+      placeholder: "ExampleAgent CLI: https://docs.example.com/cli"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version you checked
+      description: Output of `<cli> --version`
+    validations:
+      required: true
+  - type: textarea
+    id: headless
+    attributes:
+      label: Non-interactive invocation
+      description: The exact command that runs one prompt and exits. Say how the prompt is passed (argument, stdin or file) and which flag selects the working directory.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: readonly
+    attributes:
+      label: Read-only guarantee
+      description: How writes and shell commands are blocked (a sandbox, a permission mode, a tool allowlist), or say plainly that they can't be. secfoo never passes "yolo" or auto-approve-all flags.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output format
+      description: Is there JSON or JSONL output? Where do the final answer and token or cost usage appear? Paste a trimmed sample.
+      render: json
+  - type: textarea
+    id: auth
+    attributes:
+      label: Authentication for headless runs
+      description: API key environment variable, a prior `login` command, subscription credentials...
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Model selection and MCP
+      description: Flag to pick a model, if any. How MCP servers are configured (a per-run flag, a config file, or not supported).
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I can test this against a real account and attach a sample report
+        - label: I'd like to implement the adapter myself
