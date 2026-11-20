@@ -882,3 +882,10 @@ def test_assessments_list_rows_have_selection_checkboxes(client):
     html = client.get("/assessments").text
     assert f'name="ids" value="{a1}" form="bulk-status-form"' in html
     assert 'data-select-all="ids"' in html
+
+
+@pytest.mark.parametrize("path", ["/assessments/99999999999999999999", "/assessments/99999999999999999999/runs/new",
+                                  "/runs/99999999999999999999"])
+def test_ids_wider_than_sqlite_integer_are_404_not_500(client, path):
+    resp = client.get(path)
+    assert resp.status_code == 404

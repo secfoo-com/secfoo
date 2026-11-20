@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS runs (
     model             TEXT,                  -- requested model; NULL = CLI default/unknown
     confluence_urls   TEXT NOT NULL DEFAULT '[]',
     status            TEXT NOT NULL CHECK (status IN
-                          ('pending','running','success','failed','timeout','binary_not_found')),
+                          ('pending','running','success','failed','timeout','binary_not_found','not_configured')),
     exit_code         INTEGER,
     started_at        TEXT NOT NULL,
     finished_at       TEXT,

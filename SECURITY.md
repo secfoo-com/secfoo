@@ -24,7 +24,26 @@ way you'd treat opening it in your agent CLI in the first place.
 
 `secfoo serve` binds to `127.0.0.1` by default and has no authentication —
 it is meant for local use. Do not expose it on a network interface without
-putting your own authenticating reverse proxy in front of it.
+putting your own authenticating reverse proxy in front of it (`secfoo serve`
+prints a warning when `--host` is not loopback).
+
+Because the dashboard runs on your machine while you browse other sites, it
+defends against your own browser being used against it:
+
+- **Cross-site writes are refused.** Every state-changing request (start an
+  agent run, delete a case file, review a finding) must come from the
+  dashboard's own origin; a request whose `Origin`, `Sec-Fetch-Site` or
+  `Referer` names another site gets `403`. Clients that send none of these
+  (curl, scripts) are unaffected. The runtime ingest API is authenticated by
+  its API key instead.
+- **DNS rebinding is refused.** Requests must name the dashboard by
+  `localhost`, `127.0.0.1`, `[::1]` or its `--host`; any other `Host` gets
+  `400`. Reaching it through a port-forwarding or proxy name? Add that name
+  with `secfoo serve --allow-host NAME`. A wildcard `--host 0.0.0.0` accepts
+  any name.
+- **Security headers** on every response: a Content-Security-Policy with
+  `script-src 'self'` and `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`.
 
 `secfoo cloud login` stores an API key in `~/.secfoo/cloud.toml`
 (mode `0600`). This key is scoped to push completed run data to your
