@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from starlette.responses import PlainTextResponse
 
 from secfoo.config import STORE_DIR
 from secfoo.runtime import api as runtime_api
+from secfoo.web import security
 from secfoo.web.routes import (
     activities,
     agents,
@@ -35,7 +37,9 @@ def mermaid_bundle_available() -> bool:
     return MERMAID_BUNDLE.is_file()
 
 
-def create_app(*, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = False) -> FastAPI:
+def create_app(
+    *, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = False, allow_hosts: Iterable[str] = ()
+) -> FastAPI:
     app = FastAPI(title="secfoo dashboard")
     # Read by the runtime ingest API (#66): on a non-loopback bind it refuses
     # API keys over plain HTTP unless the operator opted in.
@@ -58,6 +62,11 @@ def create_app(*, bind_host: str = "127.0.0.1", allow_insecure_runtime: bool = F
         if request.url.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-cache"
         return response
+
+    # Added last so it is the outermost layer: Host/Origin checks run before
+    # any route, and security headers land on every response, rejections included.
+    security.install(app, bind_host=bind_host, allow_hosts=allow_hosts)
+
     # Mounted BEFORE /static: Starlette matches mounts in registration
     # order, so the broader /static would otherwise swallow /static/vendor.
     VENDOR_DIR.mkdir(parents=True, exist_ok=True)

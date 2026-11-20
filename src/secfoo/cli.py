@@ -873,6 +873,11 @@ def serve(
         "--runtime-recheck-hours",
         help="Re-check running package versions against OSV this often (#68). 0 disables.",
     )] = 6.0,
+    allow_host: Annotated[Optional[list[str]], typer.Option(
+        "--allow-host",
+        help="Also answer to this host name (repeatable), e.g. a port-forwarding or reverse-proxy name. "
+        "Requests naming any other host are refused, which blocks DNS rebinding.",
+    )] = None,
 ) -> None:
     """Launch the local web dashboard."""
     if ctx.invoked_subcommand is not None:
@@ -885,7 +890,16 @@ def serve(
     if runtime_recheck_hours > 0:
         _start_runtime_recheck(runtime_recheck_hours)
     console.print(f"Serving dashboard at [bold]http://{host}:{port}[/]")
-    uvicorn.run(create_app(bind_host=host, allow_insecure_runtime=allow_insecure_runtime), host=host, port=port)
+    from secfoo.web.security import is_loopback
+
+    if not is_loopback(host):
+        err_console.print(
+            f"[yellow]Warning:[/] --host {host} is reachable from other machines. The dashboard has no login: "
+            "anyone who can reach it can read every report and start agent runs. Prefer 127.0.0.1 "
+            "(or an SSH tunnel / authenticating reverse proxy)."
+        )
+    app = create_app(bind_host=host, allow_insecure_runtime=allow_insecure_runtime, allow_hosts=allow_host or ())
+    uvicorn.run(app, host=host, port=port)
 
 
 def _start_runtime_recheck(hours: float) -> None:
