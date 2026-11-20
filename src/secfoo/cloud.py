@@ -28,7 +28,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from secfoo.config import CLOUD_CONFIG_PATH
+from secfoo.config import CLOUD_CONFIG_PATH, write_private_text
 from secfoo.egress import PORTAL_HOST, EgressError, require_origin
 from secfoo.storage.models import AssessmentRecord, RunRecord
 from secfoo.storage.repository import RunRepository
@@ -105,12 +105,11 @@ def save_cloud_config(config: CloudConfig, path: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     portal_url = _portal_origin(config.portal_url)
     api_key = _require_ingest_key(config.api_key)
-    path.write_text(
+    write_private_text(
+        path,
         f'api_key = "{_toml_escape(api_key)}"\n'
         f'portal_url = "{_toml_escape(portal_url)}"\n',
-        encoding="utf-8",
     )
-    path.chmod(0o600)
 
 
 def delete_cloud_config(path: Path | None = None) -> None:

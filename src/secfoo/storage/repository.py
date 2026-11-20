@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -165,21 +166,76 @@ class RunRepository:
         existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(runs)").fetchall()}
         for column, ddl in _RUNS_MIGRATIONS.items():
             if column not in existing:
-                self._conn.execute(ddl)
+                self._add_column(ddl)
         existing_assessment_cols = {
             row["name"] for row in self._conn.execute("PRAGMA table_info(assessments)").fetchall()
         }
         for column, ddl in _ASSESSMENTS_MIGRATIONS.items():
             if column not in existing_assessment_cols:
-                self._conn.execute(ddl)
+                self._add_column(ddl)
         existing_sast_cols = {
             row["name"] for row in self._conn.execute("PRAGMA table_info(sast_findings)").fetchall()
         }
         for column, ddl in _SAST_FINDINGS_MIGRATIONS.items():
             if column not in existing_sast_cols:
-                self._conn.execute(ddl)
+                self._add_column(ddl)
         self._conn.commit()
         self._migrate_attachment_kind_check()
+        self._migrate_runs_status_check()
+
+    def _add_column(self, ddl: str) -> None:
+        # Skills run in parallel threads, each opening its own connection, so
+        # two connections can both see a column missing on an old database
+        # and race to add it; the loser's "duplicate column" is success.
+        try:
+            self._conn.execute(ddl)
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc):
+                raise
+
+    def _migrate_runs_status_check(self) -> None:
+        """Widens runs.status's CHECK to allow 'not_configured' (the api agent
+        with no key) on a database created before that status existed; saving
+        such a run otherwise fails with an IntegrityError.
+
+        Same 12-step rebuild as _migrate_attachment_kind_check, but `runs` is
+        referenced by other tables and has columns appended by
+        _RUNS_MIGRATIONS, so the new table is built from the existing table's
+        own DDL (column order preserved) with only the CHECK list widened, and
+        foreign keys are switched off for the swap as SQLite's ALTER TABLE
+        documentation requires. Indexes are recreated by schema_indexes.sql
+        right after _migrate().
+        """
+        def needs_rebuild() -> str | None:
+            row = self._conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runs'").fetchone()
+            sql = row["sql"] if row else ""
+            return sql if "'binary_not_found'" in sql and "'not_configured'" not in sql else None
+
+        if needs_rebuild() is None:
+            return
+        self._conn.commit()
+        self._conn.execute("PRAGMA foreign_keys = OFF")  # a no-op inside a transaction, so set it first
+        try:
+            self._conn.execute("BEGIN IMMEDIATE")
+            old_sql = needs_rebuild()  # re-read under the write lock: another connection may have migrated
+            if old_sql is None:
+                self._conn.rollback()
+                return
+            new_sql = old_sql.replace("'binary_not_found'", "'binary_not_found','not_configured'", 1)
+            new_sql = re.sub(r'^\s*CREATE TABLE\s+(IF NOT EXISTS\s+)?["`\[]?runs["`\]]?', "CREATE TABLE runs_new",
+                             new_sql, count=1, flags=re.IGNORECASE)
+            columns = ", ".join(f'"{row["name"]}"' for row in self._conn.execute("PRAGMA table_info(runs)"))
+            self._conn.execute(new_sql)
+            self._conn.execute(f"INSERT INTO runs_new ({columns}) SELECT {columns} FROM runs")
+            self._conn.execute("DROP TABLE runs")
+            # Every row keeps its id, so references from other tables stay valid.
+            self._conn.execute("ALTER TABLE runs_new RENAME TO runs")
+            self._conn.commit()
+        except BaseException:
+            self._conn.rollback()
+            raise
+        finally:
+            self._conn.execute("PRAGMA foreign_keys = ON")
 
     def _migrate_attachment_kind_check(self) -> None:
         """Widens assessment_attachments.attachment_kind's CHECK constraint

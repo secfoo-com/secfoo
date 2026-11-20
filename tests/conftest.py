@@ -21,6 +21,13 @@ def _isolated_custom_skills(tmp_path_factory, monkeypatch):
     loader._reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _testclient_host_is_allowed(monkeypatch):
+    """The dashboard refuses foreign Host headers (DNS rebinding, #118);
+    Starlette's TestClient sends "Host: testserver" by default."""
+    monkeypatch.setattr("secfoo.web.security.EXTRA_ALLOWED_HOSTS", {"testserver"})
+
+
 class FakePopen:
     """Stand-in for subprocess.Popen used by AgentAdapter.run()."""
 

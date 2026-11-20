@@ -38,14 +38,17 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
       - id: check
+        env:
+          # Through the environment, not ${{ }} inside the script, so the tag
+          # text can never become shell code.
+          TAG: ${{ inputs.tag }}
         run: |
-          TAG_VERSION="${{ inputs.tag }}"
-          TAG_VERSION="${TAG_VERSION#v}"
+          TAG_VERSION="${TAG#v}"
           PKG_VERSION=$(grep -oP '(?<=__version__ = ")[^"]+' src/secfoo/__about__.py)
           echo "Tag version:     $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag ${{ inputs.tag }} does not match src/secfoo/__about__.py's __version__ ($PKG_VERSION). Bump __about__.py and retag."
+            echo "::error::Tag $TAG does not match src/secfoo/__about__.py's __version__ ($PKG_VERSION). Bump __about__.py and retag."
             exit 1
           fi
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
@@ -190,12 +193,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Wait for the new version to be installable from PyPI
-        run: sleep 60
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           push: true
+          # Pinned so the image is exactly the release; the Dockerfile retries
+          # while PyPI's index catches up.
+          build-args: |
+            SECFOO_VERSION=${{ needs.check-version.outputs.version }}
           tags: |
             ghcr.io/secfoo-com/secfoo:${{ needs.check-version.outputs.version }}
             ghcr.io/secfoo-com/secfoo:latest
