@@ -115,6 +115,16 @@ python scripts/adversarial_eval.py --records api.jsonl --summary summary.md
 `--combine` is an order-preserving, byte-for-byte concatenation, so the SHA-256
 recorded in `setup.json` is reproducible.
 
+To re-score stored evidence after a parser change, without model calls:
+
+```sh
+python scripts/adversarial_eval.py --records api.jsonl --rescore --summary summary-rescored.md
+```
+
+`--rescore` re-derives each API record's status from its stored report with the
+current parser (a `failed` run whose report now parses becomes `success`). It
+never modifies the artifact; publish the re-scored summary next to the original.
+
 ## Scoring and production hardening
 
 - Retention is a location/CWE heuristic, checked against each case's manifest;
