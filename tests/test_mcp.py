@@ -170,6 +170,39 @@ def test_sync_cursor_reports_enable_failure(tmp_path, monkeypatch):
     assert "denied" in results[0].message
 
 
+def test_sync_cursor_rejects_non_object_config(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_text("[]")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert str(cursor_path) in results[0].message
+
+
+def test_sync_cursor_rejects_non_object_mcp_servers(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_text(json.dumps({"mcpServers": []}))
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert str(cursor_path) in results[0].message
+
+
+def test_sync_cursor_keeps_other_top_level_keys(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_text(json.dumps({"mcpServers": {}, "customKey": {"a": 1}}))
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+    monkeypatch.setattr(mcp.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
+
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is True
+    payload = json.loads(cursor_path.read_text())
+    assert payload["customKey"] == {"a": 1}
+    assert "Atlassian-Rovo-MCP" in payload["mcpServers"]
+
+
 # ---------- dispatch ----------
 
 

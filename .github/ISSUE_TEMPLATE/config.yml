@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: New here? Start with this
+    url: https://github.com/secfoo-com/secfoo/discussions/178
+    about: How to pick an issue, set up, and get a PR merged.
+  - name: Question or help using secfoo
+    url: https://github.com/secfoo-com/secfoo/discussions/categories/q-a
+    about: Ask in Q&A discussions rather than opening an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/secfoo-com/secfoo/blob/main/SECURITY.md
+    about: Report privately, as SECURITY.md describes. Please don't open a public issue.

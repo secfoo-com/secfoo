@@ -150,12 +150,19 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
     if shutil.which("agent") is None:
         return [SyncResult("*", False, "agent isn't installed (not found on PATH)")]
     CURSOR_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    root: dict = {}
     existing: dict = {}
     if CURSOR_MCP_CONFIG_PATH.exists():
         try:
-            existing = json.loads(CURSOR_MCP_CONFIG_PATH.read_text(encoding="utf-8")).get("mcpServers", {})
+            root = json.loads(CURSOR_MCP_CONFIG_PATH.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             return [SyncResult("*", False, f"{CURSOR_MCP_CONFIG_PATH} is not valid JSON: {exc}")]
+        if not isinstance(root, dict):
+            return [SyncResult("*", False, f"{CURSOR_MCP_CONFIG_PATH} is not a JSON object")]
+        mcp_servers = root.get("mcpServers", {})
+        if not isinstance(mcp_servers, dict):
+            return [SyncResult("*", False, f"{CURSOR_MCP_CONFIG_PATH} has a non-object mcpServers value")]
+        existing = mcp_servers
 
     results = []
     newly_added: list[str] = []
@@ -168,7 +175,8 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
         results.append(SyncResult(server.name, True, f"added to {CURSOR_MCP_CONFIG_PATH}"))
 
     if newly_added:
-        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps({"mcpServers": existing}, indent=2), encoding="utf-8")
+        root["mcpServers"] = existing
+        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps(root, indent=2), encoding="utf-8")
         for name in newly_added:
             proc = _run_cli(["agent", "mcp", "enable", name])
             if proc.returncode != 0:
