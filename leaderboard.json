@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-20T11:45:28Z",
+  "generated_at": "2026-11-20T12:15:59Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -448,20 +448,20 @@
       "level": null
     },
     {
-      "login": "AmirNCI",
+      "login": "Varunpoojari",
       "points": 0,
       "counts": {
         "hard": 0,
         "medium": 0,
         "low": 0
       },
-      "merged_prs": 7,
+      "merged_prs": 8,
       "awards": [],
       "rank": 11,
       "level": null
     },
     {
-      "login": "Varunpoojari",
+      "login": "AmirNCI",
       "points": 0,
       "counts": {
         "hard": 0,
