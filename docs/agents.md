@@ -18,7 +18,7 @@ brackets indicate optional arguments. All CLI processes run in `WORKDIR`.
 | `copilot` | The adapter identifies the npm package as `@github/copilot`; install and authentication commands are unverified. `copilot [--model MODEL] --output-format json --allow-all-tools` (prompt on stdin). Tools, including writes, are auto-approved: read-only behavior relies on review instructions, not a sandbox. |
 | `droid` | Install command unverified. Set `FACTORY_API_KEY` for noninteractive use. `droid exec [-m MODEL] --output-format json --cwd WORKDIR -- PROMPT`. Droid defaults to read-only; a full authenticated secfoo run was not verified in the adapter. |
 | `devin` | The adapter identifies the official Homebrew cask as `devin-cli`; install command unverified. Authenticate beforehand with `devin auth login`; credential reuse for headless runs is unverified. `devin -p PROMPT --respect-workspace-trust false --permission-mode auto`. The combined command and an authenticated end-to-end run are unverified; `auto` is documented by the CLI as approving read-only tools. |
-| `api` | No agent binary is invoked. If dependencies are missing, run `pip install "secfoo[api]"`. Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`. Source files are included in the API prompt. Model selection uses the configured model, then `SECFOO_API_MODEL`, then `openai/gpt-4.1-mini`. |
+| `api` | No agent binary is invoked. `litellm` and `langgraph` are installed with secfoo; if importing them fails, reinstall secfoo the way you installed it (`pipx reinstall secfoo` or `pip install --force-reinstall secfoo`). Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`. Source files are included in the API prompt. Model selection uses the configured model, then `SECFOO_API_MODEL`, then `openai/gpt-4.1-mini`. |
 
 `agy` and `devin` do not support adapter model selection; secfoo warns and
 ignores a requested model. Other CLI model flags are shown above.
@@ -44,8 +44,8 @@ ignores a requested model. Other CLI model flags are shown above.
   try another agent if it remains unreliable. Claude can put an error
   reason in stdout JSON even when stderr is empty; secfoo extracts it.
 - API `not_configured`: `No API key set. Set one of: OPENAI_API_KEY,
-  ANTHROPIC_API_KEY, GEMINI_API_KEY`. Missing LiteLLM/LangGraph dependencies
-  produce `failed` with the install command above.
+  ANTHROPIC_API_KEY, GEMINI_API_KEY`. If LiteLLM or LangGraph cannot be imported,
+  the run is `failed` and the error says to reinstall secfoo.
 
 For a run failure, see `~/.secfoo/reports/<run-uuid>/stderr.log`; see
 [Reporting bugs](../CONTRIBUTING.md#reporting-bugs) for what to include
