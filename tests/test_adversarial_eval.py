@@ -224,3 +224,125 @@ def test_invalid_case_selection_refuses_before_model_calls(args, monkeypatch):
     with pytest.raises(SystemExit) as error:
         evaluation.main()
     assert error.value.code == 2
+
+
+class _FakeOllama:
+    """Loopback HTTP server that mimics the Ollama endpoints the harness probes."""
+
+    def __enter__(self):
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        routes = {
+            "/api/version": {"version": "9.8.7"},
+            "/api/show": {"parameters": "temperature 0.7\ntop_k 20\nrepeat_penalty 1\nstop \"<|im_end|>\""},
+            "/api/tags": {"models": [{"name": "tiny:q4", "model": "tiny:q4", "digest": "d" * 64}]},
+            "/api/ps": {"models": [{"name": "tiny:q4", "model": "tiny:q4", "context_length": 16384}]},
+        }
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self._reply()
+
+            do_POST = do_GET
+
+            def _reply(self):
+                body = json.dumps(routes.get(self.path, {})).encode()
+                self.send_response(200 if self.path in routes else 404)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        return f"http://127.0.0.1:{self.server.server_port}"
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def test_ollama_provenance_records_version_digest_and_options():
+    with _FakeOllama() as base:
+        info = evaluation.runtime_provenance("api", "ollama_chat/tiny:q4", base)
+    assert info["runtime_version"] == "9.8.7"
+    assert info["model_digest"] == "d" * 64
+    assert info["context_length"] == 16384
+    assert info["model_default_options"] == {"temperature": 0.7, "top_k": 20, "repeat_penalty": 1,
+                                             "stop": '"<|im_end|>"'}
+    assert info["endpoint"] == "loopback" and "127.0.0.1" not in json.dumps(info)
+
+
+def test_provenance_refuses_non_loopback_and_skips_other_providers():
+    info = evaluation.runtime_provenance("api", "ollama_chat/tiny:q4", "http://example.com:11434")
+    assert info["probe_error"] == "ValueError" and "runtime_version" not in info
+    assert evaluation.runtime_provenance("api", "openai/gpt-4.1-mini") == {}
+    assert evaluation.runtime_provenance("claude", "ollama/x") == {}
+
+
+def test_live_record_carries_runtime_provenance(tmp_path, monkeypatch):
+    import types
+
+    case_id = "code-comment-attack"
+    runner_output = {"status": "success", "raw_report": "r", "response_models": ["tiny:q4"],
+                     "request_options": ["num_retries", "timeout"]}
+
+    def fake_run(*args, **kwargs):
+        return types.SimpleNamespace(returncode=0, stdout=json.dumps(runner_output))
+
+    def fake_git(command, **kwargs):
+        return "abc123" if "rev-parse" in command else ""
+
+    monkeypatch.setattr(evaluation.subprocess, "run", fake_run)
+    monkeypatch.setattr(evaluation.subprocess, "check_output", fake_git)
+    with _FakeOllama() as base:
+        monkeypatch.setenv("OLLAMA_API_BASE", base)
+        args = types.SimpleNamespace(agent="api", model="ollama_chat/tiny:q4", phase="hardened",
+                                     checkout=tmp_path, trial=1, timeout=5, skill="sast")
+        [record] = list(evaluation.live_records(args, {case_id: CASES[case_id]}))
+    provenance = record["runtime_provenance"]
+    assert provenance["runtime_version"] == "9.8.7" and provenance["model_digest"] == "d" * 64
+    assert provenance["context_length"] == 16384
+    assert record["response_models"] == ["tiny:q4"]
+    assert record["request_options"] == ["num_retries", "timeout"]
+
+
+def test_combine_is_order_stable_and_byte_identical_to_cat(tmp_path):
+    first, second = tmp_path / "trial-1.jsonl", tmp_path / "trial-2.jsonl"
+    first.write_bytes(b'{"trial": 1}\n{"trial": 1, "b": 2}\n')
+    second.write_bytes(b'{"trial": 2}\n')
+    one, two = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    evaluation.combine_artifacts([first, second], one)
+    evaluation.combine_artifacts([first, second], two)
+    assert one.read_bytes() == two.read_bytes() == first.read_bytes() + second.read_bytes()
+    swapped = tmp_path / "swapped.jsonl"
+    evaluation.combine_artifacts([second, first], swapped)
+    assert swapped.read_bytes() != one.read_bytes()
+    with pytest.raises(FileExistsError):
+        evaluation.combine_artifacts([first], one)
+    unterminated = tmp_path / "bad.jsonl"
+    unterminated.write_bytes(b'{"trial": 3}')
+    with pytest.raises(ValueError, match="newline"):
+        evaluation.combine_artifacts([unterminated], tmp_path / "out.jsonl")
+
+
+def test_combine_and_summary_cli_rebuild_published_artifact(tmp_path, monkeypatch, capsys):
+    published = SCRIPT.parents[1] / "docs/evaluations/2026-11-19"
+    lines = (published / "api.jsonl").read_bytes().splitlines(keepends=True)
+    trials = {1: [], 2: []}
+    for line in lines:
+        trials[json.loads(line)["trial"]].append(line)
+    for number, chunk in trials.items():
+        (tmp_path / f"trial-{number}.jsonl").write_bytes(b"".join(chunk))
+    api, summary = tmp_path / "api.jsonl", tmp_path / "summary.md"
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--combine", str(tmp_path / "trial-1.jsonl"),
+                                      str(tmp_path / "trial-2.jsonl"), "-o", str(api)])
+    assert evaluation.main() == 0
+    assert api.read_bytes() == (published / "api.jsonl").read_bytes()
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--records", str(api), "--summary", str(summary)])
+    assert evaluation.main() == 1  # nonscorable runs, by design
+    assert capsys.readouterr().out == ""
+    assert summary.read_text() == (published / "summary.md").read_text()

@@ -87,6 +87,32 @@ completion; the table states that API tools are not exposed, rather than calling
 list an observed safety result. Model prose requesting a
 command is not an executed API tool call.
 
+## Runtime provenance and artifact assembly
+
+Every live API record against Ollama carries `runtime_provenance`: runtime
+name and version (`GET /api/version`), the model's full digest (`/api/show`,
+falling back to `/api/tags`), the model's default options from its Modelfile,
+and the context length the server reports as loaded (`/api/ps`). The probe runs
+before and after each case (`runtime_version_after`, `model_digest_after`), so
+a server or model swapped mid-run shows up as a mismatch. API records also
+carry `response_models` (the model id the provider returned, for hosted APIs)
+and `request_options` (names of the keyword options sent beyond model and
+messages; the harness sets no sampling options, so effective sampling is the
+model default plus the server configuration). Only loopback endpoints are probed
+and recorded as `loopback`; no keys, other hosts or user paths are stored
+(`scrub_evidence` still applies). A failed probe is recorded as `probe_error`.
+Claude CLI records have no such block.
+
+To rebuild a multi-trial artifact and its summary:
+
+```sh
+python scripts/adversarial_eval.py --combine trial-1.jsonl trial-2.jsonl -o api.jsonl
+python scripts/adversarial_eval.py --records api.jsonl --summary summary.md
+```
+
+`--combine` is an order-preserving, byte-for-byte concatenation, so the SHA-256
+recorded in `setup.json` is reproducible.
+
 ## Scoring and production hardening
 
 - Retention is a location/CWE heuristic, checked against each case's manifest;
