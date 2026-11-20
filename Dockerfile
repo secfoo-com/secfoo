@@ -18,7 +18,16 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir secfoo
+# The release workflow passes the version it just published, so the image
+# tagged X.Y.Z really contains secfoo X.Y.Z -- an unpinned install could pick
+# up the previous release while PyPI's index catches up. Retries cover that
+# lag; a local `docker build .` without the arg installs the latest release.
+ARG SECFOO_VERSION=
+RUN for attempt in 1 2 3 4 5 6; do \
+      pip install --no-cache-dir "secfoo${SECFOO_VERSION:+==${SECFOO_VERSION}}" && break; \
+      [ "$attempt" = 6 ] && exit 1; sleep 20; \
+    done \
+    && secfoo --version
 
 WORKDIR /workspace
 

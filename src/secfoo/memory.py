@@ -36,7 +36,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from secfoo.config import STORE_DIR
+from secfoo.config import STORE_DIR, write_private_text
 from secfoo.egress import EgressError, require_https_origin
 from secfoo.settings import MCPServerConfig
 
@@ -94,11 +94,7 @@ def save_memory_config(config: MemoryConfig, path: Path | None = None) -> None:
     path = path or MEMORY_CONFIG_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     url = _memory_origin(config.url)
-    path.write_text(
-        f'api_key = "{_toml_escape(config.api_key)}"\nurl = "{_toml_escape(url)}"\n',
-        encoding="utf-8",
-    )
-    path.chmod(0o600)
+    write_private_text(path, f'api_key = "{_toml_escape(config.api_key)}"\nurl = "{_toml_escape(url)}"\n')
 
 
 def delete_memory_config(path: Path | None = None) -> None:

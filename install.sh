@@ -92,6 +92,11 @@ echo "Checksum OK."
 chmod +x "$TMP_DIR/$ASSET"
 
 INSTALL_DIR="$PREFIX/bin"
+# A writable PREFIX without a bin/ yet (e.g. PREFIX=$HOME/opt) gets one,
+# rather than silently installing somewhere else.
+if [ ! -d "$INSTALL_DIR" ] && [ -w "$PREFIX" ]; then
+  mkdir -p "$INSTALL_DIR"
+fi
 if [ ! -w "$INSTALL_DIR" ] 2>/dev/null; then
   INSTALL_DIR="$HOME/.local/bin"
   mkdir -p "$INSTALL_DIR"

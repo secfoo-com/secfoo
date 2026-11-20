@@ -36,6 +36,12 @@ that may itself be untrusted or adversarial, so it's rendered
 defensively: report markdown never executes embedded HTML/scripts, and
 Mermaid diagrams render with `securityLevel: "strict"`.
 
+The store (`~/.secfoo`, or `SECFOO_HOME`) holds prompts with the scanned
+source, reports and findings, so secfoo keeps its root directory `0700`
+(tightening one created by an older version) and writes files that hold a
+credential (`cloud.toml`, `memory.toml`, `claude-mcp-config.json`) as `0600`
+from the moment they are created.
+
 ## Supported versions
 
 Only the latest published release on PyPI is supported. Please upgrade
