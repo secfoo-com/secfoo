@@ -19,6 +19,7 @@ against each `--help` output, Aug 2026):
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -185,6 +186,13 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
                     if result.server_name == name:
                         result.ok = False
                         result.message += f" (enable failed: {proc.stderr.strip()})"
+    elif os.name == "posix":
+        # Nothing new to write, but an older secfoo may have left our
+        # servers' secrets in a 0644 file: tighten it on this re-run too.
+        try:
+            CURSOR_MCP_CONFIG_PATH.chmod(0o600)
+        except OSError:
+            pass  # e.g. not our file; the sync itself still succeeded
     return results
 
 
