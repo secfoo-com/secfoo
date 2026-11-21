@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 
@@ -184,7 +185,13 @@ class SastFindingRecord:
     review_note: str | None = None
     reviewed_by: str | None = None
     reviewed_at: str | None = None
+    locations: str | None = None
     project_display_name: str | None = None
+
+    def sites(self) -> list[dict]:
+        """Every site of this finding (#112): the `locations` JSON, or the
+        single location_file/location_line for a row that has none."""
+        return _sites(self.locations, self.location_file, self.location_line)
 
 
 @dataclass(frozen=True)
@@ -242,6 +249,7 @@ class SecretFindingRecord:
     last_seen_at: str
     closed_in_run_id: int | None
     closed_at: str | None
+    locations: str | None = None
     project_display_name: str | None = None
 
 
@@ -255,3 +263,13 @@ class CostRow:
     output_tokens: int | None
     cost_usd: float | None
     unpriced_runs: int
+
+
+def _sites(locations: str | None, location_file: str, location_line: str | None) -> list[dict]:
+    try:
+        sites = json.loads(locations) if locations else []
+    except ValueError:
+        sites = []
+    if not isinstance(sites, list) or not sites:
+        return [{"path": location_file, "start_line": location_line, "end_line": None}]
+    return [site for site in sites if isinstance(site, dict) and site.get("path")]

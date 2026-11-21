@@ -38,6 +38,7 @@ def use_db_path(path: Path):
         yield
     finally:
         _default_db_path.reset(token)
+from secfoo.report.sast import locations_json, parse_locations
 from secfoo.report.severity import SeverityCounts, extract_overall_risk_rating
 from secfoo.storage.models import (
     AssessmentRecord,
@@ -106,6 +107,13 @@ _SAST_FINDINGS_MIGRATIONS = {
     "review_note": "ALTER TABLE sast_findings ADD COLUMN review_note TEXT",
     "reviewed_by": "ALTER TABLE sast_findings ADD COLUMN reviewed_by TEXT",
     "reviewed_at": "ALTER TABLE sast_findings ADD COLUMN reviewed_at TEXT",
+    # #112: every site of a multi-location finding; back-filled from
+    # location_file/location_line by _backfill_locations.
+    "locations": "ALTER TABLE sast_findings ADD COLUMN locations TEXT",
+}
+
+_SECRET_FINDINGS_MIGRATIONS = {
+    "locations": "ALTER TABLE secret_findings ADD COLUMN locations TEXT",
 }
 
 SAST_REVIEW_STATUSES = ("confirmed", "false_positive", "accepted_risk")
@@ -206,9 +214,43 @@ class RunRepository:
         for column, ddl in _SAST_FINDINGS_MIGRATIONS.items():
             if column not in existing_sast_cols:
                 self._add_column(ddl)
+        existing_secret_cols = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(secret_findings)").fetchall()
+        }
+        for column, ddl in _SECRET_FINDINGS_MIGRATIONS.items():
+            if column not in existing_secret_cols:
+                self._add_column(ddl)
         self._conn.commit()
+        self._backfill_locations()
         self._migrate_attachment_kind_check()
         self._migrate_runs_status_check()
+
+    def _backfill_locations(self) -> None:
+        """Re-derives `locations` for rows stored before #112. Those rows
+        hold the register cell as it was parsed then: a multi-site or ranged
+        cell ("server.js:78-102, app/routes/session.js:116") is the whole of
+        location_file with no line. Such a row also gets location_file/
+        location_line set to its first site, so the dashboard and the
+        incremental-scan file scope see a real path; the fingerprint is left
+        alone (runner.py rekeys it when the finding is seen again). Only
+        NULL rows are touched, so this is a no-op once done."""
+        for table in sorted(_FILE_SCOPED_TABLES):
+            rows = self._conn.execute(
+                f"SELECT id, location_file, location_line FROM {table} WHERE locations IS NULL"  # nosec B608 -- table from a fixed set
+            ).fetchall()
+            for row in rows:
+                cell = row["location_file"] or ""
+                if row["location_line"]:
+                    cell += f":{row['location_line']}"
+                sites = parse_locations(cell)
+                first_file, first_line = (sites[0].path, sites[0].start_line) if sites else (
+                    row["location_file"], row["location_line"])
+                self._conn.execute(
+                    f"UPDATE {table} SET locations = ?, location_file = ?, location_line = ? "  # nosec B608 -- table from a fixed set
+                    "WHERE id = ? AND locations IS NULL",
+                    (locations_json(cell), first_file, first_line, row["id"]),
+                )
+        self._conn.commit()
 
     def _add_column(self, ddl: str) -> None:
         # Skills run in parallel threads, each opening its own connection, so
@@ -1457,6 +1499,7 @@ class RunRepository:
         description: str | None = None,
         recommendation: str | None = None,
         code_region_hash: str | None = None,
+        locations: str | None = None,
         language: str | None = None,
         framework: str | None = None,
         construct: str | None = None,
@@ -1471,16 +1514,16 @@ class RunRepository:
         now = _now()
         self._conn.execute(
             "INSERT INTO sast_findings (project_id, fingerprint, current_ref, title, severity, cwe, "
-            "owasp, verdict, location_file, location_line, code_region_hash, language, framework, construct, "
-            "cvss_vector, cvss_score, "
+            "owasp, verdict, location_file, location_line, locations, code_region_hash, language, framework, "
+            "construct, cvss_vector, cvss_score, "
             "description, recommendation, status, first_seen_run_id, first_seen_at, last_seen_run_id, "
             "last_seen_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?) "
             "ON CONFLICT(project_id, fingerprint) DO UPDATE SET "
             "current_ref = excluded.current_ref, title = excluded.title, severity = excluded.severity, "
             "cwe = excluded.cwe, owasp = excluded.owasp, verdict = excluded.verdict, "
             "location_file = excluded.location_file, location_line = excluded.location_line, "
-            "code_region_hash = excluded.code_region_hash, "
+            "locations = excluded.locations, code_region_hash = excluded.code_region_hash, "
             "language = excluded.language, framework = excluded.framework, construct = excluded.construct, "
             "cvss_vector = excluded.cvss_vector, cvss_score = excluded.cvss_score, "
             "description = excluded.description, recommendation = excluded.recommendation, status = 'open', "
@@ -1488,7 +1531,7 @@ class RunRepository:
             "closed_in_run_id = NULL, closed_at = NULL",
             (
                 project_id, fingerprint, current_ref, title, severity, cwe, owasp, verdict,
-                location_file, location_line, code_region_hash, language, framework, construct,
+                location_file, location_line, locations, code_region_hash, language, framework, construct,
                 cvss_vector, cvss_score, description, recommendation, run_id, now, run_id, now,
             ),
         )
@@ -1501,16 +1544,31 @@ class RunRepository:
 
         No-op when the new key already exists or the old row is missing/closed.
         """
+        self._rekey_open_fingerprint(
+            "sast_findings", project_id=project_id, old_fingerprint=old_fingerprint, new_fingerprint=new_fingerprint
+        )
+
+    def rekey_open_secret_fingerprint(
+        self, *, project_id: int, old_fingerprint: str, new_fingerprint: str
+    ) -> None:
+        """rekey_open_sast_fingerprint for secret_findings (#112)."""
+        self._rekey_open_fingerprint(
+            "secret_findings", project_id=project_id, old_fingerprint=old_fingerprint, new_fingerprint=new_fingerprint
+        )
+
+    def _rekey_open_fingerprint(
+        self, table: str, *, project_id: int, old_fingerprint: str, new_fingerprint: str
+    ) -> None:
         if old_fingerprint == new_fingerprint:
             return
         exists = self._conn.execute(
-            "SELECT 1 FROM sast_findings WHERE project_id = ? AND fingerprint = ?",
+            f"SELECT 1 FROM {table} WHERE project_id = ? AND fingerprint = ?",  # nosec B608 -- table from a fixed set
             (project_id, new_fingerprint),
         ).fetchone()
         if exists:
             return
         self._conn.execute(
-            "UPDATE sast_findings SET fingerprint = ? "
+            f"UPDATE {table} SET fingerprint = ? "  # nosec B608 -- table from a fixed set
             "WHERE project_id = ? AND fingerprint = ? AND status = 'open'",
             (new_fingerprint, project_id, old_fingerprint),
         )
@@ -1644,6 +1702,7 @@ class RunRepository:
         location_file: str,
         severity: str,
         location_line: str | None = None,
+        locations: str | None = None,
         code_region_hash: str | None = None,
         source: str | None = None,
         validity: str | None = None,
@@ -1661,7 +1720,8 @@ class RunRepository:
             run_id=run_id,
             fields={
                 "current_ref": current_ref, "secret_type": secret_type, "location_file": location_file,
-                "location_line": location_line, "code_region_hash": code_region_hash, "source": source,
+                "location_line": location_line, "locations": locations, "code_region_hash": code_region_hash,
+                "source": source,
                 "validity": validity, "severity": severity, "evidence": evidence, "exposure": exposure,
                 "remediation": remediation, "language": language, "framework": framework,
                 "construct": construct,

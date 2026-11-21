@@ -133,17 +133,15 @@ def test_parse_location_handles_no_backticks():
     assert parse_location("app/db.py:42") == ("app/db.py", "42")
 
 
-def test_parse_location_strips_backticks_from_a_multi_location_cell():
+def test_parse_location_takes_the_first_site_of_a_multi_location_cell():
     """A real finding can legitimately span more than one call site (e.g.
     a missing-auth finding citing both the app factory and the CLI flag
-    that exposes it) -- the contract only anticipates one `file:line`, so
-    this must degrade to the whole cell as one location string, not raise
-    or silently drop part of it. Backticks (Markdown code-span syntax) are
-    still stripped either way.
+    that exposes it). Before #112 the whole cell became the path; now the
+    first site is location_file/location_line and parse_locations() keeps
+    every site, so nothing is dropped. Backticks (Markdown code-span
+    syntax) are still stripped either way.
     """
-    file_path, line = parse_location("`web/app.py:35`, `cli.py:308`")
-    assert file_path == "web/app.py:35, cli.py:308"
-    assert line is None
+    assert parse_location("`web/app.py:35`, `cli.py:308`") == ("web/app.py", "35")
 
 
 def test_fingerprint_for_row_is_stable_for_identical_cwe_and_file_without_region_hash():
