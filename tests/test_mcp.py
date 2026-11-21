@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import subprocess
 
 import pytest
+import tomlkit
 
 from secfoo import mcp
 from secfoo.settings import MCPServerConfig
@@ -19,6 +22,34 @@ REMOTE_SERVER = MCPServerConfig(
     transport="http",
     headers={"Authorization": "Bearer abc"},
 )
+
+
+# ---------- storage primitives ----------
+
+
+def test_write_private_file_creates_file_with_0600(tmp_path):
+    target = tmp_path / "private.txt"
+    mcp._write_private_file(target, "secret content")
+    assert target.exists()
+    assert target.read_text(encoding="utf-8") == "secret content"
+    if os.name != "nt":
+        mode = target.stat().st_mode & 0o777
+        assert mode == 0o600
+
+
+def test_write_private_file_logs_warning_on_chmod_failure(
+    tmp_path, monkeypatch, caplog
+):
+    target = tmp_path / "private_fail.txt"
+
+    def fail_chmod(path, mode):
+        raise OSError("chmod failed")
+
+    monkeypatch.setattr(os, "chmod", fail_chmod)
+    with caplog.at_level(logging.WARNING):
+        mcp._write_private_file(target, "test")
+    assert target.exists()
+    assert any("Failed to chmod 0600" in record.message for record in caplog.records)
 
 
 # ---------- claude: ephemeral config ----------
@@ -37,6 +68,8 @@ def test_write_claude_mcp_config_stdio_shape(tmp_path, monkeypatch):
 
     result_path = mcp.write_claude_mcp_config([STDIO_SERVER])
     assert result_path == config_path
+    if os.name != "nt":
+        assert config_path.stat().st_mode & 0o777 == 0o600
     payload = json.loads(config_path.read_text())
     assert payload == {
         "mcpServers": {
@@ -114,13 +147,54 @@ def test_sync_gemini_reports_failure(monkeypatch):
     assert "boom" in results[0].message
 
 
+def test_sync_gemini_raises_clean_error_when_cli_missing(monkeypatch):
+    def fake_run(*args, **kwargs):
+        raise FileNotFoundError("gemini not found")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fake_run)
+    with pytest.raises(mcp.MCPSyncError, match="Gemini CLI .* is not installed"):
+        mcp.sync_gemini([STDIO_SERVER])
+
+
 # ---------- agent (Cursor): persistent via ~/.cursor/mcp.json ----------
+
+
+def test_sync_json_mcp_config_rejects_non_dict_json(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    with pytest.raises(mcp.MCPSyncError, match="does not contain a JSON object"):
+        mcp.sync_cursor([STDIO_SERVER])
+
+
+def test_sync_json_mcp_config_rejects_null_json(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_text("null", encoding="utf-8")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    with pytest.raises(mcp.MCPSyncError, match="does not contain a JSON object"):
+        mcp.sync_cursor([STDIO_SERVER])
+
+
+def test_sync_json_mcp_config_handles_non_utf8_file(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    cursor_path.write_bytes(b"\xff\xfe\x00\x00")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert "is not valid UTF-8" in results[0].message
 
 
 def test_sync_cursor_creates_new_config_file(tmp_path, monkeypatch):
     cursor_path = tmp_path / "mcp.json"
     monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
-    monkeypatch.setattr(mcp.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
+    monkeypatch.setattr(
+        mcp.subprocess,
+        "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""),
+    )
 
     results = mcp.sync_cursor([STDIO_SERVER])
     assert results[0].ok is True
@@ -138,6 +212,29 @@ def test_sync_cursor_preserves_existing_unrelated_entries(tmp_path, monkeypatch)
     payload = json.loads(cursor_path.read_text())
     assert "other-server" in payload["mcpServers"]
     assert "Atlassian-Rovo-MCP" in payload["mcpServers"]
+
+
+def test_sync_cursor_preserves_disabled_server(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    initial_content = {
+        "mcpServers": {
+            "Atlassian-Rovo-MCP": {
+                "command": "original-command",
+                "disabled": True,
+            }
+        }
+    }
+    cursor_path.write_text(json.dumps(initial_content), encoding="utf-8")
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+    saved = json.loads(cursor_path.read_text(encoding="utf-8"))
+    assert saved["mcpServers"]["Atlassian-Rovo-MCP"]["disabled"] is True
+    assert saved["mcpServers"]["Atlassian-Rovo-MCP"]["command"] == "original-command"
 
 
 def test_sync_cursor_skips_already_configured(tmp_path, monkeypatch):
@@ -163,14 +260,222 @@ def test_sync_cursor_reports_enable_failure(tmp_path, monkeypatch):
     assert "denied" in results[0].message
 
 
+def test_sync_cursor_reports_binary_missing_on_enable(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    def fake_run(*args, **kwargs):
+        raise FileNotFoundError("agent not found")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fake_run)
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert cursor_path.exists()
+    assert "written, but agent binary not found on PATH to enable" in results[0].message
+
+
+def test_sync_cursor_reports_command_error_on_enable(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    def fake_run(*args, **kwargs):
+        raise OSError("permission denied executing agent")
+
+    monkeypatch.setattr(mcp.subprocess, "run", fake_run)
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert cursor_path.exists()
+    assert (
+        "written, but agent mcp enable could not run: permission denied executing agent"
+        in results[0].message
+    )
+
+
+def test_sync_cursor_reports_timeout_on_enable(tmp_path, monkeypatch):
+    cursor_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=["agent", "mcp", "enable", "Atlassian-Rovo-MCP"], timeout=30
+        )
+
+    monkeypatch.setattr(mcp.subprocess, "run", fake_run)
+    results = mcp.sync_cursor([STDIO_SERVER])
+    assert results[0].ok is False
+    assert cursor_path.exists()
+    assert (
+        "written, but agent mcp enable could not run: Command '['agent', 'mcp', 'enable', 'Atlassian-Rovo-MCP']' timed out after 30 seconds"
+        in results[0].message
+    )
+
+
+# ---------- codex: persistent via ~/.codex/config.toml ----------
+
+
+def test_sync_codex_creates_fresh_file(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is True
+    assert codex_path.exists()
+    if os.name != "nt":
+        assert codex_path.stat().st_mode & 0o777 == 0o600
+    doc = tomlkit.parse(codex_path.read_text(encoding="utf-8"))
+    assert doc["mcp_servers"]["Atlassian-Rovo-MCP"]["command"] == "npx"
+
+
+def test_sync_codex_preserves_formatting_comments_and_empty_tables(
+    tmp_path, monkeypatch
+):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    initial = """# Global comment
+created_at = 2026-11-20T20:00:00Z
+
+[features]
+
+[mcp_servers.user_server]
+command = "my-tool"
+"""
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_text(initial, encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is True
+    text = codex_path.read_text(encoding="utf-8")
+    assert "# Global comment" in text
+    assert "created_at = 2026-11-20T20:00:00Z" in text
+    assert "[features]" in text
+    assert "user_server" in text
+    assert "Atlassian-Rovo-MCP" in text
+
+
+def test_sync_codex_remote_server_mapping(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    remote = MCPServerConfig(
+        name="remote-http",
+        url="https://api.example.com/mcp",
+        transport="http",
+        headers={"Authorization": "Bearer token123"},
+    )
+    results = mcp.sync_codex([remote])
+    assert results[0].ok is True
+    doc = tomlkit.parse(codex_path.read_text(encoding="utf-8"))
+    server_tbl = doc["mcp_servers"]["remote-http"]
+    assert server_tbl["url"] == "https://api.example.com/mcp"
+    assert server_tbl["http_headers"]["Authorization"] == "Bearer token123"
+    assert "transport" not in server_tbl
+
+
+def test_sync_codex_skips_sse_remote_server(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    sse_server = MCPServerConfig(
+        name="remote-sse",
+        url="https://api.example.com/sse",
+        transport="sse",
+    )
+    results = mcp.sync_codex([sse_server])
+    assert results[0].ok is False
+    assert "SSE" in results[0].message
+    assert not codex_path.exists()
+
+
+def test_sync_codex_idempotent(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    mcp.sync_codex([STDIO_SERVER])
+    results2 = mcp.sync_codex([STDIO_SERVER])
+    assert results2 == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+
+def test_sync_codex_handles_invalid_toml(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_text("invalid = [toml", encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is False
+    assert "is not valid TOML" in results[0].message
+
+
+def test_sync_codex_rejects_non_table_mcp_servers(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_text("mcp_servers = 5\n", encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    with pytest.raises(mcp.MCPSyncError, match="'mcp_servers' .* is not a TOML table"):
+        mcp.sync_codex([STDIO_SERVER])
+
+
+def test_sync_codex_handles_non_utf8_file(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_bytes(b"\xff\xfe\x00\x00")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is False
+    assert "is not valid UTF-8" in results[0].message
+
+
+def test_sync_codex_converts_inline_mcp_servers_table(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_text("mcp_servers = {}\n", encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is True
+    doc = tomlkit.parse(codex_path.read_text(encoding="utf-8"))
+    assert doc["mcp_servers"]["Atlassian-Rovo-MCP"]["command"] == "npx"
+
+
+def test_sync_codex_preserves_crlf_line_endings(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_bytes(b"# c\r\n[features]\r\n\r\n")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is True
+    assert codex_path.read_bytes().startswith(b"# c\r\n[features]\r\n")
+
+
+def test_sync_codex_converts_non_empty_inline_table(tmp_path, monkeypatch):
+    codex_path = tmp_path / ".codex" / "config.toml"
+    codex_path.parent.mkdir(parents=True, exist_ok=True)
+    codex_path.write_text('mcp_servers = { a = { command = "x" } }\n', encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    server_b = MCPServerConfig(name="b", command="y")
+    results = mcp.sync_codex([server_b])
+    assert results[0].ok is True
+    doc = tomlkit.parse(codex_path.read_text(encoding="utf-8"))
+    assert doc["mcp_servers"]["a"]["command"] == "x"
+    assert doc["mcp_servers"]["b"]["command"] == "y"
+
+
 # ---------- dispatch ----------
 
 
 def test_sync_dispatches_by_agent_id(monkeypatch):
     monkeypatch.setattr(mcp, "sync_gemini", lambda servers: "gemini-result")
     monkeypatch.setattr(mcp, "sync_cursor", lambda servers: "cursor-result")
+    monkeypatch.setattr(mcp, "sync_codex", lambda servers: "codex-result")
     assert mcp.sync("gemini", []) == "gemini-result"
     assert mcp.sync("agent", []) == "cursor-result"
+    assert mcp.sync("codex", []) == "codex-result"
 
 
 def test_sync_unsupported_agent_raises():

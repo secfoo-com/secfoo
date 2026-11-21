@@ -611,14 +611,17 @@ def test_mcp_sync_unsupported_agent_exits_nonzero(monkeypatch):
     assert result.exit_code == 1
 
 
-def test_mcp_sync_codex_is_reported_unsupported(monkeypatch):
+def test_mcp_sync_codex_is_supported(monkeypatch):
     servers = [MCPServerConfig(name="s", command="npx")]
     monkeypatch.setattr(
         "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
     )
+    monkeypatch.setattr(
+        mcp_module, "sync", lambda agent_id, servers: [mcp_module.SyncResult("s", True, "added")]
+    )
     result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
-    assert result.exit_code == 1
-    assert "codex" in result.output
+    assert result.exit_code == 0
+    assert "s: added" in result.stdout
 
 
 @pytest.mark.parametrize("override,expected", [(None, "config-model"), ("override-model", "override-model")])

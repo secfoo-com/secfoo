@@ -1,6 +1,5 @@
 """Bridges secfoo's portable MCP server config (settings.py) to each agent
-CLI's own mechanism for it. These differ a lot by CLI (verified directly
-against each `--help` output, Aug 2026):
+CLI's own mechanism for it. These differ a lot by CLI:
 
 - claude: supports `--mcp-config <file>`, which loads servers scoped to just
   that one invocation -- no global state touched. Handled automatically by
@@ -11,26 +10,44 @@ against each `--help` output, Aug 2026):
 - agent (Cursor): has no `mcp add` subcommand at all -- servers are defined
   by editing `~/.cursor/mcp.json` directly, then approved via
   `agent mcp enable <name>`. `secfoo mcp sync` does that merge.
-- agy (Antigravity): no MCP subcommand or flag exposed by the CLI at all as
-  of this writing. Not supported; `secfoo mcp sync --agent agy` refuses with
-  a clear error rather than silently doing nothing.
+- codex: reads `~/.codex/config.toml` (`[mcp_servers.<name>]`). While Codex has
+  a `-c` CLI configuration override flag, passing MCP server commands, URLs, or
+  headers via CLI arguments would expose credentials in process table listings
+  (`ps`). Persistent configuration with `0600` permissions keeps credentials secure.
+- agy (Antigravity): no MCP subcommand or flag exposed by the CLI (not documented
+  as supported; not re-verified (no agy binary available)). Refuses with a clean error.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
+import os
 import re
 import subprocess
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from secfoo.config import STORE_DIR, write_private_text
+import tomlkit
+from tomlkit.exceptions import TOMLKitError
+
+from secfoo.config import STORE_DIR
 from secfoo.settings import MCPServerConfig
+
+logger = logging.getLogger(__name__)
 
 CLAUDE_MCP_CONFIG_PATH = STORE_DIR / "claude-mcp-config.json"
 CURSOR_MCP_CONFIG_PATH = Path.home() / ".cursor" / "mcp.json"
+CODEX_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
 
-SYNC_SUPPORTED_AGENTS = {"gemini", "agent"}
+SYNC_SUPPORTED_AGENTS = {"gemini", "agent", "codex"}
+
+
+class MCPSyncError(ValueError):
+    """Raised when an MCP config cannot be synchronized."""
 
 
 @dataclass
@@ -38,6 +55,31 @@ class SyncResult:
     server_name: str
     ok: bool
     message: str
+
+
+def _write_private_file(path: Path, content: str) -> None:
+    """Atomically write a file with 0600 permissions inside path.parent."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.parent / f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    fd = os.open(tmp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            fd = -1
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.chmod(tmp_path, 0o600)
+        except OSError as exc:
+            logger.warning("Failed to chmod 0600 on %s: %s", tmp_path, exc)
+        os.replace(tmp_path, path)
+    finally:
+        if fd != -1:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        if tmp_path.exists():
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
 
 
 def effective_servers(configured: list[MCPServerConfig]) -> list[MCPServerConfig]:
@@ -68,6 +110,55 @@ def _server_to_standard_shape(server: MCPServerConfig) -> dict:
     return entry
 
 
+def _sync_json_mcp_config(
+    path: Path,
+    root_key: str,
+    servers: list[MCPServerConfig],
+    shape_fn: Callable[[MCPServerConfig], dict],
+    *,
+    post_add_hook: Callable[[list[str], list[SyncResult]], None] | None = None,
+) -> list[SyncResult]:
+    """Generic format-preserving JSON sync helper for agents using JSON config."""
+    data: dict = {}
+    if path.exists():
+        try:
+            raw = path.read_bytes().decode("utf-8")
+            parsed = json.loads(raw)
+        except UnicodeDecodeError as exc:
+            return [SyncResult("*", False, f"{path} is not valid UTF-8: {exc}")]
+        except (json.JSONDecodeError, OSError) as exc:
+            return [SyncResult("*", False, f"{path} is not valid JSON: {exc}")]
+        if not isinstance(parsed, dict):
+            raise MCPSyncError(
+                f"{path} does not contain a JSON object (got {type(parsed).__name__})"
+            )
+        data = parsed
+
+    existing_servers = data.get(root_key)
+    if existing_servers is None:
+        existing_servers = {}
+        data[root_key] = existing_servers
+    elif not isinstance(existing_servers, dict):
+        raise MCPSyncError(f"'{root_key}' in {path} is not a JSON object")
+
+    results: list[SyncResult] = []
+    newly_added: list[str] = []
+    for server in servers:
+        if server.name in existing_servers:
+            results.append(SyncResult(server.name, True, "already configured, skipped"))
+            continue
+        existing_servers[server.name] = shape_fn(server)
+        newly_added.append(server.name)
+        results.append(SyncResult(server.name, True, f"added to {path}"))
+
+    if newly_added:
+        _write_private_file(path, json.dumps(data, indent=2) + "\n")
+        if post_add_hook is not None:
+            post_add_hook(newly_added, results)
+
+    return results
+
+
 # ---------- claude: ephemeral, per-invocation ----------
 
 
@@ -80,10 +171,7 @@ def write_claude_mcp_config(servers: list[MCPServerConfig]) -> Path | None:
     if not servers:
         return None
     payload = {"mcpServers": {s.name: _server_to_standard_shape(s) for s in servers}}
-    STORE_DIR.mkdir(parents=True, exist_ok=True)
-    # Header values (the secfoo-memory bearer key, or any user server's
-    # auth header) are secrets -- same 0600 as cloud.toml/memory.toml.
-    write_private_text(CLAUDE_MCP_CONFIG_PATH, json.dumps(payload, indent=2))
+    _write_private_file(CLAUDE_MCP_CONFIG_PATH, json.dumps(payload, indent=2) + "\n")
     return CLAUDE_MCP_CONFIG_PATH
 
 
@@ -93,7 +181,18 @@ _GEMINI_LIST_NAME_RE = re.compile(r"^[^\sA-Za-z0-9]*\s*([^\s:]+):")
 
 
 def _gemini_existing_names() -> set[str]:
-    proc = subprocess.run(["gemini", "mcp", "list"], capture_output=True, text=True, timeout=30)
+    try:
+        proc = subprocess.run(
+            ["gemini", "mcp", "list"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        raise MCPSyncError(
+            "Gemini CLI ('gemini') is not installed or not on PATH"
+        ) from None
     names = set()
     for line in proc.stdout.splitlines():
         match = _GEMINI_LIST_NAME_RE.match(line.strip())
@@ -123,7 +222,18 @@ def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
         if server.name in existing:
             results.append(SyncResult(server.name, True, "already configured, skipped"))
             continue
-        proc = subprocess.run(_gemini_add_command(server), capture_output=True, text=True, timeout=30)
+        try:
+            proc = subprocess.run(
+                _gemini_add_command(server),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except FileNotFoundError:
+            raise MCPSyncError(
+                "Gemini CLI ('gemini') is not installed or not on PATH"
+            ) from None
         if proc.returncode == 0:
             results.append(SyncResult(server.name, True, "added"))
         else:
@@ -134,34 +244,133 @@ def sync_gemini(servers: list[MCPServerConfig]) -> list[SyncResult]:
 # ---------- agent (Cursor): persistent, via ~/.cursor/mcp.json merge ----------
 
 
-def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
-    CURSOR_MCP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    existing: dict = {}
-    if CURSOR_MCP_CONFIG_PATH.exists():
+def _cursor_post_add(newly_added: list[str], results: list[SyncResult]) -> None:
+    for name in newly_added:
         try:
-            existing = json.loads(CURSOR_MCP_CONFIG_PATH.read_text(encoding="utf-8")).get("mcpServers", {})
-        except json.JSONDecodeError as exc:
-            return [SyncResult("*", False, f"{CURSOR_MCP_CONFIG_PATH} is not valid JSON: {exc}")]
-
-    results = []
-    newly_added: list[str] = []
-    for server in servers:
-        if server.name in existing:
-            results.append(SyncResult(server.name, True, "already configured, skipped"))
-            continue
-        existing[server.name] = _server_to_standard_shape(server)
-        newly_added.append(server.name)
-        results.append(SyncResult(server.name, True, f"added to {CURSOR_MCP_CONFIG_PATH}"))
-
-    if newly_added:
-        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps({"mcpServers": existing}, indent=2), encoding="utf-8")
-        for name in newly_added:
-            proc = subprocess.run(["agent", "mcp", "enable", name], capture_output=True, text=True, timeout=30)
+            proc = subprocess.run(
+                ["agent", "mcp", "enable", name],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
             if proc.returncode != 0:
                 for result in results:
                     if result.server_name == name:
                         result.ok = False
                         result.message += f" (enable failed: {proc.stderr.strip()})"
+        except FileNotFoundError:
+            for result in results:
+                if result.server_name == name:
+                    result.ok = False
+                    result.message += (
+                        " (written, but agent binary not found on PATH to enable)"
+                    )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            for result in results:
+                if result.server_name == name:
+                    result.ok = False
+                    result.message += (
+                        f" (written, but agent mcp enable could not run: {exc})"
+                    )
+
+
+def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    return _sync_json_mcp_config(
+        CURSOR_MCP_CONFIG_PATH,
+        "mcpServers",
+        servers,
+        _server_to_standard_shape,
+        post_add_hook=_cursor_post_add,
+    )
+
+
+# ---------- codex: persistent, via ~/.codex/config.toml merge ----------
+
+
+def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if CODEX_CONFIG_PATH.exists():
+        try:
+            raw = CODEX_CONFIG_PATH.read_bytes().decode("utf-8")
+            doc = tomlkit.parse(raw)
+        except UnicodeDecodeError as exc:
+            return [
+                SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not valid UTF-8: {exc}")
+            ]
+        except (TOMLKitError, OSError) as exc:
+            return [
+                SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not valid TOML: {exc}")
+            ]
+        if not isinstance(doc, dict):
+            raise MCPSyncError(f"{CODEX_CONFIG_PATH} does not contain a TOML table")
+    else:
+        doc = tomlkit.document()
+
+    if "mcp_servers" not in doc:
+        doc["mcp_servers"] = tomlkit.table(is_super_table=True)
+    elif isinstance(doc["mcp_servers"], tomlkit.items.InlineTable):
+        super_table = tomlkit.table(is_super_table=True)
+        for k, v in doc["mcp_servers"].value.items():
+            super_table[k] = v
+        doc["mcp_servers"] = super_table
+
+    mcp_servers_table = doc["mcp_servers"]
+    if not isinstance(mcp_servers_table, dict):
+        raise MCPSyncError(f"'mcp_servers' in {CODEX_CONFIG_PATH} is not a TOML table")
+
+    results: list[SyncResult] = []
+    newly_added = False
+    for server in servers:
+        if server.name in mcp_servers_table:
+            results.append(SyncResult(server.name, True, "already configured, skipped"))
+            continue
+
+        if server.command:
+            server_tbl = tomlkit.table()
+            server_tbl["command"] = server.command
+            server_tbl["args"] = list(server.args)
+            if server.env:
+                env_tbl = tomlkit.table()
+                for k, v in server.env.items():
+                    env_tbl[k] = v
+                server_tbl["env"] = env_tbl
+            mcp_servers_table[server.name] = server_tbl
+            newly_added = True
+            results.append(
+                SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}")
+            )
+        elif server.url:
+            if server.transport == "sse":
+                results.append(
+                    SyncResult(
+                        server.name,
+                        False,
+                        "Codex does not support SSE transport for remote MCP servers (only streamable-HTTP is supported)",
+                    )
+                )
+                continue
+            server_tbl = tomlkit.table()
+            server_tbl["url"] = server.url
+            if server.headers:
+                headers_tbl = tomlkit.table()
+                for k, v in server.headers.items():
+                    headers_tbl[k] = v
+                server_tbl["http_headers"] = headers_tbl
+            mcp_servers_table[server.name] = server_tbl
+            newly_added = True
+            results.append(
+                SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}")
+            )
+        else:
+            results.append(
+                SyncResult(
+                    server.name, False, "server must define either 'command' or 'url'"
+                )
+            )
+
+    if newly_added:
+        _write_private_file(CODEX_CONFIG_PATH, tomlkit.dumps(doc))
+
     return results
 
 
@@ -170,9 +379,10 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
         return sync_gemini(servers)
     if agent_id == "agent":
         return sync_cursor(servers)
+    if agent_id == "codex":
+        return sync_codex(servers)
     raise ValueError(
         f"secfoo mcp sync isn't supported for {agent_id!r}. "
         f"claude uses --mcp-config automatically on every run (no sync needed); "
         f"agy doesn't expose any MCP configuration mechanism via its CLI yet; "
-        f"codex isn't wired up for it yet (it reads ~/.codex/config.toml directly)."
     )
