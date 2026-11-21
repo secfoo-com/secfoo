@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-21T08:48:29Z",
+  "generated_at": "2026-11-21T08:52:51Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -543,6 +543,31 @@
       "level": null
     },
     {
+      "login": "onetwothird",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 184,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/184",
+          "issue": 166,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/166",
+          "issue_title": "Lint: silence B008 false positives for typer.Option / FastAPI Depends via ruff config",
+          "contributor": "onetwothird",
+          "merged_at": "2026-11-21T08:52:42Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 13,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -552,7 +577,7 @@
       },
       "merged_prs": 31,
       "awards": [],
-      "rank": 13,
+      "rank": 14,
       "level": null
     },
     {
@@ -565,7 +590,7 @@
       },
       "merged_prs": 9,
       "awards": [],
-      "rank": 14,
+      "rank": 15,
       "level": null
     },
     {
@@ -578,7 +603,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 15,
+      "rank": 16,
       "level": null
     },
     {
@@ -591,7 +616,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 16,
+      "rank": 17,
       "level": null
     },
     {
@@ -604,7 +629,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 17,
+      "rank": 18,
       "level": null
     },
     {
@@ -617,11 +642,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 18,
+      "rank": 19,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 184,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/184",
+      "issue": 166,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/166",
+      "issue_title": "Lint: silence B008 false positives for typer.Option / FastAPI Depends via ruff config",
+      "contributor": "onetwothird",
+      "merged_at": "2026-11-21T08:52:42Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 183,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/183",

@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-21 08:48:29 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-21 08:52:51 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -18,6 +18,7 @@ _Updated 2026-11-21 08:48:29 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 10 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **6** | — | 0 | 0 | 2 | 2 |
 | 11 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
 | 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 1 |
+| 13 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
@@ -43,6 +44,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-21 | [@onetwothird](https://github.com/onetwothird) | [#184](https://github.com/secfoo-com/secfoo/pull/184) | [#166](https://github.com/secfoo-com/secfoo/issues/166) Lint: silence B008 false positives for typer.Option / FastAPI Depends via ruff config | low | +3 |
 | 2026-11-21 | [@aaas72](https://github.com/aaas72) | [#183](https://github.com/secfoo-com/secfoo/pull/183) | [#112](https://github.com/secfoo-com/secfoo/issues/112) Bug: line ranges and multi-file locations become bogus file paths (breaks fingerprints and SARIF locations) | medium | +6 |
 | 2026-11-21 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | [#182](https://github.com/secfoo-com/secfoo/pull/182) | [#171](https://github.com/secfoo-com/secfoo/issues/171) Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers) | low | +3 |
 | 2026-11-20 | [@cnYui](https://github.com/cnYui) | [#181](https://github.com/secfoo-com/secfoo/pull/181) | [#169](https://github.com/secfoo-com/secfoo/issues/169) Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed | low | +3 |
@@ -67,7 +69,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#91](https://github.com/secfoo-com/secfoo/pull/91) | [#79](https://github.com/secfoo-com/secfoo/issues/79) Custom skills: add your own skills without changing code | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#89](https://github.com/secfoo-com/secfoo/pull/89) | [#52](https://github.com/secfoo-com/secfoo/issues/52) Build a vulnerable-function watchlist from advisories | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#88](https://github.com/secfoo-com/secfoo/pull/88) | [#53](https://github.com/secfoo-com/secfoo/issues/53) Runtime evidence format, storage and `secfoo runtime ingest` | hard | +10 |
-| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#90](https://github.com/secfoo-com/secfoo/pull/90) | [#57](https://github.com/secfoo-com/secfoo/issues/57) Runtime evidence in the SCA dashboard | medium | +6 |
 
 ## Needs a difficulty label
 
