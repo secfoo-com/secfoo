@@ -961,17 +961,51 @@ your installed CLI version; an invalid ID is reported by that CLI.
 
 How MCP servers reach each agent varies by what its CLI actually supports:
 
-| Agent | Mechanism |
-|---|---|
-| `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
-| `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
-| `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
-| `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |
+| Agent | Mechanism | Guidance |
+|---|---|---|
+| `claude` | per-run | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
+| `agent` | sync | Run `secfoo mcp sync --agent agent` once to register persistently in `~/.cursor/mcp.json` |
+| `gemini` | sync | Run `secfoo mcp sync --agent gemini` once to register persistently via `gemini mcp add` |
+| `codex` | sync | Run `secfoo mcp sync --agent codex` once to merge persistently into `~/.codex/config.toml` without clobbering other settings |
+| `copilot` | sync | Run `secfoo mcp sync --agent copilot` once to register persistently in `~/.copilot/mcp-config.json` |
+| `opencode` | sync | Run `secfoo mcp sync --agent opencode` once to register persistently in `~/.config/opencode/opencode.json` |
+| `droid` | sync | Run `secfoo mcp sync --agent droid` once to register persistently in `~/.factory/mcp.json` |
+| `devin` | sync | Run `secfoo mcp sync --agent devin` once to register persistently in `~/.config/devin/mcp_config.json` (%APPDATA%\devin\mcp_config.json on Windows) |
+| `agy` | none | Not supported by secfoo: no MCP configuration mechanism is documented for the agy CLI, and this has not been re-verified against a current release |
+| `api` | none | Not applicable — the API adapter calls model endpoints directly and has no tool loop |
+
+`claude` is the only agent whose MCP servers are scoped to a single run. For the others, secfoo's adapters currently pass no MCP configuration per run, so secfoo writes those files at 0600 (for gemini, the Gemini CLI performs the write). Those servers then load for every use of that CLI, not just secfoo scans, and secrets in them are stored in plaintext at rest.
 
 ```bash
 secfoo mcp list                    # show what's configured
+secfoo mcp sync                    # register into all installed agents
 secfoo mcp sync --agent gemini     # register into gemini's own config
 ```
+
+### Write-tool security guidance
+
+MCP servers can expose both read-only operations (e.g. searching Confluence,
+querying Jira issues) and state-mutating write tools (e.g. creating tickets,
+editing documents, executing actions). Because secfoo performs read-only
+assessments, write tools should never be executed during a review:
+
+- **Claude:** Uses `--allowedTools`. Note that `--allowedTools mcp__<server>`
+  grants all tools exposed by that server (including any write tools on it).
+  To restrict write tools, use server-level read-only API tokens or fine-grained
+  per-tool allowlisting (`mcp__<server>__<tool>`) if supported by your Claude Code version.
+- **Copilot:** Synchronizes servers with `tools: ["*"]` so all tools exposed by
+  the server are available. Since non-interactive Copilot runs require
+  `--allow-all-tools`, read-only behavior relies on secfoo's review prompt
+  instructions rather than an OS-level or CLI sandbox.
+- **Codex:** Configured via `~/.codex/config.toml`. secfoo invokes Codex with
+  `--sandbox read-only`. For remote servers or tools outside the local sandbox,
+  use read-only credentials or server-side access controls.
+- **OpenCode:** Permissions can be restricted via `permission` settings in
+  `opencode.json` or `OPENCODE_PERMISSION` (e.g. `{"permission": {"edit": "deny"}}`).
+- **Principle of least privilege:** For remote MCP servers with authentication
+  (such as Atlassian Rovo, GitHub, or enterprise APIs), always issue read-only
+  API tokens or scoped credentials so write operations cannot execute even if
+  invoked.
 
 ## Pattern memory (`secfoo-memory`)
 
@@ -990,8 +1024,9 @@ secfoo memory logout
 
 Once a key is saved, secfoo registers `secfoo-memory` as a default MCP
 server. `secfoo mcp list` shows it next to your own servers. `claude` picks
-it up on every run. For `gemini` or Cursor (`agent`), run
-`secfoo mcp sync --agent <agent>` once. The `api` agent has no tool loop,
+it up on every run. For persistent agents (`gemini`, `agent`, `codex`, `copilot`,
+`opencode`, `droid`, `devin`), run `secfoo mcp sync --agent <agent>` once (or
+`secfoo mcp sync` to sync all installed). The `api` agent has no tool loop,
 so memory doesn't apply to it. When memory is on, the prompt tells the
 agent when to use the three tools (`lookup_patterns`, `get_remediation`,
 `check_false_positive`) and how to phrase a query.

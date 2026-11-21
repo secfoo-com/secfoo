@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
+from pathlib import Path
 
 import pytest
 import tomlkit
@@ -696,3 +698,38 @@ def test_sync_unsupported_agent_raises():
     assert "Agent MCP support:" in msg
     assert "REFERENCE.md" not in msg
 
+
+# ---------- consistency: docs/REFERENCE.md vs canonical matrix ----------
+
+
+def test_reference_md_mcp_matrix_consistency():
+    ref_path = Path(__file__).resolve().parents[1] / "docs" / "REFERENCE.md"
+    assert ref_path.exists(), "docs/REFERENCE.md must exist in repository root"
+    content = ref_path.read_text(encoding="utf-8")
+
+    in_table = False
+    parsed: dict[str, dict[str, str]] = {}
+    for line in content.splitlines():
+        if "How MCP servers reach each agent varies" in line:
+            in_table = True
+            continue
+        if in_table:
+            stripped = line.strip()
+            if stripped.startswith("```") or (
+                stripped.startswith("#") and not stripped.startswith("###")
+            ):
+                break
+            if stripped.startswith("|") and not stripped.startswith("|---"):
+                parts = [p.strip() for p in stripped.split("|")[1:-1]]
+                if len(parts) >= 3 and parts[0] != "Agent":
+                    raw_id = parts[0]
+                    match = re.search(r"`([^`]+)`", raw_id)
+                    agent_id = match.group(1).split()[0] if match else raw_id.split()[0]
+                    mechanism = parts[1].strip()
+                    guidance = parts[2].strip()
+                    parsed[agent_id] = {"mechanism": mechanism, "guidance": guidance}
+
+    assert set(parsed.keys()) == set(mcp.CANONICAL_MCP_SUPPORT.keys())
+    for agent_id, canonical in mcp.CANONICAL_MCP_SUPPORT.items():
+        assert parsed[agent_id]["mechanism"] == canonical.mechanism
+        assert parsed[agent_id]["guidance"] == canonical.guidance
