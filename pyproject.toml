@@ -64,6 +64,7 @@ dependencies = [
   "python-pptx>=1.0.2",
   "langgraph>=1.2.21",
   "litellm>=1.109.1",
+  "tomlkit>=0.13.0",
 ]
 
 [project.optional-dependencies]
