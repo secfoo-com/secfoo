@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-21 17:39:11 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-21 17:43:05 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -9,9 +9,9 @@ _Updated 2026-11-21 17:39:11 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **88** | Silver | 4 | 7 | 2 | 20 |
 | 2 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 3 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
-| 4 | [@aaas72](https://github.com/aaas72) | **12** | — | 0 | 2 | 0 | 2 |
-| 5 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 6 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **12** | — | 0 | 0 | 4 | 4 |
+| 4 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **15** | — | 0 | 0 | 5 | 5 |
+| 5 | [@aaas72](https://github.com/aaas72) | **12** | — | 0 | 2 | 0 | 2 |
+| 6 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 7 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
 | 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
 | 9 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
@@ -44,6 +44,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#188](https://github.com/secfoo-com/secfoo/pull/188) | [#177](https://github.com/secfoo-com/secfoo/issues/177) Docs: verify install and login commands for Cursor (agent), droid, devin and agy in docs/agents.md | low | +3 |
 | 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#187](https://github.com/secfoo-com/secfoo/pull/187) | [#176](https://github.com/secfoo-com/secfoo/issues/176) Docs: verify install and login commands for claude, gemini, codex and copilot in docs/agents.md | low | +3 |
 | 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#186](https://github.com/secfoo-com/secfoo/pull/186) | [#175](https://github.com/secfoo-com/secfoo/issues/175) CI example: Jenkins (examples/ci/Jenkinsfile + docs/CI.md) | low | +3 |
 | 2026-11-21 | [@onetwothird](https://github.com/onetwothird) | [#184](https://github.com/secfoo-com/secfoo/pull/184) | [#166](https://github.com/secfoo-com/secfoo/issues/166) Lint: silence B008 false positives for typer.Option / FastAPI Depends via ruff config | low | +3 |
@@ -68,7 +69,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#100](https://github.com/secfoo-com/secfoo/pull/100) | [#73](https://github.com/secfoo-com/secfoo/issues/73) Probe ↔ sensor protocol and conformance kit (one contract for every runtime) | hard | +10 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#99](https://github.com/secfoo-com/secfoo/pull/99) | [#55](https://github.com/secfoo-com/secfoo/issues/55) Python live sensor (`sys.monitoring`) | hard | +10 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#98](https://github.com/secfoo-com/secfoo/pull/98) | [#66](https://github.com/secfoo-com/secfoo/issues/66) Runtime ingest API: sensors use your Secfoo API key | hard | +10 |
-| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#91](https://github.com/secfoo-com/secfoo/pull/91) | [#79](https://github.com/secfoo-com/secfoo/issues/79) Custom skills: add your own skills without changing code | medium | +6 |
 
 ## Needs a difficulty label
 

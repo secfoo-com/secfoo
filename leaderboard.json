@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-21T17:39:11Z",
+  "generated_at": "2026-11-21T17:43:05Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -263,97 +263,14 @@
       "level": null
     },
     {
-      "login": "aaas72",
-      "points": 12,
-      "counts": {
-        "hard": 0,
-        "medium": 2,
-        "low": 0
-      },
-      "merged_prs": 2,
-      "awards": [
-        {
-          "pr": 162,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/162",
-          "issue": 153,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/153",
-          "issue_title": "Overall risk rating: accept the rating line small models actually write (30 of 32 fresh evaluation runs failed on it)",
-          "contributor": "aaas72",
-          "merged_at": "2026-11-20T18:37:06Z",
-          "difficulty": "medium",
-          "points": 6
-        },
-        {
-          "pr": 183,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/183",
-          "issue": 112,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/112",
-          "issue_title": "Bug: line ranges and multi-file locations become bogus file paths (breaks fingerprints and SARIF locations)",
-          "contributor": "aaas72",
-          "merged_at": "2026-11-21T08:48:19Z",
-          "difficulty": "medium",
-          "points": 6
-        }
-      ],
-      "rank": 4,
-      "level": null
-    },
-    {
-      "login": "dbdefault",
-      "points": 12,
-      "counts": {
-        "hard": 0,
-        "medium": 1,
-        "low": 2
-      },
-      "merged_prs": 3,
-      "awards": [
-        {
-          "pr": 63,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/63",
-          "issue": 49,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/49",
-          "issue_title": "New agent adapter: add support for another coding-agent CLI",
-          "contributor": "dbdefault",
-          "merged_at": "2026-11-10T16:57:25Z",
-          "difficulty": "medium",
-          "points": 6
-        },
-        {
-          "pr": 64,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
-          "issue": 48,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
-          "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
-          "contributor": "dbdefault",
-          "merged_at": "2026-11-10T16:59:26Z",
-          "difficulty": "low",
-          "points": 3
-        },
-        {
-          "pr": 65,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
-          "issue": 50,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
-          "issue_title": "Docs: per-agent setup and troubleshooting guide",
-          "contributor": "dbdefault",
-          "merged_at": "2026-11-10T17:11:30Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 5,
-      "level": null
-    },
-    {
       "login": "RiccardoBifulco",
-      "points": 12,
+      "points": 15,
       "counts": {
         "hard": 0,
         "medium": 0,
-        "low": 4
+        "low": 5
       },
-      "merged_prs": 4,
+      "merged_prs": 5,
       "awards": [
         {
           "pr": 155,
@@ -396,6 +313,100 @@
           "issue_title": "Docs: verify install and login commands for claude, gemini, codex and copilot in docs/agents.md",
           "contributor": "RiccardoBifulco",
           "merged_at": "2026-11-21T17:39:01Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 188,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/188",
+          "issue": 177,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/177",
+          "issue_title": "Docs: verify install and login commands for Cursor (agent), droid, devin and agy in docs/agents.md",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-21T17:42:54Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 4,
+      "level": null
+    },
+    {
+      "login": "aaas72",
+      "points": 12,
+      "counts": {
+        "hard": 0,
+        "medium": 2,
+        "low": 0
+      },
+      "merged_prs": 2,
+      "awards": [
+        {
+          "pr": 162,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/162",
+          "issue": 153,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/153",
+          "issue_title": "Overall risk rating: accept the rating line small models actually write (30 of 32 fresh evaluation runs failed on it)",
+          "contributor": "aaas72",
+          "merged_at": "2026-11-20T18:37:06Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 183,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/183",
+          "issue": 112,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/112",
+          "issue_title": "Bug: line ranges and multi-file locations become bogus file paths (breaks fingerprints and SARIF locations)",
+          "contributor": "aaas72",
+          "merged_at": "2026-11-21T08:48:19Z",
+          "difficulty": "medium",
+          "points": 6
+        }
+      ],
+      "rank": 5,
+      "level": null
+    },
+    {
+      "login": "dbdefault",
+      "points": 12,
+      "counts": {
+        "hard": 0,
+        "medium": 1,
+        "low": 2
+      },
+      "merged_prs": 3,
+      "awards": [
+        {
+          "pr": 63,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/63",
+          "issue": 49,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/49",
+          "issue_title": "New agent adapter: add support for another coding-agent CLI",
+          "contributor": "dbdefault",
+          "merged_at": "2026-11-10T16:57:25Z",
+          "difficulty": "medium",
+          "points": 6
+        },
+        {
+          "pr": 64,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/64",
+          "issue": 48,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/48",
+          "issue_title": "Use a distinct exit code when a run stops at `--max-cost`",
+          "contributor": "dbdefault",
+          "merged_at": "2026-11-10T16:59:26Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 65,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/65",
+          "issue": 50,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/50",
+          "issue_title": "Docs: per-agent setup and troubleshooting guide",
+          "contributor": "dbdefault",
+          "merged_at": "2026-11-10T17:11:30Z",
           "difficulty": "low",
           "points": 3
         }
@@ -669,6 +680,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 188,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/188",
+      "issue": 177,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/177",
+      "issue_title": "Docs: verify install and login commands for Cursor (agent), droid, devin and agy in docs/agents.md",
+      "contributor": "RiccardoBifulco",
+      "merged_at": "2026-11-21T17:42:54Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 187,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/187",
