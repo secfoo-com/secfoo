@@ -9,6 +9,7 @@ and the fingerprint changed whenever an agent wrote `all.js:8` instead of
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -299,6 +300,24 @@ def test_a_secret_stored_before_112_stays_open_when_seen_again(tmp_path):
     assert {r.id for r in after} == ids_before
     assert all(r.status == "open" for r in after)
     repo.close()
+
+
+@pytest.mark.parametrize(
+    ("cell", "old_path"),
+    [
+        # The old regex matched these, but read the whole list as one file.
+        ("app/db.py, app/cli.py", "app/db.py, app/cli.py"),
+        ("app/db.py; app/cli.py", "app/db.py; app/cli.py"),
+        ("app/db.py, app/cli.py:12", "app/db.py, app/cli.py"),
+    ],
+)
+def test_an_unbackticked_list_the_old_parser_matched_is_still_rekeyed(cell, old_path):
+    assert sast.pre_112_path(cell) == old_path
+    # The key a stored row got: skill | cwe | whole path (no line, no region hash).
+    old_sast = hashlib.sha256(f"{sast.SKILL_ID}|cwe-89|{old_path}".encode()).hexdigest()
+    assert sast.pre_112_fingerprint({"cwe": "CWE-89", "location": cell}) == old_sast
+    old_secret = secret_scanning.fingerprint_for_row({"secret_type": "x"}, file_path=old_path)
+    assert secret_scanning.pre_112_fingerprint({"secret_type": "x", "location": cell}) == old_secret
 
 
 def test_rekey_is_a_no_op_for_a_single_site_cell():

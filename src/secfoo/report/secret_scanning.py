@@ -16,10 +16,10 @@ from secfoo.report.code_region import hash_code_region
 from secfoo.report.markdown import detail_blocks, example_finding_ids, prose_source
 from secfoo.report.markdown import section as _extract_section
 from secfoo.report.sast import (
-    _PRE_112_LOCATION_RE,
     _normalize_path,
     locations_json,
     parse_location,
+    pre_112_path,
 )
 
 SKILL_ID = "secret-scanning"
@@ -167,10 +167,10 @@ def fingerprint_for_row(
 def pre_112_fingerprint(row: dict[str, str]) -> str | None:
     """report/sast.py's pre_112_fingerprint for this skill: the identity a
     multi-site or ranged location had when the whole cell was the path."""
-    stripped = row["location"].strip()
-    if _PRE_112_LOCATION_RE.match(stripped):
+    old_path = pre_112_path(row["location"])
+    if old_path is None:
         return None
-    return fingerprint_for_row(row, file_path=stripped.replace("`", ""))
+    return fingerprint_for_row(row, file_path=old_path)
 
 
 def findings_with_fingerprints(

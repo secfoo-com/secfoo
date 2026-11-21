@@ -219,16 +219,30 @@ def locations_json(location: str) -> str:
     return json.dumps([site.as_dict() for site in parse_locations(location)])
 
 
+def pre_112_path(location: str) -> str | None:
+    """The path the pre-#112 parser stored for this cell, or None when it
+    is the same path parse_location() gives today. That parser could still
+    "match" a list: "app/db.py, app/cli.py" became one file named
+    "app/db.py, app/cli.py", so a regex match alone does not mean the
+    identity is unchanged."""
+    stripped = location.strip()
+    match = _PRE_112_LOCATION_RE.match(stripped)
+    old_path = match.group("file").strip() if match else stripped.replace("`", "")
+    if _normalize_path(old_path) == _normalize_path(parse_location(location)[0]):
+        return None
+    return old_path
+
+
 def pre_112_fingerprint(row: dict[str, str]) -> str | None:
     """The fingerprint a multi-site or ranged location got before #112,
-    when the whole cell was taken as the path (and so no line, region hash
-    or line bucket was ever added). runner.py rekeys an open row from it
-    so an upgrade does not show those findings as closed + new. None when
-    the old parser read this cell the same way as today."""
-    stripped = row["location"].strip()
-    if _PRE_112_LOCATION_RE.match(stripped):
+    when the old parser took (most of) the cell as the path -- a path that
+    never exists, so no region hash was ever added. runner.py rekeys an
+    open row from it so an upgrade does not show those findings as closed
+    + new. None when the old parser read the same path as today."""
+    old_path = pre_112_path(row["location"])
+    if old_path is None:
         return None
-    raw = "|".join([SKILL_ID, row.get("cwe", "").strip().lower(), _normalize_path(stripped.replace("`", ""))])
+    raw = "|".join([SKILL_ID, row.get("cwe", "").strip().lower(), _normalize_path(old_path)])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
