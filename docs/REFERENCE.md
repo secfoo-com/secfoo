@@ -714,7 +714,10 @@ A missing key, server or project is an error. There is no fallback account.
 it refuses API keys over plain HTTP. Put a TLS-terminating proxy in front
 (e.g. Caddy, nginx, or a cloud load balancer forwarding `X-Forwarded-Proto`)
 and run uvicorn behind it. `--allow-insecure-runtime` disables the check, for
-a trusted private network only.
+a trusted private network only. It disables only that check: keys are still
+required on every route, the `Host` check and rate limits still apply, and
+the key still crosses the network in clear text, so anyone on that network
+can read it.
 
 ## Install
 
