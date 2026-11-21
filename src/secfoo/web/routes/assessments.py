@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 import threading
@@ -462,8 +463,15 @@ def assessment_upload(assessment_id: int, file: UploadFile):
         kind = infer_attachment_kind(filename)
         dest_dir = attachment_dir(assessment_id)
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / filename
-        if dest.resolve().parent != dest_dir.resolve():
+        # normpath + a prefix check on the resolved directory: the same
+        # containment check as before, written in the form CodeQL's
+        # py/path-injection query recognizes as a barrier.
+        base = os.path.realpath(dest_dir)
+        dest_path = os.path.normpath(os.path.join(base, filename))
+        if not dest_path.startswith(base + os.sep) or os.path.dirname(dest_path) != base:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        dest = Path(dest_path)
+        if dest.resolve().parent != Path(base):  # an existing symlink pointing out
             raise HTTPException(status_code=400, detail="Invalid filename")
         # Every kind is capped, and the copy stops at the cap rather than
         # writing the whole upload first (#118). web/security.py already
