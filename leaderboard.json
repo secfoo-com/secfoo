@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-21T08:52:51Z",
+  "generated_at": "2026-11-21T08:58:31Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -575,7 +575,7 @@
         "medium": 0,
         "low": 0
       },
-      "merged_prs": 31,
+      "merged_prs": 32,
       "awards": [],
       "rank": 14,
       "level": null
