@@ -176,7 +176,8 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
 
     if newly_added:
         root["mcpServers"] = existing
-        CURSOR_MCP_CONFIG_PATH.write_text(json.dumps(root, indent=2), encoding="utf-8")
+        # Same 0600 as claude-mcp-config.json: env and header values are secrets.
+        write_private_text(CURSOR_MCP_CONFIG_PATH, json.dumps(root, indent=2))
         for name in newly_added:
             proc = _run_cli(["agent", "mcp", "enable", name])
             if proc.returncode != 0:

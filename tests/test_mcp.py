@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import stat
 import subprocess
+import sys
 
 import pytest
 
@@ -201,6 +203,23 @@ def test_sync_cursor_keeps_other_top_level_keys(tmp_path, monkeypatch):
     payload = json.loads(cursor_path.read_text())
     assert payload["customKey"] == {"a": 1}
     assert "Atlassian-Rovo-MCP" in payload["mcpServers"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
+@pytest.mark.parametrize("existing_mode", [None, 0o644], ids=["new-file", "existing-0644"])
+def test_sync_cursor_writes_config_owner_only(tmp_path, monkeypatch, existing_mode):
+    # The file holds each server's env and headers (bearer keys, API tokens).
+    cursor_path = tmp_path / "mcp.json"
+    if existing_mode is not None:
+        cursor_path.write_text(json.dumps({"mcpServers": {}}))
+        cursor_path.chmod(existing_mode)
+    monkeypatch.setattr(mcp, "CURSOR_MCP_CONFIG_PATH", cursor_path)
+    monkeypatch.setattr(mcp.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
+
+    results = mcp.sync_cursor([REMOTE_SERVER])
+    assert results[0].ok is True
+    assert stat.S_IMODE(cursor_path.stat().st_mode) == 0o600
+    assert json.loads(cursor_path.read_text())["mcpServers"]["example"]["headers"] == {"Authorization": "Bearer abc"}
 
 
 # ---------- dispatch ----------
