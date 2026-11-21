@@ -108,3 +108,9 @@ packages = ["src/secfoo"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint.flake8-bugbear]
+# typer.Option and FastAPI's Form are designed to be used as parameter
+# defaults (they describe the parameter, they aren't shared mutable state),
+# so B008 reports them as false positives.
+extend-immutable-calls = ["typer.Option", "fastapi.Form"]
