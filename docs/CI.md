@@ -199,6 +199,65 @@ not SARIF, so treat this as the hand-off file for other tools. Full job,
 including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
+## Jenkins
+
+A declarative pipeline that runs in the published image. It needs the
+Docker Pipeline plugin and Docker on the agent:
+
+```groovy
+pipeline {
+    agent {
+        docker {
+            image 'ghcr.io/secfoo-com/secfoo:latest'
+            args '--entrypoint='   // the image's entrypoint is `secfoo`
+        }
+    }
+    environment {
+        SECFOO_HOME = "${env.WORKSPACE}/.secfoo"
+    }
+    stages {
+        stage('secfoo security review') {
+            steps {
+                withCredentials([string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')]) {
+                    sh '''
+                        code=0
+                        secfoo run --agent api --target . --depth quick --json --rescan \
+                          --project-name "${JOB_NAME}" \
+                          --skill sast --skill secret-scanning \
+                          --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+                        secfoo findings export --format sarif -o secfoo.sarif
+                        secfoo findings export -o secfoo-findings.jsonl
+                        exit ${code}
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'secfoo-result.json, secfoo.sarif, secfoo-findings.jsonl',
+                             allowEmptyArchive: true
+        }
+    }
+}
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) as a
+**Secret text** credential under **Manage Jenkins → Credentials → System →
+Global credentials** with ID `openai-api-key`. `withCredentials` masks the
+secret in console output, and the single-quoted `sh '''` block lets the
+shell, not Groovy, expand it.
+
+Jenkins runs the container as its own user, so the workspace stays owned by
+Jenkins, and `SECFOO_HOME` puts secfoo's store in the workspace because that
+user has no home directory in the image. The `sh` step records `secfoo run`'s
+exit code so `secfoo findings export` always runs before the stage fails: `0`
+is clean, `1` means a skill run failed or timed out, `2` means `--fail-on`
+tripped, and `3` means `--max-cost` tripped. `post { always { archiveArtifacts
+... } }` keeps `secfoo-result.json`, `secfoo.sarif` and
+`secfoo-findings.jsonl` on the build even when a gate fails. Full pipeline:
+[examples/ci/Jenkinsfile](../examples/ci/Jenkinsfile).
+
 ## Docker
 
 The image on GHCR has secfoo and git, nothing else:
@@ -214,7 +273,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Jenkins, Buildkite, CircleCI, Azure Pipelines, ...)
+## Anything else (Buildkite, CircleCI, Azure Pipelines, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...

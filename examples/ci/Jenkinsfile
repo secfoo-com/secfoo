@@ -1,0 +1,54 @@
+// Add to your repository as Jenkinsfile (or merge the stage into an existing pipeline).
+//
+// AI security review as a Jenkins declarative pipeline. Needs the Docker
+// Pipeline plugin and Docker on the agent.
+// Set OPENAI_API_KEY (or ANTHROPIC_API_KEY / GEMINI_API_KEY) as a "Secret text"
+// credential in Jenkins (Manage Jenkins -> Credentials -> System -> Global credentials)
+// with ID "openai-api-key".
+pipeline {
+    agent {
+        docker {
+            // The published image already has secfoo and git. Jenkins runs the
+            // container as its own user, so files in the workspace stay owned
+            // by Jenkins (no `-u root`). The image's entrypoint is `secfoo`,
+            // so clear it for Jenkins to keep the container running.
+            image 'ghcr.io/secfoo-com/secfoo:latest'
+            args '--entrypoint='
+        }
+    }
+
+    environment {
+        // The container user has no home directory, so keep secfoo's store
+        // in the workspace. Point it at a persistent path to keep findings
+        // across builds.
+        SECFOO_HOME = "${env.WORKSPACE}/.secfoo"
+    }
+
+    stages {
+        stage('secfoo security review') {
+            steps {
+                withCredentials([string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')]) {
+                    sh '''
+                        # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+                        code=0
+                        secfoo run --agent api --target . --depth quick --json --rescan \
+                          --project-name "${JOB_NAME}" \
+                          --skill sast --skill secret-scanning \
+                          --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+
+                        secfoo findings export --format sarif -o secfoo.sarif
+                        secfoo findings export -o secfoo-findings.jsonl
+                        exit ${code}
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'secfoo-result.json, secfoo.sarif, secfoo-findings.jsonl',
+                             allowEmptyArchive: true
+        }
+    }
+}
