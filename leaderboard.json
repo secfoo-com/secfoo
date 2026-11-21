@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-21T08:58:31Z",
+  "generated_at": "2026-11-21T17:35:43Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -346,6 +346,53 @@
       "level": null
     },
     {
+      "login": "RiccardoBifulco",
+      "points": 9,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 3
+      },
+      "merged_prs": 3,
+      "awards": [
+        {
+          "pr": 155,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
+          "issue": 154,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
+          "issue_title": "Adversarial harness: record runtime provenance in every live record",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-20T11:45:17Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 158,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/158",
+          "issue": 120,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/120",
+          "issue_title": "Docs and packaging drift: `secfoo[api]` extra is obsolete, public version says 0.3.0 while PyPI is 0.3.1, install scripts point at another repo",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-20T13:20:52Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 186,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/186",
+          "issue": 175,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/175",
+          "issue_title": "CI example: Jenkins (examples/ci/Jenkinsfile + docs/CI.md)",
+          "contributor": "RiccardoBifulco",
+          "merged_at": "2026-11-21T17:35:31Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 6,
+      "level": null
+    },
+    {
       "login": "AdithKB",
       "points": 6,
       "counts": {
@@ -367,7 +414,7 @@
           "points": 6
         }
       ],
-      "rank": 6,
+      "rank": 7,
       "level": null
     },
     {
@@ -392,7 +439,7 @@
           "points": 6
         }
       ],
-      "rank": 7,
+      "rank": 8,
       "level": null
     },
     {
@@ -417,7 +464,7 @@
           "points": 6
         }
       ],
-      "rank": 8,
+      "rank": 9,
       "level": null
     },
     {
@@ -449,42 +496,6 @@
           "issue_title": "Bug: `secfoo mcp sync --agent agent` crashes on a non-object ~/.cursor/mcp.json and drops its other keys",
           "contributor": "bfs2021",
           "merged_at": "2026-11-20T23:06:54Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 9,
-      "level": null
-    },
-    {
-      "login": "RiccardoBifulco",
-      "points": 6,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 2
-      },
-      "merged_prs": 2,
-      "awards": [
-        {
-          "pr": 155,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/155",
-          "issue": 154,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/154",
-          "issue_title": "Adversarial harness: record runtime provenance in every live record",
-          "contributor": "RiccardoBifulco",
-          "merged_at": "2026-11-20T11:45:17Z",
-          "difficulty": "low",
-          "points": 3
-        },
-        {
-          "pr": 158,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/158",
-          "issue": 120,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/120",
-          "issue_title": "Docs and packaging drift: `secfoo[api]` extra is obsolete, public version says 0.3.0 while PyPI is 0.3.1, install scripts point at another repo",
-          "contributor": "RiccardoBifulco",
-          "merged_at": "2026-11-20T13:20:52Z",
           "difficulty": "low",
           "points": 3
         }
@@ -647,6 +658,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 186,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/186",
+      "issue": 175,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/175",
+      "issue_title": "CI example: Jenkins (examples/ci/Jenkinsfile + docs/CI.md)",
+      "contributor": "RiccardoBifulco",
+      "merged_at": "2026-11-21T17:35:31Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 184,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/184",

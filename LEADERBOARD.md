@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-21 08:58:31 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-21 17:35:43 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -11,11 +11,11 @@ _Updated 2026-11-21 08:58:31 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 3 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
 | 4 | [@aaas72](https://github.com/aaas72) | **12** | — | 0 | 2 | 0 | 2 |
 | 5 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 6 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
-| 7 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
-| 8 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
-| 9 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
-| 10 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **6** | — | 0 | 0 | 2 | 2 |
+| 6 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **9** | — | 0 | 0 | 3 | 3 |
+| 7 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
+| 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
+| 9 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
+| 10 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
 | 11 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
 | 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 1 |
 | 13 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
@@ -44,6 +44,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#186](https://github.com/secfoo-com/secfoo/pull/186) | [#175](https://github.com/secfoo-com/secfoo/issues/175) CI example: Jenkins (examples/ci/Jenkinsfile + docs/CI.md) | low | +3 |
 | 2026-11-21 | [@onetwothird](https://github.com/onetwothird) | [#184](https://github.com/secfoo-com/secfoo/pull/184) | [#166](https://github.com/secfoo-com/secfoo/issues/166) Lint: silence B008 false positives for typer.Option / FastAPI Depends via ruff config | low | +3 |
 | 2026-11-21 | [@aaas72](https://github.com/aaas72) | [#183](https://github.com/secfoo-com/secfoo/pull/183) | [#112](https://github.com/secfoo-com/secfoo/issues/112) Bug: line ranges and multi-file locations become bogus file paths (breaks fingerprints and SARIF locations) | medium | +6 |
 | 2026-11-21 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | [#182](https://github.com/secfoo-com/secfoo/pull/182) | [#171](https://github.com/secfoo-com/secfoo/issues/171) Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers) | low | +3 |
@@ -68,7 +69,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#98](https://github.com/secfoo-com/secfoo/pull/98) | [#66](https://github.com/secfoo-com/secfoo/issues/66) Runtime ingest API: sensors use your Secfoo API key | hard | +10 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#91](https://github.com/secfoo-com/secfoo/pull/91) | [#79](https://github.com/secfoo-com/secfoo/issues/79) Custom skills: add your own skills without changing code | medium | +6 |
 | 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#89](https://github.com/secfoo-com/secfoo/pull/89) | [#52](https://github.com/secfoo-com/secfoo/issues/52) Build a vulnerable-function watchlist from advisories | medium | +6 |
-| 2026-11-11 | [@karthickmk2001](https://github.com/karthickmk2001) | [#88](https://github.com/secfoo-com/secfoo/pull/88) | [#53](https://github.com/secfoo-com/secfoo/issues/53) Runtime evidence format, storage and `secfoo runtime ingest` | hard | +10 |
 
 ## Needs a difficulty label
 
