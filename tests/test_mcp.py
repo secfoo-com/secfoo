@@ -473,9 +473,209 @@ def test_sync_dispatches_by_agent_id(monkeypatch):
     monkeypatch.setattr(mcp, "sync_gemini", lambda servers: "gemini-result")
     monkeypatch.setattr(mcp, "sync_cursor", lambda servers: "cursor-result")
     monkeypatch.setattr(mcp, "sync_codex", lambda servers: "codex-result")
+    monkeypatch.setattr(mcp, "sync_copilot", lambda servers: "copilot-result")
+    monkeypatch.setattr(mcp, "sync_opencode", lambda servers: "opencode-result")
+    monkeypatch.setattr(mcp, "sync_droid", lambda servers: "droid-result")
+    monkeypatch.setattr(mcp, "sync_devin", lambda servers: "devin-result")
     assert mcp.sync("gemini", []) == "gemini-result"
     assert mcp.sync("agent", []) == "cursor-result"
     assert mcp.sync("codex", []) == "codex-result"
+    assert mcp.sync("copilot", []) == "copilot-result"
+    assert mcp.sync("opencode", []) == "opencode-result"
+    assert mcp.sync("droid", []) == "droid-result"
+    assert mcp.sync("devin", []) == "devin-result"
+
+
+# ---------- copilot: persistent via ~/.copilot/mcp-config.json ----------
+
+
+def test_sync_copilot_stdio_and_remote(tmp_path, monkeypatch):
+    copilot_path = tmp_path / "mcp-config.json"
+    monkeypatch.setattr(mcp, "COPILOT_MCP_CONFIG_PATH", copilot_path)
+
+    sse_server = MCPServerConfig(
+        name="sse-server",
+        url="https://api.example.com/sse",
+        transport="sse",
+    )
+    results = mcp.sync_copilot([STDIO_SERVER, REMOTE_SERVER, sse_server])
+    assert len(results) == 3
+    assert all(r.ok for r in results)
+
+    doc = json.loads(copilot_path.read_text(encoding="utf-8"))
+    assert doc["mcpServers"]["Atlassian-Rovo-MCP"] == {
+        "type": "local",
+        "command": "npx",
+        "args": ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"],
+        "tools": ["*"],
+    }
+    assert doc["mcpServers"]["example"] == {
+        "type": "http",
+        "url": "https://example.com/mcp",
+        "tools": ["*"],
+        "headers": {"Authorization": "Bearer abc"},
+    }
+    assert doc["mcpServers"]["sse-server"] == {
+        "type": "sse",
+        "url": "https://api.example.com/sse",
+        "tools": ["*"],
+    }
+    if os.name != "nt":
+        assert copilot_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_sync_copilot_preserves_and_idempotent(tmp_path, monkeypatch):
+    copilot_path = tmp_path / "mcp-config.json"
+    initial = {
+        "otherKey": "custom",
+        "mcpServers": {
+            "existing": {"type": "local", "command": "echo", "tools": ["*"]},
+            "Atlassian-Rovo-MCP": {
+                "type": "local",
+                "command": "custom-cmd",
+                "tools": ["read"],
+            },
+        },
+    }
+    copilot_path.write_text(json.dumps(initial), encoding="utf-8")
+    monkeypatch.setattr(mcp, "COPILOT_MCP_CONFIG_PATH", copilot_path)
+
+    results = mcp.sync_copilot([STDIO_SERVER])
+    assert results == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+    doc = json.loads(copilot_path.read_text(encoding="utf-8"))
+    assert doc["otherKey"] == "custom"
+    assert doc["mcpServers"]["existing"]["command"] == "echo"
+    assert doc["mcpServers"]["Atlassian-Rovo-MCP"]["command"] == "custom-cmd"
+    assert doc["mcpServers"]["Atlassian-Rovo-MCP"]["tools"] == ["read"]
+
+
+# ---------- opencode: persistent via ~/.config/opencode/opencode.json ----------
+
+
+def test_sync_opencode_stdio_and_remote(tmp_path, monkeypatch):
+    opencode_path = tmp_path / "opencode.json"
+    monkeypatch.setattr(mcp, "OPENCODE_MCP_CONFIG_PATH", opencode_path)
+
+    env_server = MCPServerConfig(
+        name="env-server",
+        command="python",
+        args=["-m", "server"],
+        env={"API_KEY": "123"},
+    )
+    results = mcp.sync_opencode([env_server, REMOTE_SERVER])
+    assert len(results) == 2
+    assert all(r.ok for r in results)
+
+    doc = json.loads(opencode_path.read_text(encoding="utf-8"))
+    assert doc["mcp"]["env-server"] == {
+        "type": "local",
+        "command": ["python", "-m", "server"],
+        "enabled": True,
+        "environment": {"API_KEY": "123"},
+    }
+    assert doc["mcp"]["example"] == {
+        "type": "remote",
+        "url": "https://example.com/mcp",
+        "enabled": True,
+        "headers": {"Authorization": "Bearer abc"},
+    }
+    if os.name != "nt":
+        assert opencode_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_sync_opencode_preserves_and_idempotent(tmp_path, monkeypatch):
+    opencode_path = tmp_path / "opencode.json"
+    initial = {
+        "permission": {"bash": "deny"},
+        "mcp": {
+            "existing": {"type": "local", "command": ["echo"], "enabled": False},
+        },
+    }
+    opencode_path.write_text(json.dumps(initial), encoding="utf-8")
+    monkeypatch.setattr(mcp, "OPENCODE_MCP_CONFIG_PATH", opencode_path)
+
+    results = mcp.sync_opencode([STDIO_SERVER])
+    assert results[0].ok is True
+
+    doc = json.loads(opencode_path.read_text(encoding="utf-8"))
+    assert doc["permission"] == {"bash": "deny"}
+    assert doc["mcp"]["existing"]["enabled"] is False
+
+    results2 = mcp.sync_opencode([STDIO_SERVER])
+    assert results2 == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+
+# ---------- droid: persistent via ~/.factory/mcp.json ----------
+
+
+def test_sync_droid_creates_config(tmp_path, monkeypatch):
+    droid_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(mcp, "DROID_MCP_CONFIG_PATH", droid_path)
+
+    results = mcp.sync_droid([STDIO_SERVER, REMOTE_SERVER])
+    assert all(r.ok for r in results)
+
+    doc = json.loads(droid_path.read_text(encoding="utf-8"))
+    assert doc["mcpServers"]["Atlassian-Rovo-MCP"]["command"] == "npx"
+    assert doc["mcpServers"]["example"]["url"] == "https://example.com/mcp"
+    if os.name != "nt":
+        assert droid_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_sync_droid_preserves_and_idempotent(tmp_path, monkeypatch):
+    droid_path = tmp_path / "mcp.json"
+    initial = {"mcpServers": {"existing": {"command": "tool"}}}
+    droid_path.write_text(json.dumps(initial), encoding="utf-8")
+    monkeypatch.setattr(mcp, "DROID_MCP_CONFIG_PATH", droid_path)
+
+    mcp.sync_droid([STDIO_SERVER])
+    results2 = mcp.sync_droid([STDIO_SERVER])
+    assert results2 == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+    doc = json.loads(droid_path.read_text(encoding="utf-8"))
+    assert "existing" in doc["mcpServers"]
+    assert "Atlassian-Rovo-MCP" in doc["mcpServers"]
+
+
+# ---------- devin: persistent via mcp_config.json ----------
+
+
+def test_sync_devin_creates_config(tmp_path, monkeypatch):
+    devin_path = tmp_path / "mcp_config.json"
+    monkeypatch.setattr(mcp, "DEVIN_MCP_CONFIG_PATH", devin_path)
+
+    results = mcp.sync_devin([STDIO_SERVER, REMOTE_SERVER])
+    assert all(r.ok for r in results)
+
+    doc = json.loads(devin_path.read_text(encoding="utf-8"))
+    assert doc["mcpServers"]["Atlassian-Rovo-MCP"]["command"] == "npx"
+    assert doc["mcpServers"]["example"]["url"] == "https://example.com/mcp"
+    if os.name != "nt":
+        assert devin_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_sync_devin_preserves_and_idempotent(tmp_path, monkeypatch):
+    devin_path = tmp_path / "mcp_config.json"
+    initial = {"custom": True, "mcpServers": {"existing": {"command": "custom"}}}
+    devin_path.write_text(json.dumps(initial), encoding="utf-8")
+    monkeypatch.setattr(mcp, "DEVIN_MCP_CONFIG_PATH", devin_path)
+
+    mcp.sync_devin([STDIO_SERVER])
+    results2 = mcp.sync_devin([STDIO_SERVER])
+    assert results2 == [
+        mcp.SyncResult("Atlassian-Rovo-MCP", True, "already configured, skipped")
+    ]
+
+    doc = json.loads(devin_path.read_text(encoding="utf-8"))
+    assert doc["custom"] is True
+    assert doc["mcpServers"]["existing"]["command"] == "custom"
 
 
 def test_sync_unsupported_agent_raises():

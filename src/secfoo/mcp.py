@@ -14,6 +14,15 @@ CLI's own mechanism for it. These differ a lot by CLI:
   a `-c` CLI configuration override flag, passing MCP server commands, URLs, or
   headers via CLI arguments would expose credentials in process table listings
   (`ps`). Persistent configuration with `0600` permissions keeps credentials secure.
+- copilot: reads `~/.copilot/mcp-config.json` (`mcpServers`). The Copilot CLI
+  does not provide a per-run flag for ephemeral MCP configuration.
+- opencode: reads `~/.config/opencode/opencode.json` (`mcp` table). OpenCode's
+  `OPENCODE_CONFIG_CONTENT` environment variable is designed for permission
+  settings rather than dynamic MCP server arrays.
+- droid: reads `~/.factory/mcp.json` (`mcpServers`). Droid has no CLI flag for
+  per-run MCP configuration.
+- devin: reads `%APPDATA%\\devin\\mcp_config.json` (Windows) or
+  `~/.config/devin/mcp_config.json` (Unix). Devin has no per-run MCP configuration flag.
 - agy (Antigravity): no MCP subcommand or flag exposed by the CLI (not documented
   as supported; not re-verified (no agy binary available)). Refuses with a clean error.
 """
@@ -42,8 +51,28 @@ logger = logging.getLogger(__name__)
 CLAUDE_MCP_CONFIG_PATH = STORE_DIR / "claude-mcp-config.json"
 CURSOR_MCP_CONFIG_PATH = Path.home() / ".cursor" / "mcp.json"
 CODEX_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
+COPILOT_MCP_CONFIG_PATH = Path.home() / ".copilot" / "mcp-config.json"
+OPENCODE_MCP_CONFIG_PATH = Path.home() / ".config" / "opencode" / "opencode.json"
+DROID_MCP_CONFIG_PATH = Path.home() / ".factory" / "mcp.json"
 
-SYNC_SUPPORTED_AGENTS = {"gemini", "agent", "codex"}
+
+def _default_devin_path() -> Path:
+    if os.name == "nt" and "APPDATA" in os.environ:
+        return Path(os.environ["APPDATA"]) / "devin" / "mcp_config.json"
+    return Path.home() / ".config" / "devin" / "mcp_config.json"
+
+
+DEVIN_MCP_CONFIG_PATH = _default_devin_path()
+
+SYNC_SUPPORTED_AGENTS = {
+    "gemini",
+    "agent",
+    "codex",
+    "copilot",
+    "opencode",
+    "droid",
+    "devin",
+}
 
 
 class MCPSyncError(ValueError):
@@ -374,6 +403,88 @@ def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
     return results
 
 
+# ---------- copilot: persistent, via ~/.copilot/mcp-config.json merge ----------
+
+
+def _server_to_copilot_shape(server: MCPServerConfig) -> dict:
+    if server.command:
+        entry: dict = {
+            "type": "local",
+            "command": server.command,
+            "args": list(server.args),
+            "tools": ["*"],
+        }
+        if server.env:
+            entry["env"] = dict(server.env)
+        return entry
+    entry = {
+        "type": "sse" if server.transport == "sse" else "http",
+        "url": server.url,
+        "tools": ["*"],
+    }
+    if server.headers:
+        entry["headers"] = dict(server.headers)
+    return entry
+
+
+def sync_copilot(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    return _sync_json_mcp_config(
+        COPILOT_MCP_CONFIG_PATH,
+        "mcpServers",
+        servers,
+        _server_to_copilot_shape,
+    )
+
+
+# ---------- opencode: persistent, via ~/.config/opencode/opencode.json merge ----------
+
+
+def _server_to_opencode_shape(server: MCPServerConfig) -> dict:
+    if server.command:
+        cmd_list = [server.command, *server.args]
+        entry: dict = {"type": "local", "command": cmd_list, "enabled": True}
+        if server.env:
+            entry["environment"] = dict(server.env)
+        return entry
+    entry = {"type": "remote", "url": server.url, "enabled": True}
+    if server.headers:
+        entry["headers"] = dict(server.headers)
+    return entry
+
+
+def sync_opencode(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    return _sync_json_mcp_config(
+        OPENCODE_MCP_CONFIG_PATH,
+        "mcp",
+        servers,
+        _server_to_opencode_shape,
+    )
+
+
+# ---------- droid: persistent, via ~/.factory/mcp.json merge ----------
+
+
+def sync_droid(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    return _sync_json_mcp_config(
+        DROID_MCP_CONFIG_PATH,
+        "mcpServers",
+        servers,
+        _server_to_standard_shape,
+    )
+
+
+# ---------- devin: persistent, via mcp_config.json merge ----------
+
+
+def sync_devin(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    return _sync_json_mcp_config(
+        DEVIN_MCP_CONFIG_PATH,
+        "mcpServers",
+        servers,
+        _server_to_standard_shape,
+    )
+
+
 def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     if agent_id == "gemini":
         return sync_gemini(servers)
@@ -381,6 +492,14 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
         return sync_cursor(servers)
     if agent_id == "codex":
         return sync_codex(servers)
+    if agent_id == "copilot":
+        return sync_copilot(servers)
+    if agent_id == "opencode":
+        return sync_opencode(servers)
+    if agent_id == "droid":
+        return sync_droid(servers)
+    if agent_id == "devin":
+        return sync_devin(servers)
     raise ValueError(
         f"secfoo mcp sync isn't supported for {agent_id!r}. "
         f"claude uses --mcp-config automatically on every run (no sync needed); "
