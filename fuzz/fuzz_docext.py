@@ -6,6 +6,8 @@ structure rather than starting from noise.
 
 Contract: extract_text returns a string -- "" for anything it can't read --
 and never raises; an upload must always succeed (docext.py's own rule).
+content_matches_extension, the upload route's type check (#118), returns a
+bool and never raises either.
 Each input must finish within PER_INPUT_SECONDS. On CI, libFuzzer's
 -timeout and -rss_limit_mb additionally catch hangs and decompression bombs.
 
@@ -20,7 +22,7 @@ from pathlib import Path
 
 from _common import main
 
-from secfoo.docext import extract_text
+from secfoo.docext import content_matches_extension, extract_text
 
 SUFFIXES = (".pdf", ".docx", ".pptx")
 PER_INPUT_SECONDS = 30.0
@@ -37,6 +39,7 @@ def check(data: bytes) -> None:
     suffix, body = split(data)
     path = _DIR / f"upload{suffix}"
     path.write_bytes(body)
+    assert isinstance(content_matches_extension(path), bool)
     started = time.monotonic()
     text = extract_text(path)
     elapsed = time.monotonic() - started

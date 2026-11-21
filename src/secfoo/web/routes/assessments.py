@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 import threading
@@ -426,6 +427,19 @@ def assessment_trigger_run(
     return RedirectResponse(url=f"/assessments/{assessment_id}", status_code=303)
 
 
+def _copy_bounded(source, dest: Path, limit: int) -> bool:
+    """Copy `source` into `dest`, stopping as soon as more than `limit` bytes
+    arrive. False when the upload was over the limit."""
+    written = 0
+    with dest.open("wb") as fh:
+        while chunk := source.read(1024 * 1024):
+            written += len(chunk)
+            if written > limit:
+                return False
+            fh.write(chunk)
+    return True
+
+
 @router.post("/assessments/{assessment_id}/attachments")
 def assessment_upload(assessment_id: int, file: UploadFile):
     trigger_third_party_review = False
@@ -449,16 +463,32 @@ def assessment_upload(assessment_id: int, file: UploadFile):
         kind = infer_attachment_kind(filename)
         dest_dir = attachment_dir(assessment_id)
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / filename
-        if dest.resolve().parent != dest_dir.resolve():
+        # normpath + a prefix check on the resolved directory: the same
+        # containment check as before, written in the form CodeQL's
+        # py/path-injection query recognizes as a barrier.
+        base = os.path.realpath(dest_dir)
+        dest_path = os.path.normpath(os.path.join(base, filename))
+        if not dest_path.startswith(base + os.sep) or os.path.dirname(dest_path) != base:
             raise HTTPException(status_code=400, detail="Invalid filename")
-        with dest.open("wb") as fh:
-            shutil.copyfileobj(file.file, fh)
-
-        if kind == "vendor_doc" and dest.stat().st_size > docext.MAX_UPLOAD_BYTES:
+        dest = Path(dest_path)
+        if dest.resolve().parent != Path(base):  # an existing symlink pointing out
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        # Every kind is capped, and the copy stops at the cap rather than
+        # writing the whole upload first (#118). web/security.py already
+        # refuses a request whose Content-Length is over the cap; this is
+        # the second check, on what was actually received.
+        if not _copy_bounded(file.file, dest, docext.MAX_UPLOAD_BYTES):
             dest.unlink(missing_ok=True)
             max_mb = docext.MAX_UPLOAD_BYTES // (1024 * 1024)
             raise HTTPException(status_code=413, detail=f"File too large (max {max_mb}MB)")
+
+        # A .pdf/.docx/.pptx is handed to a parser below; refuse one whose
+        # bytes are something else before any parser sees it.
+        if kind == "vendor_doc" and not docext.content_matches_extension(dest):
+            dest.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=415, detail=f"{filename} is not a valid {Path(filename).suffix.lower()[1:].upper()} file"
+            )
 
         new_attachment_id = repo.add_attachment(
             assessment_id=assessment_id, file_path=str(dest), original_name=filename, attachment_kind=kind

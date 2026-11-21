@@ -32,13 +32,13 @@ from secfoo.runtime import keys as keys_module
 from secfoo.runtime.evidence import ingest_events
 from secfoo.runtime.watchlist import build_watchlist
 from secfoo.storage.repository import RunRepository
+from secfoo.web.security import is_loopback
 
 MAX_BODY_BYTES = 5 * 1024 * 1024            # compressed request body
 MAX_DECOMPRESSED_BYTES = 20 * 1024 * 1024
 MAX_BATCH_LINES = 50_000
 RATE_LIMIT_REQUESTS = 120                   # per key, per window
 RATE_LIMIT_WINDOW_SECONDS = 60
-LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 router = APIRouter(prefix="/api/runtime/v1", tags=["runtime"])
 
@@ -76,7 +76,9 @@ def _require_secure_transport(request: Request) -> None:
     must not cross the network in clear text unless the operator opted in."""
     state = request.app.state
     bind_host = getattr(state, "bind_host", "127.0.0.1")
-    if bind_host in LOOPBACK_HOSTS or getattr(state, "allow_insecure_runtime", False):
+    # is_loopback, not a set lookup: "[::1]", "LOCALHOST" and "localhost."
+    # are loopback too, and were refused here before (#118).
+    if is_loopback(bind_host) or getattr(state, "allow_insecure_runtime", False):
         return
     if request.url.scheme != "https":
         raise _error(403, "refusing an API key over plain HTTP on a non-loopback address; put TLS in front "

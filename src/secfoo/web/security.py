@@ -13,6 +13,9 @@ own browser: any page they visit can send requests to http://127.0.0.1:8787.
   report. Requests must name the dashboard by a loopback host or the --host
   it was started with.
 - Framing and content sniffing: security headers on every response.
+- Oversized uploads: an attachment upload must declare a Content-Length no
+  larger than the attachment cap, so a huge body is refused before
+  Starlette spools it to a temporary file.
 
 The runtime ingest API (/api/runtime/) authenticates with an API key in the
 Authorization header, which a cross-site page cannot set without a CORS
@@ -21,6 +24,7 @@ are not browsers) but not from the Host check.
 """
 from __future__ import annotations
 
+import re
 from urllib.parse import urlsplit
 
 from starlette.responses import PlainTextResponse
@@ -29,6 +33,9 @@ LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 WILDCARD_BINDS = {"", "0.0.0.0", "::"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 MACHINE_API_PREFIX = "/api/runtime/"
+UPLOAD_PATH_RE = re.compile(r"/assessments/[^/]+/attachments/?")
+# The multipart envelope around the file: boundaries, part headers, filename.
+MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
@@ -101,6 +108,23 @@ def check_request(method: str, path: str, headers, hosts: set[str] | None) -> Pl
         referer = headers.get("referer")
         if referer and not _same_origin(referer, host_header):
             return PlainTextResponse("Cross-origin request refused", status_code=403)
+    if UPLOAD_PATH_RE.fullmatch(path):
+        return _check_upload_size(headers)
+    return None
+
+
+def _check_upload_size(headers) -> PlainTextResponse | None:
+    from secfoo import docext  # read at call time: tests lower the cap
+
+    limit = docext.MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES
+    declared = headers.get("content-length")
+    if declared is None:
+        # Browsers always send a length for a form upload; a chunked body
+        # could only be bounded after it was spooled.
+        return PlainTextResponse("Content-Length required for uploads", status_code=411)
+    if not declared.strip().isdigit() or len(declared.strip()) > 18 or int(declared) > limit:
+        max_mb = docext.MAX_UPLOAD_BYTES // (1024 * 1024)
+        return PlainTextResponse(f"File too large (max {max_mb}MB)", status_code=413)
     return None
 
 
