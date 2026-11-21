@@ -241,3 +241,23 @@ def test_documentation_coverage_omitted_when_empty(client):
     assert resp.status_code == 200
     assert "Documentation coverage" not in resp.text
     assert "documentation sources" not in resp.text
+
+
+def test_finding_detail_lists_every_site(client):
+    """#112: a multi-site finding shows each site, not one joined path."""
+    repo = RunRepository()
+    project_id = repo.upsert_project("p", "Payments API", "local")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="claude", confluence_urls=[]
+    )
+    repo.upsert_sast_finding(
+        project_id=project_id, fingerprint="fp2", current_ref="F6", title="Stored XSS", severity="High",
+        cwe="CWE-79", owasp=None, verdict="Confirmed", location_file="server.js", location_line="135",
+        locations='[{"path": "server.js", "start_line": "135", "end_line": "137"}, '
+                  '{"path": "app/views/layout.html", "start_line": "75", "end_line": null}]',
+        cvss_vector=None, cvss_score=None, run_id=repo.get_run(run_uuid).id,
+    )
+    repo.close()
+    page = client.get("/activities/sast/findings/fp2").text
+    assert "<code>server.js:135-137</code>" in page
+    assert "<code>app/views/layout.html:75</code>" in page

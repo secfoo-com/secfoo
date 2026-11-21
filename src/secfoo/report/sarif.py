@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import PureWindowsPath
 from urllib.parse import quote
@@ -20,25 +21,67 @@ _SEVERITIES = {
 }
 
 
-def _location(record: dict) -> dict | None:
-    path = str(record.get("location_file") or "").strip().replace("\\", "/")
-    if not path:
-        return None
+def _uri(path: str) -> str:
     if PureWindowsPath(path).is_absolute():
-        uri = PureWindowsPath(path).as_uri()
-    elif path.startswith("/"):
-        uri = "file://" + quote(path, safe="/")
-    else:
-        uri = quote(path, safe="/")
-    physical = {"artifactLocation": {"uri": uri}}
+        return PureWindowsPath(path).as_uri()
+    if path.startswith("/"):
+        return "file://" + quote(path, safe="/")
+    return quote(path, safe="/")
+
+
+def _line(value: object) -> int | None:
     # Stored legacy/model-authored lines are not guaranteed to be numeric --
     # or short: int() refuses more than 4300 digits (#121), and no source
     # file has a billion lines.
-    line = str(record.get("location_line") or "").strip()
+    line = str(value or "").strip()
     digits = line.lstrip("0")  # "0000000042" is line 42; the length cap is on the value
     if re.fullmatch(r"[0-9]+", line) and 1 <= len(digits) <= 9:
-        physical["region"] = {"startLine": int(digits)}
+        return int(digits)
+    return None
+
+
+def _physical(path: object, start: object, end: object = None) -> dict | None:
+    path = str(path or "").strip().replace("\\", "/")
+    if not path:
+        return None
+    physical: dict = {"artifactLocation": {"uri": _uri(path)}}
+    start_line = _line(start)
+    if start_line is not None:
+        physical["region"] = {"startLine": start_line}
+        end_line = _line(end)
+        if end_line is not None and end_line > start_line:
+            physical["region"]["endLine"] = end_line
     return {"physicalLocation": physical}
+
+
+def _location(record: dict) -> dict | None:
+    return _physical(record.get("location_file"), record.get("location_line"))
+
+
+def _sites(record: dict) -> list:
+    sites = record.get("locations")
+    if isinstance(sites, str):
+        try:
+            sites = json.loads(sites)
+        except ValueError:
+            return []
+    return sites if isinstance(sites, list) else []
+
+
+def _locations(record: dict) -> list[dict]:
+    """One SARIF location per site of the finding (#112): the record's
+    `locations` list when it has one, else its location_file/location_line."""
+    locations = []
+    for site in _sites(record):
+        if isinstance(site, dict):
+            location = _physical(site.get("path"), site.get("start_line"), site.get("end_line"))
+            if location is not None and location not in locations:
+                locations.append(location)
+    if not locations:
+        location = _location(record)
+        if location is not None:
+            locations.append(location)
+    return locations
 
 
 def findings_to_sarif(records: list[dict], *, runtime_priority: bool = False) -> dict:
@@ -91,9 +134,9 @@ def findings_to_sarif(records: list[dict], *, runtime_priority: bool = False) ->
         }
         if runtime:
             result["properties"] = {"secfoo": {"runtime": runtime}}
-        location = _location(record)
-        if location is not None:
-            result["locations"] = [location]
+        locations = _locations(record)
+        if locations:
+            result["locations"] = locations
         results.append(result)
     return {
         "$schema": SCHEMA_URI,

@@ -35,8 +35,10 @@ only ingest without the repo on disk cannot compute a region hash.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 from secfoo.report.code_region import hash_code_region
 from secfoo.report.markdown import detail_blocks, example_finding_ids, prose_source
@@ -65,9 +67,44 @@ _RECOMMENDATION_FIELD_RE = re.compile(r"\*\*Recommendation:\*\*\s*([^\n]+)")
 # contract field.
 _CONSTRUCT_FIELD_RE = re.compile(r"\*\*Construct:\*\*\s*([^\n]+)")
 
-# "`app/db.py:42`" -> ("app/db.py", "42"); the line group is optional since
-# a location without one ("`app/db.py`") should still parse.
-_LOCATION_RE = re.compile(r"`?(?P<file>[^:`]+?)(?::(?P<line>\d+))?`?\s*$")
+# One site's trailing ":42", ":42-48" (hyphen or en/em dash) or ":42:7"
+# (a column, ignored). Peeled off the end of a site repeatedly, so the
+# leftmost number left over is the start line and the path never keeps a
+# trailing ":range".
+_LINE_TAIL_RE = re.compile(r"\s*:\s*(?P<start>\d+)(?:\s*[-\u2013\u2014]\s*(?P<end>\d+))?\s*$")
+# A site that is only a line or range ("61", ":61", "61-70"), which reuses
+# the previous site's path: "`app/data/user-dao.js:25, :61`".
+_BARE_LINES_RE = re.compile(r":?\s*(?P<start>\d+)(?:\s*[-\u2013\u2014]\s*(?P<end>\d+))?")
+# The single-site pattern used before #112, kept only to recompute the
+# identity rows stored under it had (pre_112_fingerprint).
+_PRE_112_LOCATION_RE = re.compile(r"`?(?P<file>[^:`]+?)(?::(?P<line>\d+))?`?\s*$")
+# Sites are separated by commas or semicolons; a path never contains one.
+_SITE_SEPARATOR_RE = re.compile(r"[,;]")
+
+
+class SourceLocation(NamedTuple):
+    """One site of a finding: a path and an optional line range. Lines stay
+    strings, as in the location_line column; end_line is set only for a
+    real range (start < end)."""
+
+    path: str
+    start_line: str | None = None
+    end_line: str | None = None
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {"path": self.path, "start_line": self.start_line, "end_line": self.end_line}
+
+
+def _line_range(start: str | None, end: str | None) -> tuple[str | None, str | None]:
+    if start is None:
+        return None, None
+    start = start.lstrip("0") or "0"
+    end = end.lstrip("0") or "0" if end is not None else None
+    # A reversed or one-line range is just its start line. Compared as
+    # (length, text) since int() refuses very long digit strings (#121).
+    if end is None or (len(end), end) <= (len(start), start):
+        return start, None
+    return start, end
 
 
 def extract_findings_register_rows(report_markdown: str) -> list[dict[str, str]]:
@@ -127,20 +164,86 @@ def extract_construct_by_id(report_markdown: str) -> dict[str, str]:
     return result
 
 
-def parse_location(location: str) -> tuple[str, str | None]:
-    """"`app/db.py:42`" -> ("app/db.py", "42"); a location with no line
-    number, or text that doesn't cleanly split into a single file:line
-    (e.g. a finding spanning several call sites, like
-    "`app.py:35`, `cli.py:308`"), degrades to (location_stripped, None)
-    rather than raising or silently dropping part of it -- backticks are
-    stripped either way since they're Markdown code-span syntax, never
-    part of a real path.
+def parse_locations(location: str) -> list[SourceLocation]:
+    """Every site in a register Location cell, in order (#112).
+
+    "`server.js:78-102`, `app/routes/session.js:116`" ->
+    [("server.js", "78", "102"), ("app/routes/session.js", "116", None)].
+    Understands `path`, `path:line`, `path:start-end`, `path:line:col`,
+    backticked sites, and comma- or semicolon-separated lists; a site that
+    is only a line (":61", "61") reuses the previous site's path. Pieces
+    with no letter or digit (a trailing "…") are dropped. A cell with no
+    site at all yields [].
     """
+    sites: list[SourceLocation] = []
+    for piece in _SITE_SEPARATOR_RE.split(location.replace("`", "")):
+        piece = piece.strip()
+        if not any(ch.isalnum() for ch in piece):
+            continue
+        bare = _BARE_LINES_RE.fullmatch(piece)
+        if bare:
+            if sites:
+                start, end = _line_range(bare.group("start"), bare.group("end"))
+                sites.append(SourceLocation(sites[-1].path, start, end))
+            continue
+        path, start, end = piece, None, None
+        while match := _LINE_TAIL_RE.search(path):
+            start, end = match.group("start"), match.group("end")
+            path = path[: match.start()]
+        path = path.strip()
+        if not path:
+            continue
+        start, end = _line_range(start, end)
+        sites.append(SourceLocation(path, start, end))
+    return sites
+
+
+def parse_location(location: str) -> tuple[str, str | None]:
+    """The first site of a Location cell as (path, start_line):
+    "`app/db.py:42`" -> ("app/db.py", "42"), and
+    "`config/env/all.js:8-9`, `db-reset.js:15`" -> ("config/env/all.js", "8").
+    This is what location_file/location_line and the fingerprint use; the
+    full list is parse_locations(). A cell with no parsable site degrades
+    to (text without backticks, None) rather than raising.
+    """
+    sites = parse_locations(location)
+    if not sites:
+        return location.strip().replace("`", ""), None
+    return sites[0].path, sites[0].start_line
+
+
+def locations_json(location: str) -> str:
+    """parse_locations() as the JSON list stored in the `locations` column
+    ("[]" when the cell has no site; NULL in that column means a row stored
+    before #112 that the migration has not re-derived yet)."""
+    return json.dumps([site.as_dict() for site in parse_locations(location)])
+
+
+def pre_112_path(location: str) -> str | None:
+    """The path the pre-#112 parser stored for this cell, or None when it
+    is the same path parse_location() gives today. That parser could still
+    "match" a list: "app/db.py, app/cli.py" became one file named
+    "app/db.py, app/cli.py", so a regex match alone does not mean the
+    identity is unchanged."""
     stripped = location.strip()
-    match = _LOCATION_RE.match(stripped)
-    if not match:
-        return stripped.replace("`", ""), None
-    return match.group("file").strip(), match.group("line")
+    match = _PRE_112_LOCATION_RE.match(stripped)
+    old_path = match.group("file").strip() if match else stripped.replace("`", "")
+    if _normalize_path(old_path) == _normalize_path(parse_location(location)[0]):
+        return None
+    return old_path
+
+
+def pre_112_fingerprint(row: dict[str, str]) -> str | None:
+    """The fingerprint a multi-site or ranged location got before #112,
+    when the old parser took (most of) the cell as the path -- a path that
+    never exists, so no region hash was ever added. runner.py rekeys an
+    open row from it so an upgrade does not show those findings as closed
+    + new. None when the old parser read the same path as today."""
+    old_path = pre_112_path(row["location"])
+    if old_path is None:
+        return None
+    raw = "|".join([SKILL_ID, row.get("cwe", "").strip().lower(), _normalize_path(old_path)])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _normalize_path(file_path: str) -> str:
@@ -218,9 +321,11 @@ def findings_with_fingerprints(
                 **row,
                 "location_file": file_path,
                 "location_line": line,
+                "locations": locations_json(row["location"]),
                 "code_region_hash": region_hash,
                 "fingerprint": fingerprint,
                 "legacy_fingerprint": legacy_fingerprint,
+                "pre_112_fingerprint": pre_112_fingerprint(row),
                 "description": descriptions.get(row["id"], ""),
                 "recommendation": recommendations.get(row["id"], ""),
                 "construct": constructs.get(row["id"], ""),

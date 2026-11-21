@@ -15,7 +15,12 @@ from pathlib import Path
 from secfoo.report.code_region import hash_code_region
 from secfoo.report.markdown import detail_blocks, example_finding_ids, prose_source
 from secfoo.report.markdown import section as _extract_section
-from secfoo.report.sast import _normalize_path, parse_location
+from secfoo.report.sast import (
+    _normalize_path,
+    locations_json,
+    parse_location,
+    pre_112_path,
+)
 
 SKILL_ID = "secret-scanning"
 
@@ -159,6 +164,15 @@ def fingerprint_for_row(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
+def pre_112_fingerprint(row: dict[str, str]) -> str | None:
+    """report/sast.py's pre_112_fingerprint for this skill: the identity a
+    multi-site or ranged location had when the whole cell was the path."""
+    old_path = pre_112_path(row["location"])
+    if old_path is None:
+        return None
+    return fingerprint_for_row(row, file_path=old_path)
+
+
 def findings_with_fingerprints(
     report_markdown: str, *, workdir: Path | None = None
 ) -> list[dict[str, str | None]]:
@@ -188,11 +202,13 @@ def findings_with_fingerprints(
                 "evidence": redact_evidence(row.get("evidence")),
                 "location_file": file_path,
                 "location_line": line,
+                "locations": locations_json(row["location"]),
                 "code_region_hash": region_hash,
                 "construct": constructs.get(row["id"], ""),
                 "fingerprint": fingerprint_for_row(
                     row, file_path=file_path, region_hash=region_hash, line_bucket=line_bucket
                 ),
+                "pre_112_fingerprint": pre_112_fingerprint(row),
             }
         )
     return results

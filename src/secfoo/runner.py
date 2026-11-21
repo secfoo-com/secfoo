@@ -221,13 +221,15 @@ def update_sast_findings(
     findings = findings_with_fingerprints(report_text, workdir=workdir)
     seen_fingerprints = []
     for row in findings:
-        legacy_fp = row.get("legacy_fingerprint")
-        if legacy_fp and legacy_fp != row["fingerprint"]:
-            repo.rekey_open_sast_fingerprint(
-                project_id=project_id,
-                old_fingerprint=legacy_fp,
-                new_fingerprint=row["fingerprint"],
-            )
+        # legacy: stored before region hashes; pre-#112: a ranged or
+        # multi-site cell whose whole text was taken as the path.
+        for old_fp in (row.get("legacy_fingerprint"), row.get("pre_112_fingerprint")):
+            if old_fp and old_fp != row["fingerprint"]:
+                repo.rekey_open_sast_fingerprint(
+                    project_id=project_id,
+                    old_fingerprint=old_fp,
+                    new_fingerprint=row["fingerprint"],
+                )
         vector = row.get("cvss_vector", "").strip()
         score = None
         if vector:
@@ -249,6 +251,7 @@ def update_sast_findings(
             verdict=row.get("verdict") or None,
             location_file=row["location_file"],
             location_line=row.get("location_line"),
+            locations=row.get("locations"),
             code_region_hash=row.get("code_region_hash"),
             cvss_vector=vector or None,
             cvss_score=score,
@@ -325,6 +328,11 @@ def update_secret_findings(
     """update_sast_findings' lifecycle for the Secret Scanning register."""
     seen_fingerprints = []
     for row in secret_report.findings_with_fingerprints(report_text, workdir=workdir):
+        old_fp = row.get("pre_112_fingerprint")
+        if old_fp and old_fp != row["fingerprint"]:
+            repo.rekey_open_secret_fingerprint(
+                project_id=project_id, old_fingerprint=old_fp, new_fingerprint=row["fingerprint"]
+            )
         repo.upsert_secret_finding(
             project_id=project_id,
             fingerprint=row["fingerprint"],
@@ -333,6 +341,7 @@ def update_secret_findings(
             secret_type=row["secret_type"],
             location_file=row["location_file"],
             location_line=row.get("location_line"),
+            locations=row.get("locations"),
             code_region_hash=row.get("code_region_hash"),
             source=row.get("source") or None,
             validity=row.get("validity") or None,
