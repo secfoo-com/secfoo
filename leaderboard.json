@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-21T07:02:14Z",
+  "generated_at": "2026-11-21T08:42:41Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -507,6 +507,31 @@
       "level": null
     },
     {
+      "login": "nabeelbaghoor",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 182,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/182",
+          "issue": 171,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/171",
+          "issue_title": "Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers)",
+          "contributor": "nabeelbaghoor",
+          "merged_at": "2026-11-21T08:42:31Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 12,
+      "level": null
+    },
+    {
       "login": "vsn411",
       "points": 0,
       "counts": {
@@ -516,7 +541,7 @@
       },
       "merged_prs": 31,
       "awards": [],
-      "rank": 12,
+      "rank": 13,
       "level": null
     },
     {
@@ -529,7 +554,7 @@
       },
       "merged_prs": 9,
       "awards": [],
-      "rank": 13,
+      "rank": 14,
       "level": null
     },
     {
@@ -542,7 +567,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 14,
+      "rank": 15,
       "level": null
     },
     {
@@ -555,7 +580,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 15,
+      "rank": 16,
       "level": null
     },
     {
@@ -568,7 +593,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 16,
+      "rank": 17,
       "level": null
     },
     {
@@ -581,11 +606,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 17,
+      "rank": 18,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 182,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/182",
+      "issue": 171,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/171",
+      "issue_title": "Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers)",
+      "contributor": "nabeelbaghoor",
+      "merged_at": "2026-11-21T08:42:31Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 181,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/181",
