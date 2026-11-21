@@ -176,6 +176,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("secfoo.storage.repository.ensure_store_dirs", lambda: None)
     monkeypatch.setattr("secfoo.web.routes.runs.STORE_DIR", tmp_path)
     monkeypatch.setattr("secfoo.web.run_status.run_dir", lambda uuid: tmp_path / "reports" / uuid)
+    # Render as an install with `secfoo vendor mermaid` done (CI has it):
+    # diagrams are then live <pre class="mermaid"> blocks, the riskier case.
+    monkeypatch.setattr("secfoo.web.app.mermaid_bundle_available", lambda: True)
     client = TestClient(create_app())
     client.store = tmp_path
     return client
@@ -218,7 +221,9 @@ def _baseline_and_poisoned(client, payload, build_report, pages):
     """`pages(run_uuid, repo)` -> list of URLs. Returns (baseline, poisoned)
     executable counters for each page, harmless content first."""
     results = []
-    for content in ("plain text", payload):
+    # The baseline has a harmless diagram, so pages that load Mermaid for
+    # one (with the bundle vendored, as in CI) load it in the baseline too.
+    for content in (HARMLESS, payload):
         client.store.joinpath("db.sqlite").unlink(missing_ok=True)
         repo, project_id, run_id, run_uuid = _completed_run(client.store, *build_report(content))
         update = update_sast_findings if build_report is _sast_report else update_secret_findings
@@ -232,6 +237,9 @@ def _baseline_and_poisoned(client, payload, build_report, pages):
             page_results.append(executable(response.text))
         results.append(page_results)
     return results
+
+
+HARMLESS = "plain text\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
 
 
 def _sast_report(content):
@@ -269,14 +277,14 @@ def _secret_pages(run_uuid, repo):
 def test_sast_pages_with_a_poisoned_report_have_nothing_new_that_executes(client, name):
     baseline, poisoned = _baseline_and_poisoned(client, CORPUS[name], _sast_report, _sast_pages)
     for url_index, (plain, bad) in enumerate(zip(baseline, poisoned)):
-        assert bad == plain, (url_index, bad - plain)
+        assert not bad - plain, (url_index, bad - plain)
 
 
 @pytest.mark.parametrize("name", CORPUS)
 def test_secret_scanning_pages_with_a_poisoned_report_have_nothing_new_that_executes(client, name):
     baseline, poisoned = _baseline_and_poisoned(client, CORPUS[name], _secret_report, _secret_pages)
     for url_index, (plain, bad) in enumerate(zip(baseline, poisoned)):
-        assert bad == plain, (url_index, bad - plain)
+        assert not bad - plain, (url_index, bad - plain)
 
 
 def test_the_comparison_would_catch_a_leak():
