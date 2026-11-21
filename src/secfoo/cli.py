@@ -982,12 +982,15 @@ def agents() -> None:
     table.add_column("Agent ID")
     table.add_column("Binary")
     table.add_column("Available")
+    table.add_column("MCP")
 
     for agent_id in ADAPTERS:
         adapter = get_adapter(agent_id)
         available = adapter.is_available()
         style = "green" if available else "red"
-        table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]")
+        mcp_info = mcp_module.CANONICAL_MCP_SUPPORT.get(agent_id)
+        mcp_val = mcp_info.mechanism if mcp_info else "none"
+        table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]", mcp_val)
     console.print(table)
 
 
@@ -2646,12 +2649,15 @@ def mcp_list() -> None:
 
 @mcp_app.command(name="sync")
 def mcp_sync(
-    agent: AgentId = typer.Option(..., "--agent", "-a", help="Which agent's MCP config to update."),
+    agent: Annotated[
+        AgentId | None,
+        typer.Option("--agent", "-a", help="Which agent's MCP config to update."),
+    ] = None,
 ) -> None:
-    """Register configured MCP servers persistently into gemini's or Cursor's own
-    config. claude doesn't need this -- it picks up ~/.secfoo/config.toml
-    automatically on every run. agy isn't supported (its CLI has no MCP
-    configuration mechanism yet).
+    """Register configured MCP servers persistently into an agent's own config.
+    claude doesn't need this -- it picks up ~/.secfoo/config.toml
+    automatically on every run. When --agent is omitted, syncs all available
+    agents on PATH.
     """
     try:
         cfg = load_config()
@@ -2664,22 +2670,50 @@ def mcp_sync(
         console.print(f"No MCP servers configured in {CONFIG_PATH} -- nothing to sync.")
         return
 
-    if agent.value == "claude":
-        console.print("[yellow]claude doesn't need syncing[/] -- it loads MCP servers automatically on every run.")
+    if agent is not None:
+        if agent.value == "claude":
+            console.print("[yellow]claude doesn't need syncing[/] -- it loads MCP servers automatically on every run.")
+            return
+
+        try:
+            results = mcp_module.sync(agent.value, servers)
+        except ValueError as exc:
+            err_console.print(f"[red]Error:[/] {exc}")
+            raise typer.Exit(code=1) from None
+
+        any_failed = False
+        for result in results:
+            style = "green" if result.ok else "red"
+            console.print(f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}")
+            if not result.ok:
+                any_failed = True
+        if any_failed:
+            raise typer.Exit(code=1)
         return
 
-    try:
-        results = mcp_module.sync(agent.value, servers)
-    except ValueError as exc:
-        err_console.print(f"[red]Error:[/] {exc}")
-        raise typer.Exit(code=1) from None
+    installed_targets = [
+        aid for aid in sorted(mcp_module.SYNC_SUPPORTED_AGENTS)
+        if get_adapter(aid).is_available()
+    ]
+    if not installed_targets:
+        console.print("No sync-supported agent CLIs installed on PATH -- nothing to sync.")
+        return
 
     any_failed = False
-    for result in results:
-        style = "green" if result.ok else "red"
-        console.print(f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}")
-        if not result.ok:
+    for aid in installed_targets:
+        console.print(f"[bold]{aid}:[/]")
+        try:
+            results = mcp_module.sync(aid, servers)
+        except ValueError as exc:
+            err_console.print(f"  [red]Error:[/] {exc}")
             any_failed = True
+            continue
+        for result in results:
+            style = "green" if result.ok else "red"
+            console.print(f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}")
+            if not result.ok:
+                any_failed = True
+
     if any_failed:
         raise typer.Exit(code=1)
 

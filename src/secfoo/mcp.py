@@ -1,5 +1,8 @@
-"""Bridges secfoo's portable MCP server config (settings.py) to each agent
-CLI's own mechanism for it. These differ a lot by CLI:
+r"""Bridges secfoo's portable MCP server config (settings.py) to each agent
+CLI's own mechanism for it. These differ a lot by CLI. The claude, gemini and
+agent entries were verified directly against each `--help` output (Aug 2026);
+the codex, copilot, opencode, droid, devin and agy entries describe what
+secfoo's adapters currently do and have not been verified against those CLIs:
 
 - claude: supports `--mcp-config <file>`, which loads servers scoped to just
   that one invocation -- no global state touched. Handled automatically by
@@ -10,21 +13,25 @@ CLI's own mechanism for it. These differ a lot by CLI:
 - agent (Cursor): has no `mcp add` subcommand at all -- servers are defined
   by editing `~/.cursor/mcp.json` directly, then approved via
   `agent mcp enable <name>`. `secfoo mcp sync` does that merge.
-- codex: reads `~/.codex/config.toml` (`[mcp_servers.<name>]`). While Codex has
-  a `-c` CLI configuration override flag, passing MCP server commands, URLs, or
-  headers via CLI arguments would expose credentials in process table listings
-  (`ps`). Persistent configuration with `0600` permissions keeps credentials secure.
-- copilot: reads `~/.copilot/mcp-config.json` (`mcpServers`). The Copilot CLI
-  does not provide a per-run flag for ephemeral MCP configuration.
-- opencode: reads `~/.config/opencode/opencode.json` (`mcp` table). OpenCode's
-  `OPENCODE_CONFIG_CONTENT` environment variable is designed for permission
-  settings rather than dynamic MCP server arrays.
-- droid: reads `~/.factory/mcp.json` (`mcpServers`). Droid has no CLI flag for
-  per-run MCP configuration.
-- devin: reads `%APPDATA%\\devin\\mcp_config.json` (Windows) or
-  `~/.config/devin/mcp_config.json` (Unix). Devin has no per-run MCP configuration flag.
-- agy (Antigravity): no MCP subcommand or flag exposed by the CLI (not documented
-  as supported; not re-verified (no agy binary available)). Refuses with a clean error.
+- codex: reads `~/.codex/config.toml` (`[mcp_servers.<name>]`). secfoo does not
+  use per-run `-c` overrides: command, URL and header values would appear in the
+  process table (`ps`). `secfoo mcp sync` instead merges them into config.toml
+  (comments and formatting preserved) with 0600 permissions. Values are still
+  stored in plaintext at rest.
+- copilot: reads `~/.copilot/mcp-config.json` (`mcpServers`). secfoo's copilot
+  adapter currently passes no MCP flag, so servers are registered with
+  `secfoo mcp sync`.
+- opencode: reads `~/.config/opencode/opencode.json` (`mcp` table). secfoo's
+  opencode adapter currently passes no MCP configuration per run, so servers are
+  registered with `secfoo mcp sync`.
+- droid: reads `~/.factory/mcp.json` (`mcpServers`). secfoo's droid adapter
+  currently passes no MCP flag; servers are registered with `secfoo mcp sync`.
+- devin: reads `%APPDATA%\devin\mcp_config.json` (Windows) or
+  `~/.config/devin/mcp_config.json` (Unix). secfoo's devin adapter currently
+  passes no MCP flag; servers are registered with `secfoo mcp sync`.
+- agy (Antigravity): secfoo does not configure MCP for agy. No MCP mechanism is
+  documented for its CLI, and this has not been re-verified against a current
+  release. `secfoo mcp sync --agent agy` refuses with a clean error.
 """
 
 from __future__ import annotations
@@ -84,6 +91,82 @@ class SyncResult:
     server_name: str
     ok: bool
     message: str
+
+
+@dataclass(frozen=True)
+class AgentMCPSupport:
+    agent_id: str
+    mechanism: str  # "per-run" | "sync" | "none"
+    guidance: str
+
+
+CANONICAL_MCP_SUPPORT: dict[str, AgentMCPSupport] = {
+    "claude": AgentMCPSupport(
+        agent_id="claude",
+        mechanism="per-run",
+        guidance=(
+            "Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — "
+            "your global Claude config is never touched). These are the only MCP servers loaded "
+            "during a scan (`--strict-mcp-config`): servers from your global Claude config or "
+            "from the target's `.mcp.json` are not started"
+        ),
+    ),
+    "agent": AgentMCPSupport(
+        agent_id="agent",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent agent` once to register persistently in `~/.cursor/mcp.json`",
+    ),
+    "gemini": AgentMCPSupport(
+        agent_id="gemini",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent gemini` once to register persistently via `gemini mcp add`",
+    ),
+    "codex": AgentMCPSupport(
+        agent_id="codex",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent codex` once to merge persistently into `~/.codex/config.toml` without clobbering other settings",
+    ),
+    "copilot": AgentMCPSupport(
+        agent_id="copilot",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent copilot` once to register persistently in `~/.copilot/mcp-config.json`",
+    ),
+    "opencode": AgentMCPSupport(
+        agent_id="opencode",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent opencode` once to register persistently in `~/.config/opencode/opencode.json`",
+    ),
+    "droid": AgentMCPSupport(
+        agent_id="droid",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent droid` once to register persistently in `~/.factory/mcp.json`",
+    ),
+    "devin": AgentMCPSupport(
+        agent_id="devin",
+        mechanism="sync",
+        guidance=(
+            "Run `secfoo mcp sync --agent devin` once to register persistently in "
+            "`~/.config/devin/mcp_config.json` (%APPDATA%\\devin\\mcp_config.json on Windows)"
+        ),
+    ),
+    "agy": AgentMCPSupport(
+        agent_id="agy",
+        mechanism="none",
+        guidance="Not supported by secfoo: no MCP configuration mechanism is documented for the agy CLI, and this has not been re-verified against a current release",
+    ),
+    "api": AgentMCPSupport(
+        agent_id="api",
+        mechanism="none",
+        guidance="Not applicable — the API adapter calls model endpoints directly and has no tool loop",
+    ),
+}
+
+
+def format_mcp_support_text() -> str:
+    lines = []
+    for support in CANONICAL_MCP_SUPPORT.values():
+        lines.append(f"  {support.agent_id} ({support.mechanism}): {support.guidance}")
+    return "\n".join(lines)
 
 
 def _write_private_file(path: Path, content: str) -> None:
@@ -292,16 +375,12 @@ def _cursor_post_add(newly_added: list[str], results: list[SyncResult]) -> None:
             for result in results:
                 if result.server_name == name:
                     result.ok = False
-                    result.message += (
-                        " (written, but agent binary not found on PATH to enable)"
-                    )
+                    result.message += " (written, but agent binary not found on PATH to enable)"
         except (OSError, subprocess.TimeoutExpired) as exc:
             for result in results:
                 if result.server_name == name:
                     result.ok = False
-                    result.message += (
-                        f" (written, but agent mcp enable could not run: {exc})"
-                    )
+                    result.message += f" (written, but agent mcp enable could not run: {exc})"
 
 
 def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
@@ -501,7 +580,7 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     if agent_id == "devin":
         return sync_devin(servers)
     raise ValueError(
-        f"secfoo mcp sync isn't supported for {agent_id!r}. "
-        f"claude uses --mcp-config automatically on every run (no sync needed); "
-        f"agy doesn't expose any MCP configuration mechanism via its CLI yet; "
+        f"secfoo mcp sync isn't supported for {agent_id!r}.\n\n"
+        f"Agent MCP support:\n\n"
+        f"{format_mcp_support_text()}"
     )

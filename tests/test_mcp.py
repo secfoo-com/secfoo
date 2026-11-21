@@ -679,7 +679,20 @@ def test_sync_devin_preserves_and_idempotent(tmp_path, monkeypatch):
 
 
 def test_sync_unsupported_agent_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as excinfo:
         mcp.sync("agy", [])
-    with pytest.raises(ValueError):
+    msg = str(excinfo.value)
+    assert "isn't supported for 'agy'" in msg
+    assert "Agent MCP support:" in msg
+    assert "REFERENCE.md" not in msg
+    assert "claude" in msg
+    assert "per-run" in msg
+    assert "sync" in msg
+    assert "none" in msg
+
+    with pytest.raises(ValueError) as excinfo:
         mcp.sync("claude", [])
+    msg = str(excinfo.value)
+    assert "Agent MCP support:" in msg
+    assert "REFERENCE.md" not in msg
+

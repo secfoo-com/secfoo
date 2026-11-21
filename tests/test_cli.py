@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from typer.testing import CliRunner
@@ -609,6 +610,10 @@ def test_mcp_sync_unsupported_agent_exits_nonzero(monkeypatch):
     )
     result = runner.invoke(app, ["mcp", "sync", "--agent", "agy"])
     assert result.exit_code == 1
+    assert "Agent MCP support:" in result.output
+    assert "REFERENCE.md" not in result.output
+    assert "claude" in result.output
+    assert "per-run" in result.output
 
 
 def test_mcp_sync_codex_is_supported(monkeypatch):
@@ -622,6 +627,85 @@ def test_mcp_sync_codex_is_supported(monkeypatch):
     result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
     assert result.exit_code == 0
     assert "s: added" in result.stdout
+
+
+def test_mcp_sync_omitted_agent_syncs_only_available_clis(tmp_path, monkeypatch):
+    servers = [MCPServerConfig(name="s", command="npx")]
+    monkeypatch.setattr(
+        "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
+    )
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    monkeypatch.setattr(mcp_module, "CURSOR_MCP_CONFIG_PATH", fake_home / ".cursor" / "mcp.json")
+    monkeypatch.setattr(mcp_module, "CODEX_CONFIG_PATH", fake_home / ".codex" / "config.toml")
+    monkeypatch.setattr(mcp_module, "COPILOT_MCP_CONFIG_PATH", fake_home / ".copilot" / "mcp-config.json")
+    monkeypatch.setattr(mcp_module, "DROID_MCP_CONFIG_PATH", fake_home / ".factory" / "mcp.json")
+    monkeypatch.setattr(mcp_module, "OPENCODE_MCP_CONFIG_PATH", fake_home / ".config" / "opencode" / "opencode.json")
+    monkeypatch.setattr(mcp_module, "DEVIN_MCP_CONFIG_PATH", fake_home / ".config" / "devin" / "mcp_config.json")
+
+    class FakeAdapter:
+        def __init__(self, name: str):
+            self.name = name
+
+        def is_available(self) -> bool:
+            return self.name == "codex"
+
+    monkeypatch.setattr("secfoo.cli.get_adapter", lambda aid: FakeAdapter(aid))
+
+    result = runner.invoke(app, ["mcp", "sync"])
+    assert result.exit_code == 0
+    codex_conf = fake_home / ".codex" / "config.toml"
+    assert codex_conf.exists()
+    if os.name != "nt":
+        assert oct(codex_conf.stat().st_mode & 0o777) == "0o600"
+    assert not (fake_home / ".cursor").exists()
+    assert not (fake_home / ".copilot").exists()
+    assert not (fake_home / ".factory").exists()
+    assert not (fake_home / ".config").exists()
+
+
+def test_mcp_sync_omitted_agent_no_installed_clis(tmp_path, monkeypatch):
+    servers = [MCPServerConfig(name="s", command="npx")]
+    monkeypatch.setattr(
+        "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
+    )
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    monkeypatch.setattr(mcp_module, "CURSOR_MCP_CONFIG_PATH", fake_home / ".cursor" / "mcp.json")
+    monkeypatch.setattr(mcp_module, "CODEX_CONFIG_PATH", fake_home / ".codex" / "config.toml")
+    monkeypatch.setattr(mcp_module, "COPILOT_MCP_CONFIG_PATH", fake_home / ".copilot" / "mcp-config.json")
+    monkeypatch.setattr(mcp_module, "DROID_MCP_CONFIG_PATH", fake_home / ".factory" / "mcp.json")
+    monkeypatch.setattr(mcp_module, "OPENCODE_MCP_CONFIG_PATH", fake_home / ".config" / "opencode" / "opencode.json")
+    monkeypatch.setattr(mcp_module, "DEVIN_MCP_CONFIG_PATH", fake_home / ".config" / "devin" / "mcp_config.json")
+
+    class FakeAdapter:
+        def __init__(self, name: str):
+            self.name = name
+
+        def is_available(self) -> bool:
+            return False
+
+    monkeypatch.setattr("secfoo.cli.get_adapter", lambda aid: FakeAdapter(aid))
+
+    result = runner.invoke(app, ["mcp", "sync"])
+    assert result.exit_code == 0
+    assert "No sync-supported agent CLIs installed on PATH -- nothing to sync." in result.stdout
+    assert not (fake_home / ".cursor").exists()
+    assert not (fake_home / ".codex").exists()
+    assert not (fake_home / ".copilot").exists()
+    assert not (fake_home / ".factory").exists()
+    assert not (fake_home / ".config").exists()
+
+
+def test_agents_displays_mcp_column():
+    result = runner.invoke(app, ["agents"])
+    assert result.exit_code == 0
+    assert "MCP" in result.stdout
+    assert "per-run" in result.stdout
+    assert "sync" in result.stdout
+    assert "none" in result.stdout
 
 
 @pytest.mark.parametrize("override,expected", [(None, "config-model"), ("override-model", "override-model")])
