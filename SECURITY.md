@@ -27,6 +27,8 @@ it is meant for local use. Do not expose it on a network interface without
 putting your own authenticating reverse proxy in front of it (`secfoo serve`
 prints a warning when `--host` is not loopback).
 
+### Local dashboard threat model
+
 Because the dashboard runs on your machine while you browse other sites, it
 defends against your own browser being used against it:
 
@@ -44,6 +46,35 @@ defends against your own browser being used against it:
 - **Security headers** on every response: a Content-Security-Policy with
   `script-src 'self'` and `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`.
+- **Report content cannot run script.** Reports are agent output over a
+  target that may be hostile, and the run page shows them as HTML. Raw HTML
+  in a report renders as text; links keep only `http(s)` URLs with a host
+  (no `javascript:`, `data:`, `file:` or protocol-relative links, no
+  credentials in the URL); images are removed, since loading one would be an
+  exfiltration channel; Mermaid source stays escaped text and Mermaid runs
+  with `securityLevel: "strict"`, which a `%%{init}%%` directive cannot
+  change. `tests/test_web/test_xss_corpus.py` puts 56 payloads (event
+  handlers, SVG, `javascript:` links in eleven spellings, link-title quote
+  breakouts, entities in headings, data URIs, Mermaid blocks with script)
+  through the renderer and through the run, SAST and secret-scanning pages
+  that show report data, and fails if a page gains anything executable.
+- **Uploads are bounded.** Every attachment is capped at 25 MB: a request
+  declaring more is refused (`413`) before it is spooled to disk, and one
+  without a `Content-Length` gets `411`. A PDF, DOCX or PPTX whose bytes are
+  not that format is refused (`415`) before any parser sees it, and a DOCX
+  or PPTX that would expand past 200 MB or holds more than 5,000 archive
+  members is stored but not parsed. Uploaded files are never served back by
+  the dashboard. Text extraction still runs in the request process: a
+  pathological PDF can cost CPU time (see `docext.py`); `fuzz/fuzz_docext.py`
+  checks that each input finishes within 30 seconds.
+- **The runtime ingest API** (`/api/runtime/v1/`) needs a valid API key on
+  every route, reads or writes; keys are random 256-bit tokens stored only
+  as SHA-256 hashes and compared in constant time. It is exempt from the
+  origin check because a page on another site cannot attach an
+  `Authorization` header without a CORS preflight, which the dashboard
+  never grants. On a non-loopback `--host` it refuses keys over plain HTTP;
+  `--allow-insecure-runtime` lifts that one check and nothing else (keys,
+  the `Host` check and rate limits still apply).
 
 `secfoo cloud login` stores an API key in `~/.secfoo/cloud.toml`
 (mode `0600`). This key is scoped to push completed run data to your

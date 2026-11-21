@@ -152,6 +152,13 @@ def docext() -> None:
     buffer = io.BytesIO()
     document.save(buffer)
     _write("docext", "report.docx.bin", bytes([1]) + buffer.getvalue())
+    # Crash reproducer (#118): a central-directory "version needed to
+    # extract" zipfile does not support makes ZipFile() itself raise
+    # NotImplementedError, which escaped the upload route's type check.
+    cd = buffer.getvalue().find(b"PK\x01\x02")
+    patched = bytearray(buffer.getvalue())
+    patched[cd + 6:cd + 8] = (236).to_bytes(2, "little")
+    _write("docext", "crash-zip-unsupported-version.docx.bin", bytes([1]) + bytes(patched))
 
     presentation = Presentation()
     slide = presentation.slides.add_slide(presentation.slide_layouts[5])

@@ -9,6 +9,7 @@ plaintext is shown once and never logged.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -85,11 +86,17 @@ def verify_key(conn: sqlite3.Connection, key: str) -> ApiKey | None:
     if not key or not key.startswith(KEY_PREFIX):
         return None
     row = conn.execute(
-        f"SELECT {_COLUMNS} FROM runtime_api_keys WHERE key_hash = ?", (hash_key(key),)  # nosec B608
+        f"SELECT {_COLUMNS}, key_hash FROM runtime_api_keys WHERE key_hash = ?", (hash_key(key),)  # nosec B608
     ).fetchone()
+    # The lookup is by the SHA-256 of a 256-bit random key, so how long the
+    # index search takes says nothing useful about the key; the stored hash
+    # is still compared in constant time so that holds by construction (#118).
     if row is None:
         return None
-    record = _row(row)
+    *fields, stored_hash = tuple(row)
+    if not hmac.compare_digest(stored_hash, hash_key(key)):
+        return None
+    record = _row(fields)
     if not record.active:
         return None
     conn.execute("UPDATE runtime_api_keys SET last_used_at = ? WHERE id = ?", (_now(), record.id))
