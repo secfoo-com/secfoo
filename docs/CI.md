@@ -201,21 +201,25 @@ including merge-request rules and a container-image variant:
 
 ## Jenkins
 
+A declarative pipeline that runs in the published image. It needs the
+Docker Pipeline plugin and Docker on the agent:
+
 ```groovy
 pipeline {
     agent {
         docker {
-            image 'python:3.12-slim'
-            args '-u root'
+            image 'ghcr.io/secfoo-com/secfoo:latest'
+            args '--entrypoint='   // the image's entrypoint is `secfoo`
         }
+    }
+    environment {
+        SECFOO_HOME = "${env.WORKSPACE}/.secfoo"
     }
     stages {
         stage('secfoo security review') {
             steps {
                 withCredentials([string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')]) {
                     sh '''
-                        apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null
-                        pip install --quiet secfoo
                         code=0
                         secfoo run --agent api --target . --depth quick --json --rescan \
                           --project-name "${JOB_NAME}" \
@@ -241,14 +245,17 @@ pipeline {
 Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) as a
 **Secret text** credential under **Manage Jenkins → Credentials → System →
 Global credentials** with ID `openai-api-key`. `withCredentials` masks the
-secret in console output.
+secret in console output, and the single-quoted `sh '''` block lets the
+shell, not Groovy, expand it.
 
-The `sh` step captures `secfoo run`'s exit code so `secfoo findings export`
-always runs before the stage fails: `0` is clean, `1` means a skill run
-failed or timed out, `2` means `--fail-on` tripped, and `3` means
-`--max-cost` tripped. `post { always { archiveArtifacts ... } }` keeps
-`secfoo-result.json`, `secfoo.sarif`, and `secfoo-findings.jsonl` on the
-build even when a gate fails. Full pipeline:
+Jenkins runs the container as its own user, so the workspace stays owned by
+Jenkins, and `SECFOO_HOME` puts secfoo's store in the workspace because that
+user has no home directory in the image. The `sh` step records `secfoo run`'s
+exit code so `secfoo findings export` always runs before the stage fails: `0`
+is clean, `1` means a skill run failed or timed out, `2` means `--fail-on`
+tripped, and `3` means `--max-cost` tripped. `post { always { archiveArtifacts
+... } }` keeps `secfoo-result.json`, `secfoo.sarif` and
+`secfoo-findings.jsonl` on the build even when a gate fails. Full pipeline:
 [examples/ci/Jenkinsfile](../examples/ci/Jenkinsfile).
 
 ## Docker
