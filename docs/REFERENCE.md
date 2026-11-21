@@ -300,6 +300,15 @@ records:
   code-free description of the vulnerable construct ("YAML loader without
   a safe loader applied to an uploaded config file"). Because it has no
   paths or identifiers, findings can be compared across repos.
+- **`locations`** (SAST and secret scanning): every site the report's
+  Location cell names, as a list of `{"path", "start_line", "end_line"}`.
+  The cell may hold `path:line`, `path:start-end`, `path:line,line`,
+  backticked sites and comma- or semicolon-separated lists; a bare `:61`
+  reuses the previous path. `location_file`/`location_line` and the
+  fingerprint use the first site, so `all.js:8-9` one run and `all.js:8`
+  the next stay the same finding. Rows stored before this column existed
+  are re-derived when the store is opened, and open rows keyed on the
+  whole cell are rekeyed on the next run that reports them.
 
 | Skill | Identity (fingerprint) |
 |---|---|
@@ -323,8 +332,11 @@ Use `--format sarif` to write a SARIF 2.1.0 document instead of JSON Lines
 `--no-locations` options apply to both formats. Export one project at a time
 when uploading to code scanning so paths belong to the checked-out repository.
 Relative paths should be relative to that repository; absolute paths are emitted
-as `file:` URIs. Missing files or invalid line numbers omit the corresponding
-location or region rather than inventing one.
+as `file:` URIs. A finding with several sites gets one SARIF `locations[]`
+entry per site, with `region.endLine` when the report gave a range; JSON
+Lines records carry the same list as `locations`. Missing files or invalid
+line numbers omit the corresponding location or region rather than
+inventing one.
 
 ```bash
 secfoo findings export --format sarif --project 1 -o findings.sarif
