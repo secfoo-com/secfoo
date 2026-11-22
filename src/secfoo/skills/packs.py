@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -66,7 +67,9 @@ def default_pack_name(url: str) -> str:
     the example name from the issue. Falls back to asking for `--name`
     rather than guessing at something unreadable."""
     trimmed = url.rstrip("/").removesuffix(".git")
-    parts = [part for part in re.split(r"[/:]", trimmed) if part]
+    # Backslash too: a local Windows path (C:\\src\\acme\\appsec-skills) names
+    # its pack from the last two folders, as a URL does (#113).
+    parts = [part for part in re.split(r"[/:\\]", trimmed) if part]
     tail = parts[-2:] if len(parts) >= 2 else parts
     name = re.sub(r"[^a-z0-9-]+", "-", "-".join(tail).lower()).strip("-")
     name = re.sub(r"-+", "-", name)
@@ -136,6 +139,25 @@ def _run_git(args: list[str], *, cwd: Path | None = None, timeout: int = DEFAULT
     return result.stdout.strip()
 
 
+def _remove_tree(path: Path) -> None:
+    """shutil.rmtree that also removes read-only files. Git writes its
+    object files read-only, and on Windows a read-only file cannot be
+    deleted, so a plain rmtree(ignore_errors=True) silently left the whole
+    checkout behind (#113)."""
+
+    def _make_writable_and_retry(func, target, _exc_info):
+        try:
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+        except OSError:
+            pass
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_make_writable_and_retry)
+    else:  # pragma: no cover -- onerror is deprecated from 3.12
+        shutil.rmtree(path, onerror=_make_writable_and_retry)
+
+
 def install_pack(
     url: str, *, ref: str | None = None, name: str | None = None, timeout: int = DEFAULT_TIMEOUT
 ) -> Pack:
@@ -159,7 +181,7 @@ def install_pack(
             _run_git(["checkout", "--quiet", "--detach", ref], cwd=target, timeout=timeout)
         commit = _run_git(["rev-parse", "HEAD"], cwd=target, timeout=timeout)
     except PackError:
-        shutil.rmtree(target, ignore_errors=True)
+        _remove_tree(target)
         raise
     pack = Pack(name=resolved_name, url=url, ref=ref or "HEAD", commit=commit)
     packs[resolved_name] = pack
@@ -197,7 +219,8 @@ def remove_pack(name: str) -> None:
     pack = packs.pop(name, None)
     if pack is None:
         raise PackError(f"no installed pack named {name!r} (see `secfoo skills list`)")
-    shutil.rmtree(pack.path, ignore_errors=True)
+    if pack.path.exists():
+        _remove_tree(pack.path)
     save_lock(packs)
 
 

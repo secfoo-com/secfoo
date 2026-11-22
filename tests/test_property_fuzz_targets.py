@@ -386,7 +386,9 @@ def test_a_stale_config_agent_or_depth_does_not_block_explicit_flags(monkeypatch
     result = CliRunner().invoke(app, ["run", "--skill", "sast", "--agent", "claude", "--depth", "quick"])
     assert "defaults.agent" not in result.output and captured.get("agent_id") == "claude"
     result = CliRunner().invoke(app, ["run", "--skill", "sast", "--depth", "quick"])
-    assert result.exit_code == 1 and "defaults.agent must be one of" in result.output
+    # Joined: the error names the config path first, and a long one (Windows
+    # temp/home paths) makes the console wrap mid-sentence.
+    assert result.exit_code == 1 and "defaults.agent must be one of" in " ".join(result.output.split())
 
 
 def test_config_shapes_that_always_worked_still_load(tmp_path):
