@@ -676,7 +676,7 @@ def test_the_probe_reconnects_after_a_live_sensor_dies(make_probe):
         second = None
         deadline = time.monotonic() + 10
         while second is None and time.monotonic() < deadline:
-            probe.flush()  # the first write after EOF may still "succeed"; a later one fails and reconnects
+            probe.flush()  # sees the sensor's FIN before writing and reconnects (#113)
             try:
                 second, _ = server.accept()
             except TimeoutError:
@@ -687,7 +687,9 @@ def test_the_probe_reconnects_after_a_live_sensor_dies(make_probe):
     finally:
         server.close()
         transport.close()
-    assert probe.dropped >= 1 and not probe._broken
+    # #113: the probe notices the FIN before it writes, so no batch goes into
+    # the dead socket (before, the first write after EOF was lost).
+    assert probe.dropped == 0 and not probe._broken
 
 
 def test_close_drain_is_bounded_even_if_the_sensor_keeps_writing():

@@ -140,9 +140,15 @@ class SocketTransport(_StreamTransport):
             self.target = parsed.path
 
     def send(self, events: list[dict]) -> bool:
-        # A batch written into a connection the sensor had already closed
-        # was never read, so it counts as dropped (False), not sent.
-        return super().send(events) and self._read_control()
+        # Read what the sensor sent first: if it has closed the connection
+        # (FIN), _read_control drops it and super().send() reconnects, so the
+        # batch never goes into a socket nobody reads (#113).
+        if self._conn is not None:
+            self._read_control()
+        ok = super().send(events)
+        if ok:
+            self._read_control()
+        return ok
 
     def _read_control(self) -> bool:
         """Non-blocking read of what the sensor said back (#73): `welcome`
