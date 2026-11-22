@@ -140,28 +140,38 @@ class SocketTransport(_StreamTransport):
             self.target = parsed.path
 
     def send(self, events: list[dict]) -> bool:
-        ok = super().send(events)
-        if ok:
-            self._read_control()
-        return ok
+        # A batch written into a connection the sensor had already closed
+        # was never read, so it counts as dropped (False), not sent.
+        return super().send(events) and self._read_control()
 
-    def _read_control(self) -> None:
+    def _read_control(self) -> bool:
         """Non-blocking read of what the sensor said back (#73): `welcome`
-        sets the flush interval, `slow` asks for coarser flushing."""
+        sets the flush interval, `slow` asks for coarser flushing. False when
+        the connection turned out to be closed or broken."""
         conn = self._conn
         if conn is None:
-            return
+            return False
         try:
             conn.setblocking(False)
             data = conn.recv(65536)
         except (BlockingIOError, InterruptedError):
-            return
+            return True
         except OSError:
             self.close()
-            return
+            return False
         finally:
             if self._conn is not None:
                 self._conn.settimeout(SOCKET_TIMEOUT_SECONDS)
+        if not data:
+            # recv() returning b"" is the sensor's FIN: it closed the
+            # connection. Close now so the next flush reconnects (and fails
+            # fast if the sensor is gone) instead of writing into a
+            # half-closed socket. Linux happened to surface this anyway, as
+            # an RST-driven EPIPE on the next write; macOS keeps accepting
+            # those writes into the send buffer, so the probe never noticed
+            # the sensor had gone (#113).
+            self.close()
+            return False
         for raw in data.splitlines():
             try:
                 message = json.loads(raw)
@@ -173,6 +183,7 @@ class SocketTransport(_StreamTransport):
                     self.flush_interval = interval
             elif message.get("type") == "slow":
                 self.slow = True
+        return True
 
     flush_interval: float | None = None
 
