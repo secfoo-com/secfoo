@@ -14,12 +14,29 @@ permissions:
 
 jobs:
   test:
-    name: Test (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # Linux jobs keep the exact names branch protection requires
+    # ("Test (py3.10)", "Test (py3.12)"); the others add their OS.
+    name: Test (py${{ matrix.python-version }}${{ matrix.os != 'ubuntu-latest' && format(', {0}', matrix.os) || '' }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        # Both Python versions on Linux; one on macOS and Windows, which
+        # secfoo also ships binaries for (#113).
+        include:
+          - { os: ubuntu-latest, python-version: "3.10" }
+          - { os: ubuntu-latest, python-version: "3.12" }
+          # macos-14 runners are retired ("configuration not supported").
+          - { os: macos-15, python-version: "3.12" }
+          - { os: windows-latest, python-version: "3.12" }
+    defaults:
+      run:
+        # One shell everywhere: the summary step uses bash redirection.
+        shell: bash
+    env:
+      # Box-drawing characters in CLI output must not crash a cp1252 console.
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -56,7 +73,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           {
-            echo "### Coverage (py${{ matrix.python-version }})"
+            echo "### Coverage (${{ matrix.os }}, py${{ matrix.python-version }})"
             echo
             echo '```'
             coverage report --sort=cover --skip-covered || true
@@ -67,7 +84,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-py${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
 

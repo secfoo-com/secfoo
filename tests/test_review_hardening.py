@@ -1,6 +1,7 @@
 """Regressions for the security boundaries identified in PR #134 review."""
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,7 @@ def test_missing_telemetry_is_unknown_even_for_api():
     assert all(evaluation.score(r, cases[r['case_id']])['forbidden_tool_attempts'] is None for r in records)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake CLI is a #! script, which Windows cannot execute directly")
 def test_claude_capture_preserves_production_grants_and_records_stream(tmp_path):
     import os
     import subprocess

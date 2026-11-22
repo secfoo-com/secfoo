@@ -1,3 +1,8 @@
 # Fuzz corpora are exact byte inputs (crash reproducers included): never
 # let core.autocrlf rewrite their line endings on checkout.
 fuzz/corpus/** -text
+# Evaluation evidence and the adversarial corpus are checked by SHA-256
+# (tests/test_fresh_adversarial_evidence.py, scripts/adversarial_eval.py
+# corpus_digest); a CRLF checkout on Windows would change every digest.
+docs/evaluations/** -text
+tests/fixtures/adversarial/** -text

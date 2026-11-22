@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import urllib.error
 
 import pytest
@@ -67,6 +68,7 @@ def test_save_and_load_cloud_config_roundtrip(tmp_path):
     assert loaded == config
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits")
 def test_save_cloud_config_sets_restrictive_permissions(tmp_path):
     path = tmp_path / "cloud.toml"
     cloud.save_cloud_config(cloud.CloudConfig(api_key="sfc_ingest_abc123"), path)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import subprocess
+import sys
 
 import pytest
 
@@ -94,6 +95,10 @@ def test_find_owner_returns_none_when_lsof_is_missing(monkeypatch):
 # ---------- stop_gracefully ----------
 
 
+posix_signals = pytest.mark.skipif(sys.platform == "win32", reason="Windows stops a process with taskkill, not signals")
+
+
+@posix_signals
 def test_stop_gracefully_succeeds_after_sigterm(monkeypatch):
     killed = []
     alive = {"value": True}
@@ -110,6 +115,7 @@ def test_stop_gracefully_succeeds_after_sigterm(monkeypatch):
     assert killed == [port_guard.signal.SIGTERM]
 
 
+@posix_signals
 def test_stop_gracefully_falls_back_to_sigkill_when_sigterm_is_ignored(monkeypatch):
     signals_sent = []
     alive = {"value": True}
@@ -133,3 +139,21 @@ def test_stop_gracefully_gives_up_if_the_process_never_dies(monkeypatch):
 
     owner = PortOwner(pid=4242, command="secfoo serve")
     assert stop_gracefully(owner, timeout=0.3) is False
+
+
+def test_stop_gracefully_uses_taskkill_on_windows(monkeypatch):
+    """The Windows branch (#113): taskkill first, then taskkill /F."""
+    calls = []
+    alive = {"value": True}
+
+    def _fake_run(args, timeout):
+        calls.append(args)
+        if "/F" in args:
+            alive["value"] = False
+
+    monkeypatch.setattr(port_guard.sys, "platform", "win32")
+    monkeypatch.setattr(port_guard, "_run", _fake_run)
+    monkeypatch.setattr(port_guard, "_process_alive", lambda pid: alive["value"])
+
+    assert stop_gracefully(PortOwner(pid=4242, command="secfoo serve"), timeout=0.3) is True
+    assert calls == [["taskkill", "/PID", "4242"], ["taskkill", "/F", "/PID", "4242"]]

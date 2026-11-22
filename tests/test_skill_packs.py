@@ -226,3 +226,23 @@ def test_cli_install_with_both_url_and_from_lock_errors(home, tmp_path):
 def test_cli_install_with_neither_url_nor_from_lock_errors(home):
     result = runner.invoke(app, ["skills", "install"])
     assert result.exit_code == 1 and "--from-lock" in _out(result)
+
+
+def test_default_pack_name_from_a_local_windows_path():
+    """#113: a local Windows path names its pack from its last two folders."""
+    assert default_pack_name(r"C:\Users\me\src\acme\appsec-skills") == "acme-appsec-skills"
+    assert default_pack_name("C:/Users/me/src/acme/appsec-skills.git") == "acme-appsec-skills"
+
+
+def test_remove_tree_deletes_read_only_files(tmp_path):
+    """Git writes object files read-only; on Windows rmtree cannot delete
+    those without making them writable first (#113)."""
+    from secfoo.skills.packs import _remove_tree
+
+    tree = tmp_path / "checkout" / ".git" / "objects" / "ab"
+    tree.mkdir(parents=True)
+    obj = tree / "cdef"
+    obj.write_bytes(b"x")
+    obj.chmod(0o444)
+    _remove_tree(tmp_path / "checkout")
+    assert not (tmp_path / "checkout").exists()

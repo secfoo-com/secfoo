@@ -437,7 +437,10 @@ def combine_artifacts(inputs: list[Path], output: Path) -> None:
 
 def corpus_digest():
     digest = hashlib.sha256()
-    for file in sorted(CORPUS.rglob("*")):
+    # Sorted by case-sensitive path parts: WindowsPath ordering ignores
+    # case, which changed the digest on Windows (#113). Same order as a
+    # PosixPath sort, so existing digests stay valid.
+    for file in sorted(CORPUS.rglob("*"), key=lambda f: f.relative_to(CORPUS).parts):
         if file.is_file() and file.name != "synthetic-transcripts.jsonl":
             digest.update(file.relative_to(CORPUS).as_posix().encode() + b"\0")
             digest.update(file.read_bytes())
