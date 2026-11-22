@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-22T06:43:34Z",
+  "generated_at": "2026-11-22T15:25:31Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -181,13 +181,13 @@
     },
     {
       "login": "aaas72",
-      "points": 22,
+      "points": 28,
       "counts": {
         "hard": 1,
-        "medium": 2,
+        "medium": 3,
         "low": 0
       },
-      "merged_prs": 3,
+      "merged_prs": 4,
       "awards": [
         {
           "pr": 162,
@@ -221,10 +221,21 @@
           "merged_at": "2026-11-21T22:19:45Z",
           "difficulty": "hard",
           "points": 10
+        },
+        {
+          "pr": 191,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/191",
+          "issue": 113,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/113",
+          "issue_title": "Bug: sensor test fails on macOS; CI only runs on Ubuntu. Add macOS and Windows to the matrix and fix what breaks",
+          "contributor": "aaas72",
+          "merged_at": "2026-11-22T15:25:16Z",
+          "difficulty": "medium",
+          "points": 6
         }
       ],
       "rank": 2,
-      "level": null
+      "level": "Bronze"
     },
     {
       "login": "kushaldave002",
@@ -691,6 +702,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 191,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/191",
+      "issue": 113,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/113",
+      "issue_title": "Bug: sensor test fails on macOS; CI only runs on Ubuntu. Add macOS and Windows to the matrix and fix what breaks",
+      "contributor": "aaas72",
+      "merged_at": "2026-11-22T15:25:16Z",
+      "difficulty": "medium",
+      "points": 6
+    },
     {
       "pr": 189,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/189",

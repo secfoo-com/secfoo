@@ -1,13 +1,13 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-22 06:43:34 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-22 15:25:31 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
 | # | Contributor | Points | Level | Hard | Medium | Low | Merged PRs |
 |---:|---|---:|---|---:|---:|---:|---:|
 | 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **88** | Silver | 4 | 7 | 2 | 20 |
-| 2 | [@aaas72](https://github.com/aaas72) | **22** | — | 1 | 2 | 0 | 3 |
+| 2 | [@aaas72](https://github.com/aaas72) | **28** | Bronze | 1 | 3 | 0 | 4 |
 | 3 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
 | 4 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
 | 5 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **15** | — | 0 | 0 | 5 | 5 |
@@ -44,6 +44,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-22 | [@aaas72](https://github.com/aaas72) | [#191](https://github.com/secfoo-com/secfoo/pull/191) | [#113](https://github.com/secfoo-com/secfoo/issues/113) Bug: sensor test fails on macOS; CI only runs on Ubuntu. Add macOS and Windows to the matrix and fix what breaks | medium | +6 |
 | 2026-11-21 | [@aaas72](https://github.com/aaas72) | [#189](https://github.com/secfoo-com/secfoo/pull/189) | [#118](https://github.com/secfoo-com/secfoo/issues/118) Security review of the local dashboard: CSRF on state-changing routes, DNS rebinding, and an XSS regression suite | hard | +10 |
 | 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#188](https://github.com/secfoo-com/secfoo/pull/188) | [#177](https://github.com/secfoo-com/secfoo/issues/177) Docs: verify install and login commands for Cursor (agent), droid, devin and agy in docs/agents.md | low | +3 |
 | 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#187](https://github.com/secfoo-com/secfoo/pull/187) | [#176](https://github.com/secfoo-com/secfoo/issues/176) Docs: verify install and login commands for claude, gemini, codex and copilot in docs/agents.md | low | +3 |
@@ -68,7 +69,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#102](https://github.com/secfoo-com/secfoo/pull/102) | [#54](https://github.com/secfoo-com/secfoo/issues/54) Import coverage files as runtime evidence | low | +3 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#101](https://github.com/secfoo-com/secfoo/pull/101) | [#80](https://github.com/secfoo-com/secfoo/issues/80) Runtime evidence at the developer stage: CLI, SARIF and CI gate | medium | +6 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#100](https://github.com/secfoo-com/secfoo/pull/100) | [#73](https://github.com/secfoo-com/secfoo/issues/73) Probe ↔ sensor protocol and conformance kit (one contract for every runtime) | hard | +10 |
-| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#99](https://github.com/secfoo-com/secfoo/pull/99) | [#55](https://github.com/secfoo-com/secfoo/issues/55) Python live sensor (`sys.monitoring`) | hard | +10 |
 
 ## Needs a difficulty label
 
