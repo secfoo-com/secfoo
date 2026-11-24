@@ -403,6 +403,19 @@ def test_sync_unsupported_agent_raises():
         mcp.sync("claude", [])
 
 
+def test_canonical_mcp_support_covers_all_adapters():
+    from secfoo.agents.registry import ADAPTERS
+
+    assert set(mcp.CANONICAL_MCP_SUPPORT.keys()) == set(ADAPTERS.keys())
+    assert mcp.CANONICAL_MCP_SUPPORT["claude"].mechanism == "per-run"
+    assert mcp.CANONICAL_MCP_SUPPORT["codex"].mechanism == "sync"
+    assert mcp.CANONICAL_MCP_SUPPORT["gemini"].mechanism == "sync"
+    assert mcp.CANONICAL_MCP_SUPPORT["agent"].mechanism == "sync"
+    text = mcp.format_mcp_support_text()
+    for agent_id in ADAPTERS:
+        assert agent_id in text
+
+
 def test_sync_gemini_reports_missing_cli_instead_of_crashing(monkeypatch):
     monkeypatch.setattr(mcp.shutil, "which", lambda name: None)
 

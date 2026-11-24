@@ -208,8 +208,11 @@ def test_run_command_shows_per_skill_progress(monkeypatch):
 def test_agents_command_lists_all_adapters():
     result = runner.invoke(app, ["agents"])
     assert result.exit_code == 0
+    assert "MCP" in result.stdout
     for agent_id in ["claude", "agent", "agy", "gemini", "codex"]:
         assert agent_id in result.stdout
+    assert "per-run" in result.stdout
+    assert "sync" in result.stdout
 
 
 class _FakeRepoEmpty:
@@ -625,6 +628,34 @@ def test_mcp_sync_codex_is_supported(monkeypatch):
     result = runner.invoke(app, ["mcp", "sync", "--agent", "codex"])
     assert result.exit_code == 0
     assert dispatched == ["codex"]
+
+
+def test_mcp_sync_without_agent_syncs_available_agents(monkeypatch):
+    servers = [MCPServerConfig(name="s", command="npx")]
+    monkeypatch.setattr(
+        "secfoo.cli.load_config", lambda: SecfooConfig(defaults=Defaults(), mcp_servers=servers)
+    )
+    synced = []
+    monkeypatch.setattr(
+        mcp_module,
+        "sync",
+        lambda aid, srvs: synced.append(aid) or [mcp_module.SyncResult("s", True, "added")],
+    )
+
+    class FakeAdapter:
+        def __init__(self, avail):
+            self._avail = avail
+
+        def is_available(self):
+            return self._avail
+
+    monkeypatch.setattr(
+        "secfoo.cli.get_adapter",
+        lambda aid: FakeAdapter(True) if aid == "codex" else FakeAdapter(False),
+    )
+    result = runner.invoke(app, ["mcp", "sync"])
+    assert result.exit_code == 0
+    assert synced == ["codex"]
 
 
 @pytest.mark.parametrize("override,expected", [(None, "config-model"), ("override-model", "override-model")])

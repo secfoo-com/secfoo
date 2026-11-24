@@ -50,6 +50,76 @@ class SyncResult:
     message: str
 
 
+@dataclass(frozen=True)
+class AgentMCPSupport:
+    agent_id: str
+    mechanism: str  # "per-run" | "sync" | "none"
+    guidance: str
+
+
+CANONICAL_MCP_SUPPORT: dict[str, AgentMCPSupport] = {
+    "claude": AgentMCPSupport(
+        agent_id="claude",
+        mechanism="per-run",
+        guidance="Automatic on every `secfoo run` (--mcp-config, scoped to invocation; global config untouched)",
+    ),
+    "agent": AgentMCPSupport(
+        agent_id="agent",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent agent` once to register persistently in ~/.cursor/mcp.json",
+    ),
+    "gemini": AgentMCPSupport(
+        agent_id="gemini",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent gemini` once to register persistently via `gemini mcp add`",
+    ),
+    "codex": AgentMCPSupport(
+        agent_id="codex",
+        mechanism="sync",
+        guidance="Run `secfoo mcp sync --agent codex` once to register persistently in ~/.codex/config.toml",
+    ),
+    "copilot": AgentMCPSupport(
+        agent_id="copilot",
+        mechanism="none",
+        guidance="Not yet automated in secfoo mcp sync (planned for follow-up)",
+    ),
+    "opencode": AgentMCPSupport(
+        agent_id="opencode",
+        mechanism="none",
+        guidance="Not yet automated in secfoo mcp sync (planned for follow-up)",
+    ),
+    "droid": AgentMCPSupport(
+        agent_id="droid",
+        mechanism="none",
+        guidance="Not yet automated in secfoo mcp sync (planned for follow-up)",
+    ),
+    "devin": AgentMCPSupport(
+        agent_id="devin",
+        mechanism="none",
+        guidance="Not yet automated in secfoo mcp sync (planned for follow-up)",
+    ),
+    "agy": AgentMCPSupport(
+        agent_id="agy",
+        mechanism="none",
+        guidance="agy 1.5.3 exposes an 'agy mcp' subcommand, but secfoo does not yet automate syncing with agy",
+    ),
+    "api": AgentMCPSupport(
+        agent_id="api",
+        mechanism="none",
+        guidance="API adapter invokes LLMs directly without a CLI agent or MCP client",
+    ),
+}
+
+
+def format_mcp_support_text() -> str:
+    """Returns a readable summary of MCP support across all agents."""
+    lines = []
+    for agent_id in sorted(CANONICAL_MCP_SUPPORT):
+        support = CANONICAL_MCP_SUPPORT[agent_id]
+        lines.append(f"- {agent_id} ({support.mechanism}): {support.guidance}")
+    return "\n".join(lines)
+
+
 def effective_servers(configured: list[MCPServerConfig]) -> list[MCPServerConfig]:
     """The user's own [[mcp_servers]] plus the default secfoo-memory
     server when memory is on (memory.memory_server). A user-defined server
@@ -289,7 +359,7 @@ def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     if agent_id == "codex":
         return sync_codex(servers)
     raise ValueError(
-        f"secfoo mcp sync isn't supported for {agent_id!r}. "
-        f"claude uses --mcp-config automatically on every run (no sync needed); "
-        f"agy doesn't expose an automated sync mechanism yet."
+        f"secfoo mcp sync isn't supported for {agent_id!r}.\n\n"
+        f"Agent MCP support:\n\n"
+        f"{format_mcp_support_text()}"
     )
