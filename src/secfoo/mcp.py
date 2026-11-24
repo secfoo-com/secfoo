@@ -347,7 +347,7 @@ def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
         try:
             CODEX_CONFIG_PATH.resolve().chmod(0o600)
         except OSError:
-            pass
+            pass  # e.g. not our file or missing; the sync itself still succeeded
     return results
 
 
