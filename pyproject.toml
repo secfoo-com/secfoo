@@ -55,6 +55,7 @@ dependencies = [
   "markdown-it-py>=4.3.0",
   "python-multipart>=0.0.32",
   "tomli>=2.0; python_version < '3.11'",
+  "tomlkit>=0.13.0",
   # Pure-Python text extraction for uploaded third-party vendor documents
   # (docext.py) -- deliberately no system-level binaries (no poppler, no
   # LibreOffice) so the Docker/Kubernetes image stays lean and doesn't

@@ -11,9 +11,13 @@ against each `--help` output, Aug 2026):
 - agent (Cursor): has no `mcp add` subcommand at all -- servers are defined
   by editing `~/.cursor/mcp.json` directly, then approved via
   `agent mcp enable <name>`. `secfoo mcp sync` does that merge.
-- agy (Antigravity): no MCP subcommand or flag exposed by the CLI at all as
-  of this writing. Not supported; `secfoo mcp sync --agent agy` refuses with
-  a clear error rather than silently doing nothing.
+- codex: reads `~/.codex/config.toml` (`[mcp_servers.<name>]`). secfoo does not
+  use per-run `-c` overrides: command, URL and header values would appear in the
+  process table (`ps`). `secfoo mcp sync` instead merges them into config.toml
+  (comments and formatting preserved) with 0600 permissions.
+- agy (Antigravity): agy 1.5.3 exposes an `agy mcp` subcommand, but secfoo does
+  not yet automate syncing with agy's configuration. `secfoo mcp sync --agent agy`
+  refuses with a clear error.
 """
 
 from __future__ import annotations
@@ -26,13 +30,17 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+import tomlkit
+from tomlkit.exceptions import TOMLKitError
+
 from secfoo.config import STORE_DIR, write_private_text
 from secfoo.settings import MCPServerConfig
 
 CLAUDE_MCP_CONFIG_PATH = STORE_DIR / "claude-mcp-config.json"
 CURSOR_MCP_CONFIG_PATH = Path.home() / ".cursor" / "mcp.json"
+CODEX_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
 
-SYNC_SUPPORTED_AGENTS = {"gemini", "agent"}
+SYNC_SUPPORTED_AGENTS = {"gemini", "agent", "codex"}
 
 
 @dataclass
@@ -196,14 +204,92 @@ def sync_cursor(servers: list[MCPServerConfig]) -> list[SyncResult]:
     return results
 
 
+# ---------- codex: persistent, via ~/.codex/config.toml merge ----------
+
+
+def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
+    if shutil.which("codex") is None:
+        return [SyncResult("*", False, "codex isn't installed (not found on PATH)")]
+
+    doc = tomlkit.document()
+    if CODEX_CONFIG_PATH.exists():
+        try:
+            content = CODEX_CONFIG_PATH.read_text(encoding="utf-8")
+            parsed = tomlkit.parse(content)
+        except (TOMLKitError, OSError) as exc:
+            return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not valid TOML: {exc}")]
+        if not isinstance(parsed, dict):
+            return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not a TOML table")]
+        doc = parsed
+
+    mcp_servers = doc.get("mcp_servers")
+    if mcp_servers is None:
+        mcp_servers = tomlkit.table()
+        doc["mcp_servers"] = mcp_servers
+    elif not isinstance(mcp_servers, dict):
+        return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} has a non-table mcp_servers entry")]
+
+    results = []
+    newly_added: list[str] = []
+    for server in servers:
+        if server.name in mcp_servers:
+            results.append(SyncResult(server.name, True, "already configured, skipped"))
+            continue
+
+        if server.command:
+            server_tbl = tomlkit.table()
+            server_tbl["command"] = server.command
+            server_tbl["args"] = list(server.args)
+            if server.env:
+                env_tbl = tomlkit.table()
+                for k, v in server.env.items():
+                    env_tbl[k] = v
+                server_tbl["env"] = env_tbl
+            mcp_servers[server.name] = server_tbl
+            newly_added.append(server.name)
+            results.append(SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}"))
+        elif server.url:
+            if server.transport == "sse":
+                results.append(
+                    SyncResult(
+                        server.name,
+                        False,
+                        "Codex does not support SSE transport for remote MCP servers (only streamable-HTTP is supported)",
+                    )
+                )
+                continue
+            server_tbl = tomlkit.table()
+            server_tbl["url"] = server.url
+            if server.headers:
+                headers_tbl = tomlkit.table()
+                for k, v in server.headers.items():
+                    headers_tbl[k] = v
+                server_tbl["http_headers"] = headers_tbl
+            mcp_servers[server.name] = server_tbl
+            newly_added.append(server.name)
+            results.append(SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}"))
+        else:
+            results.append(SyncResult(server.name, False, "server must define either 'command' or 'url'"))
+
+    if newly_added:
+        write_private_text(CODEX_CONFIG_PATH, tomlkit.dumps(doc))
+    elif os.name == "posix":
+        try:
+            CODEX_CONFIG_PATH.resolve().chmod(0o600)
+        except OSError:
+            pass
+    return results
+
+
 def sync(agent_id: str, servers: list[MCPServerConfig]) -> list[SyncResult]:
     if agent_id == "gemini":
         return sync_gemini(servers)
     if agent_id == "agent":
         return sync_cursor(servers)
+    if agent_id == "codex":
+        return sync_codex(servers)
     raise ValueError(
         f"secfoo mcp sync isn't supported for {agent_id!r}. "
         f"claude uses --mcp-config automatically on every run (no sync needed); "
-        f"agy doesn't expose any MCP configuration mechanism via its CLI yet; "
-        f"codex isn't wired up for it yet (it reads ~/.codex/config.toml directly)."
+        f"agy doesn't expose an automated sync mechanism yet."
     )
