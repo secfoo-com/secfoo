@@ -979,9 +979,12 @@ How MCP servers reach each agent varies by what its CLI actually supports:
 | Agent | Mechanism |
 |---|---|
 | `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
-| `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
-| `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
-| `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |
+| `gemini`, `agent` (Cursor), `codex` | Run `secfoo mcp sync --agent <agent>` (or `secfoo mcp sync` to sync all installed agents) once to register persistently in that tool's own config |
+| `agy` (Antigravity) | `agy 1.5.3` has an `agy mcp` subcommand, but secfoo does not yet automate syncing with agy's configuration |
+| `copilot`, `opencode`, `droid`, `devin` | Not yet automated in `secfoo mcp sync` (planned for follow-up) |
+| `api` | Not supported — direct API adapter has no tool loop |
+
+Existing same-named servers are preserved and skipped to prevent overwriting user edits or credentials. When rotating API keys or tokens (such as `secfoo-memory`), remove the server entry from the agent's config or re-run sync after removing it.
 
 ```bash
 secfoo mcp list                    # show what's configured
@@ -1005,8 +1008,8 @@ secfoo memory logout
 
 Once a key is saved, secfoo registers `secfoo-memory` as a default MCP
 server. `secfoo mcp list` shows it next to your own servers. `claude` picks
-it up on every run. For `gemini` or Cursor (`agent`), run
-`secfoo mcp sync --agent <agent>` once. The `api` agent has no tool loop,
+it up on every run. For `gemini`, Cursor (`agent`) or `codex`, run
+`secfoo mcp sync --agent <agent>` (or `secfoo mcp sync`) once. The `api` agent has no tool loop,
 so memory doesn't apply to it. When memory is on, the prompt tells the
 agent when to use the three tools (`lookup_patterns`, `get_remediation`,
 `check_false_positive`) and how to phrase a query.
