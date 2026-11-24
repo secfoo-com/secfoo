@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 STORE_DIR = Path(os.environ.get("SECFOO_HOME", Path.home() / ".secfoo"))
@@ -40,19 +41,30 @@ def _make_private(directory: Path) -> None:
 
 
 def write_private_text(path: Path, text: str) -> None:
-    """Write a secret-bearing file that is never readable by others, not even
-    between creation and a later chmod (and tighten an existing file first)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    """Write a secret-bearing file atomically and symlink-safely so it is never
+    readable by others, not even between creation and replacement.
+
+    Resolves symlinks first so that dotfile managers (e.g. stow, chezmoi)
+    do not have their symlink replaced with a regular file, and writes via a
+    temporary file in the target directory before atomically replacing it.
+    """
+    target = path.resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target.with_name(f".{target.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
-        if hasattr(os, "fchmod"):  # POSIX; O_CREAT's mode does not apply to an existing file
+        # POSIX: O_CREAT's mode does not apply to an existing file
+        if hasattr(os, "fchmod"):
             os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             fd = -1
             handle.write(text)
+        os.replace(tmp_path, target)
     finally:
         if fd != -1:
             os.close(fd)
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
 
 
 def run_dir(run_uuid: str) -> Path:

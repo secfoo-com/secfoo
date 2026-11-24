@@ -60,6 +60,34 @@ def test_write_private_text_creates_0600_and_tightens_an_existing_file(tmp_path)
     assert _mode(old) == 0o600 and old.read_text() == "api_key = 'new'\n"
 
 
+def test_write_private_text_atomic_no_temp_residue(tmp_path):
+    dest = tmp_path / "secret.toml"
+    config.write_private_text(dest, "hello = 'world'\n")
+    assert dest.read_text() == "hello = 'world'\n"
+    # Ensure no lingering .tmp files exist in dest.parent
+    tmp_files = list(tmp_path.glob(".*tmp*"))
+    assert tmp_files == []
+
+
+@posix_only
+def test_write_private_text_preserves_symlink(tmp_path):
+    target = tmp_path / "dotfiles" / "config.toml"
+    target.parent.mkdir(parents=True)
+    target.write_text("initial = true\n")
+    target.chmod(0o644)
+
+    symlink_path = tmp_path / "agent" / "config.toml"
+    symlink_path.parent.mkdir(parents=True)
+    symlink_path.symlink_to(target)
+
+    config.write_private_text(symlink_path, "updated = true\n")
+
+    assert symlink_path.is_symlink()
+    assert symlink_path.resolve() == target.resolve()
+    assert target.read_text() == "updated = true\n"
+    assert _mode(target) == 0o600
+
+
 @posix_only
 def test_credential_files_are_0600_even_when_a_readable_one_existed(tmp_path, monkeypatch):
     cloud_path, memory_path = tmp_path / "cloud.toml", tmp_path / "memory.toml"
