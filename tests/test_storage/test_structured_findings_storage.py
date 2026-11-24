@@ -43,10 +43,10 @@ def test_sca_finding_lifecycle_open_refresh_close(tmp_path):
 def test_secret_finding_reopens_and_keeps_first_seen(tmp_path):
     repo = RunRepository(db_path=tmp_path / "db.sqlite")
     project_id, run_id = _project_and_run(repo)
-    kwargs = dict(
-        project_id=project_id, fingerprint="s1", run_id=run_id, current_ref="S1", secret_type="API token",
-        location_file="deploy/ci.yml", severity="High", evidence="TOKENJ4F...",
-    )
+    kwargs = {
+        "project_id": project_id, "fingerprint": "s1", "run_id": run_id, "current_ref": "S1",
+        "secret_type": "API token", "location_file": "deploy/ci.yml", "severity": "High", "evidence": "TOKENJ4F...",
+    }
     repo.upsert_secret_finding(**kwargs)
     first_seen = repo.list_secret_findings()[0].first_seen_at
     repo.close_stale_findings(
@@ -112,8 +112,10 @@ def test_complete_run_records_memory_flag(tmp_path):
     untouched = repo.create_run(
         project_id=project_id, skill_id="sast", skill_name="SAST", agent_id="claude", confluence_urls=[]
     )
-    common = dict(status="success", exit_code=0, duration_seconds=1.0, report_path=None, prompt_path=None,
-                  stderr_excerpt=None)
+    common = {
+        "status": "success", "exit_code": 0, "duration_seconds": 1.0,
+        "report_path": None, "prompt_path": None, "stderr_excerpt": None,
+    }
     repo.complete_run(on, memory_enabled=True, **common)
     repo.complete_run(off, memory_enabled=False, **common)
     repo.complete_run(untouched, **common)

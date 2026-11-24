@@ -1,3 +1,4 @@
+from typing import ClassVar
 """secfoo-memory client: key storage, the default MCP server, opt-outs,
 the account endpoints, and how a run picks all of it up."""
 
@@ -168,7 +169,7 @@ class _CapturingAdapter(AgentAdapter):
     name = "fake"
     binary = "fake-binary"
     default_timeout_seconds = 30
-    prompts: list[str] = []
+    prompts: ClassVar[list[str]] = []
 
     def build_command(self, prompt, *, workdir):
         return ["fake-binary"]
