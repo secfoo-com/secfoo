@@ -111,7 +111,8 @@ def extract_text(path: Path) -> str:
         if suffix == ".pptx":
             return _extract_pptx(path)
     except Exception:  # noqa: BLE001 -- broad on purpose: the parsers raise many types; a bad file means ""
-        logger.debug("text extraction failed for a %s file", suffix, exc_info=True)
+        # No file-derived value in the message: the traceback names the parser.
+        logger.debug("text extraction failed", exc_info=True)
         return ""
     return ""
 

@@ -28,3 +28,18 @@ def test_a_failed_cloud_sync_is_logged_and_does_not_raise(monkeypatch, caplog):
         runner._try_cloud_sync(repo=None, run_uuid="run-1")
 
     assert any("cloud sync skipped for run run-1" in r.getMessage() for r in caplog.records)
+
+
+def test_a_failed_extraction_logs_nothing_from_the_file_name(tmp_path, monkeypatch, caplog):
+    from secfoo import docext
+
+    def broken(path):
+        raise ValueError("bad pdf")
+
+    monkeypatch.setattr(docext, "_extract_pdf", broken)
+    with caplog.at_level(logging.DEBUG, logger="secfoo.docext"):
+        assert docext.extract_text(tmp_path / "upload.pdf") == ""
+
+    (record,) = [r for r in caplog.records if r.name == "secfoo.docext"]
+    assert record.args == ()
+    assert record.getMessage() == "text extraction failed"
