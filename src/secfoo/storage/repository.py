@@ -9,9 +9,13 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from secfoo.config import DB_PATH, ensure_store_dirs
 from secfoo.report.markdown import read_stored_report
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 # Lets a host process that serves multiple SQLite files (the multi-tenant
 # portal, one file per tenant) select which file `RunRepository()` opens
@@ -344,7 +348,7 @@ class RunRepository:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "RunRepository":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:

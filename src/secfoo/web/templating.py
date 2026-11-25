@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from secfoo.cvss import CvssError, parse_vector
 from secfoo.cvss import rating as cvss_rating
 from secfoo.report.architecture import classify_design_verdict
 from secfoo.skills.loader import load_all_skills
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -299,7 +302,8 @@ def active_run_count() -> int:
     try:
         with RunRepository() as repo:
             return len(repo.list_runs(status="running", limit=100))
-    except Exception:
+    except Exception:  # Broad on purpose: a storage problem must not break page rendering
+        logger.debug("active run count unavailable", exc_info=True)
         return 0
 
 

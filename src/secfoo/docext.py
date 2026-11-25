@@ -28,8 +28,11 @@ refuses a file whose content does not match its extension
 
 from __future__ import annotations
 
+import logging
 import zipfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".pptx"}
 
@@ -107,7 +110,8 @@ def extract_text(path: Path) -> str:
             return _extract_docx(path)
         if suffix == ".pptx":
             return _extract_pptx(path)
-    except Exception:
+    except Exception:  # Broad on purpose: the parsers raise many types; a bad file means ""
+        logger.debug("text extraction failed for a %s file", suffix, exc_info=True)
         return ""
     return ""
 
