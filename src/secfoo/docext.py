@@ -110,7 +110,7 @@ def extract_text(path: Path) -> str:
             return _extract_docx(path)
         if suffix == ".pptx":
             return _extract_pptx(path)
-    except Exception:  # Broad on purpose: the parsers raise many types; a bad file means ""
+    except Exception:  # noqa: BLE001 -- broad on purpose: the parsers raise many types; a bad file means ""
         logger.debug("text extraction failed for a %s file", suffix, exc_info=True)
         return ""
     return ""

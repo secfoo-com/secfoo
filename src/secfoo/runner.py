@@ -60,7 +60,7 @@ def _git_head_commit(path: Path) -> str | None:
             capture_output=True, text=True, timeout=10, check=False,
         )
         return result.stdout.strip() if result.returncode == 0 else None
-    except Exception:  # Broad on purpose: the commit is optional metadata; any failure is "unknown"
+    except Exception:  # noqa: BLE001 -- broad on purpose: the commit is optional metadata; any failure is "unknown"
         logger.debug("git HEAD lookup failed", exc_info=True)
         return None
 
@@ -157,7 +157,7 @@ def _try_cloud_sync(repo: RunRepository, run_uuid: str) -> None:
         if config is None:
             return
         cloud.sync_run(repo, run_uuid, config)
-    except Exception:  # Broad on purpose: any sync failure must not fail the local run
+    except Exception:  # noqa: BLE001 -- broad on purpose: any sync failure must not fail the local run
         logger.debug("cloud sync skipped for run %s", run_uuid, exc_info=True)
 
 
@@ -174,7 +174,7 @@ def _try_osv_enrich(repo: RunRepository, report_text: str) -> None:
         keys = osv_keys_for_report(report_text)
         if keys:
             osv.enrich_lookups(repo, list(keys))
-    except Exception:  # Broad on purpose: any enrichment failure must not fail the local run
+    except Exception:  # noqa: BLE001 -- broad on purpose: any enrichment failure must not fail the local run
         logger.debug("OSV enrichment skipped", exc_info=True)
 
 
