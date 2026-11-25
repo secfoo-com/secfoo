@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-25 10:36:06 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-25 10:56:00 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -9,8 +9,8 @@ _Updated 2026-11-25 10:36:06 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 1 | [@karthickmk2001](https://github.com/karthickmk2001) | **88** | Silver | 4 | 7 | 2 | 20 |
 | 2 | [@aaas72](https://github.com/aaas72) | **28** | Bronze | 1 | 3 | 0 | 4 |
 | 3 | [@kushaldave002](https://github.com/kushaldave002) | **18** | — | 0 | 3 | 0 | 3 |
-| 4 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
-| 5 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **15** | — | 0 | 0 | 5 | 5 |
+| 4 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **18** | — | 0 | 0 | 6 | 6 |
+| 5 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
 | 6 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
 | 7 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
 | 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
@@ -44,6 +44,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-25 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#194](https://github.com/secfoo-com/secfoo/pull/194) | [#167](https://github.com/secfoo-com/secfoo/issues/167) Lint: fix the 17 ruff errors in tests/ (unused variables, nested with, dict()) | low | +3 |
 | 2026-11-22 | [@aaas72](https://github.com/aaas72) | [#191](https://github.com/secfoo-com/secfoo/pull/191) | [#113](https://github.com/secfoo-com/secfoo/issues/113) Bug: sensor test fails on macOS; CI only runs on Ubuntu. Add macOS and Windows to the matrix and fix what breaks | medium | +6 |
 | 2026-11-21 | [@aaas72](https://github.com/aaas72) | [#189](https://github.com/secfoo-com/secfoo/pull/189) | [#118](https://github.com/secfoo-com/secfoo/issues/118) Security review of the local dashboard: CSRF on state-changing routes, DNS rebinding, and an XSS regression suite | hard | +10 |
 | 2026-11-21 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#188](https://github.com/secfoo-com/secfoo/pull/188) | [#177](https://github.com/secfoo-com/secfoo/issues/177) Docs: verify install and login commands for Cursor (agent), droid, devin and agy in docs/agents.md | low | +3 |
@@ -68,7 +69,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#103](https://github.com/secfoo-com/secfoo/pull/103) | [#68](https://github.com/secfoo-com/secfoo/issues/68) Runtime package inventory: loaded versions, drift and live advisories | medium | +6 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#102](https://github.com/secfoo-com/secfoo/pull/102) | [#54](https://github.com/secfoo-com/secfoo/issues/54) Import coverage files as runtime evidence | low | +3 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#101](https://github.com/secfoo-com/secfoo/pull/101) | [#80](https://github.com/secfoo-com/secfoo/issues/80) Runtime evidence at the developer stage: CLI, SARIF and CI gate | medium | +6 |
-| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#100](https://github.com/secfoo-com/secfoo/pull/100) | [#73](https://github.com/secfoo-com/secfoo/issues/73) Probe ↔ sensor protocol and conformance kit (one contract for every runtime) | hard | +10 |
 
 ## Needs a difficulty label
 
