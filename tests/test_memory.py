@@ -1,4 +1,3 @@
-from typing import ClassVar
 """secfoo-memory client: key storage, the default MCP server, opt-outs,
 the account endpoints, and how a run picks all of it up."""
 
@@ -9,6 +8,7 @@ import stat
 import sys
 import urllib.error
 from io import BytesIO
+from typing import ClassVar
 
 import pytest
 
