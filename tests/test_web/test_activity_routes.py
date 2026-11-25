@@ -279,11 +279,11 @@ def test_architecture_activity_page_shows_one_diagram_at_a_time_with_a_project_s
 
 
 def test_architecture_activity_page_diagram_selector_switches_on_query_param(client, tmp_path):
-    _, run_a = _seed_run_with_report(
+    _seed_run_with_report(
         tmp_path, skill_id="security-architecture-review", project_name="acme/app-a",
         report_text=ARCHITECTURE_REPORT,
     )
-    project_b, run_b = _seed_run_with_report(
+    project_b, _ = _seed_run_with_report(
         tmp_path, skill_id="security-architecture-review", project_name="acme/app-b",
         report_text=SECOND_ARCHITECTURE_REPORT,
     )
