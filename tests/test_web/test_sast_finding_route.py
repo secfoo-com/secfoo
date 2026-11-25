@@ -101,7 +101,7 @@ def test_sast_findings_list_shows_open_findings_by_default(client):
 
 
 def test_sast_findings_list_closed_tab_shows_closed_findings(client):
-    project_id, fingerprint = _seed_finding()
+    project_id, _ = _seed_finding()
     repo = RunRepository()
     repo.close_stale_sast_findings(
         project_id=project_id, run_id=1, seen_fingerprints=[], closed_at="2026-08-22T00:00:00Z"
@@ -125,8 +125,8 @@ def test_sast_findings_list_search_filters_findings(client):
 
 
 def test_sast_findings_list_filters_by_project(client):
-    project_a, fp_a = _seed_finding(project_name="acme/app-a", fingerprint="fp-a", title="Finding in app A")
-    project_b, fp_b = _seed_finding(project_name="acme/app-b", fingerprint="fp-b", title="Finding in app B")
+    project_a, _ = _seed_finding(project_name="acme/app-a", fingerprint="fp-a", title="Finding in app A")
+    _seed_finding(project_name="acme/app-b", fingerprint="fp-b", title="Finding in app B")
 
     resp = client.get(f"/activities/sast/findings?project_id={project_a}")
     assert "Finding in app A" in resp.text

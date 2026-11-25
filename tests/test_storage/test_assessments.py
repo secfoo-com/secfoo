@@ -652,7 +652,7 @@ def test_architecture_coverage_in_scope_requires_an_assessment(tmp_path):
     repo = _repo(tmp_path)
     reviewed_project = repo.upsert_project("id-1", "Reviewed", "local")
     unreviewed_project = repo.upsert_project("id-2", "Unreviewed", "local")
-    no_assessment_project = repo.upsert_project("id-3", "NoAssessment", "local")
+    repo.upsert_project("id-3", "NoAssessment", "local")
 
     repo.create_assessment(project_id=reviewed_project, assessment_type="internal", status="ready")
     repo.create_assessment(project_id=unreviewed_project, assessment_type="internal", status="ready")
