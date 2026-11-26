@@ -199,6 +199,58 @@ not SARIF, so treat this as the hand-off file for other tools. Full job,
 including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
+## Bitbucket Pipelines
+
+```yaml
+# bitbucket-pipelines.yml
+image: python:3.12-slim
+
+definitions:
+  steps:
+    - step: &secfoo
+        name: secfoo security review
+        script:
+          - apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null
+          - pip install --quiet secfoo
+          - |
+            code=0
+            secfoo run --agent api --target . --depth quick --json --rescan \
+              --project-name "$BITBUCKET_REPO_FULL_NAME" \
+              --skill sast --skill secret-scanning \
+              --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+            secfoo findings export --format sarif -o secfoo.sarif
+            secfoo findings export -o secfoo-findings.jsonl
+            exit $code
+        artifacts:
+          - secfoo-result.json
+          - secfoo.sarif
+          - secfoo-findings.jsonl
+
+pipelines:
+  pull-requests:
+    '**':
+      - step: *secfoo
+  branches:
+    main:
+      - step: *secfoo
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) under
+**Repository settings → Pipelines → Repository variables** (or as a
+workspace variable to share it across repositories) and tick **Secured**, so
+Bitbucket masks it in logs and hides its value after saving. Pipelines must be
+enabled for the repository. The `pull-requests` pipeline runs on every pull
+request; `branches: main` covers pushes to the default branch, so rename it if
+yours is not `main`.
+
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped. The SARIF, JSON
+Lines and `--json` files are kept as step artifacts, downloadable from the
+**Artifacts** tab of the pipeline run. Bitbucket has no SARIF viewer, so treat
+`secfoo.sarif` as the hand-off file for other tools. Full file:
+[examples/ci/bitbucket-pipelines.yml](../examples/ci/bitbucket-pipelines.yml).
+
 ## Azure Pipelines
 
 ```yaml
@@ -332,7 +384,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Buildkite, CircleCI, Azure Pipelines, ...)
+## Anything else (Buildkite, CircleCI, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...

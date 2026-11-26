@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from secfoo.cli import app
 from typer.testing import CliRunner
+
+from secfoo.cli import app
 
 runner = CliRunner()
 

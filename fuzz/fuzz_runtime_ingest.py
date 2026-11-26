@@ -40,7 +40,7 @@ _INGEST_TABLES = ("runtime_evidence", "runtime_packages", "runtime_sessions")
 
 def check(data: bytes) -> None:
     for table in _INGEST_TABLES:
-        _repo.connection.execute(f"DELETE FROM {table}")  # noqa: S608 -- fixed table names
+        _repo.connection.execute(f"DELETE FROM {table}")  # fixed table names, not input
     _repo.connection.commit()
     lines = data.decode("utf-8", errors="replace").splitlines()  # exactly as post_events decodes
     lines = _with_app_env(lines, "fuzz-app", "fuzz-env")

@@ -108,7 +108,7 @@ def test_sidebar_marks_exactly_the_active_activity(client):
 
     resp = client.get("/activities/sast")
     # Links lead with an inline <svg> icon, so match through to </a>.
-    links = re.findall(r'<a class="sidebar__link".*?</a>', resp.text, re.S)
+    links = re.findall(r'<a class="sidebar__link".*?</a>', resp.text, re.DOTALL)
     active = [re.sub(r"\s+", " ", link) for link in links if "aria-current" in link]
     assert len(active) == 1, f"expected exactly one active link, got {active}"
     assert 'href="/activities/sast"' in active[0]
