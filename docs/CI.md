@@ -199,6 +199,34 @@ not SARIF, so treat this as the hand-off file for other tools. Full job,
 including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
+## Azure Pipelines
+
+## Azure Pipelines
+
+Add `OPENAI_API_KEY` as a secret pipeline variable under
+Pipelines → your pipeline → Edit → Variables → New variable.
+Enable "Keep this value secret".
+
+Azure Pipelines does not automatically expose secret variables to
+scripts. Map the variable into the environment explicitly:
+
+```yaml
+- bash: |
+    secfoo run --agent api --target . --depth quick --json --rescan \
+      --skill sast --skill secret-scanning \
+      --fail-on high --max-cost 2.00
+  env:
+    OPENAI_API_KEY: $(OPENAI_API_KEY)
+```
+
+Exit codes: `0` means the scan completed cleanly, `1` means the run
+failed, `2` means the `--fail-on` severity gate was tripped, and
+`3` means the `--max-cost` budget gate was tripped.
+
+The SARIF and JSONL reports are published as pipeline artifacts.
+Full pipeline configuration: [examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
+
+
 ## Jenkins
 
 A declarative pipeline that runs in the published image. It needs the

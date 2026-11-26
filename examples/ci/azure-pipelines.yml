@@ -1,0 +1,64 @@
+
+# Azure Pipelines: Secfoo AI security review
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+jobs:
+  - job: Secfoo
+    displayName: Secfoo Security Scan
+    container: python:3.12-slim
+
+    steps:
+      - checkout: self
+        fetchDepth: 50
+
+      - bash: |
+          mkdir -p secfoo-artifacts
+        displayName: Prepare artifacts directory
+
+      - bash: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends git
+          pip install --quiet secfoo
+        displayName: Install Secfoo
+
+      - bash: |
+          # Exit codes:
+          # 0 = clean
+          # 1 = run failed
+          # 2 = --fail-on gate tripped
+          # 3 = --max-cost gate tripped
+
+          code=0
+
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$(Build.Repository.Name)" \
+            --skill sast --skill secret-scanning \
+            --fail-on high --max-cost 2.00 \
+            > secfoo-result.json || code=$?
+
+          secfoo findings export --format sarif -o secfoo.sarif || code=$?
+          secfoo findings export -o secfoo-findings.jsonl || code=$?
+
+          cp secfoo-result.json secfoo.sarif secfoo-findings.jsonl secfoo-artifacts/ || code=$?
+
+          exit "$code"
+        displayName: Run Secfoo Security Scan
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish Secfoo Reports
+        condition: always()
+        inputs:
+          targetPath: $(System.DefaultWorkingDirectory)/secfoo-artifacts
+          artifact: secfoo-reports
+          publishLocation: pipeline
