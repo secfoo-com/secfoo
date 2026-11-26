@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-26T16:39:13Z",
+  "generated_at": "2026-11-26T16:47:05Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -559,6 +559,42 @@
       "level": null
     },
     {
+      "login": "Labu1",
+      "points": 6,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 2
+      },
+      "merged_prs": 2,
+      "awards": [
+        {
+          "pr": 198,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/198",
+          "issue": 165,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/165",
+          "issue_title": "Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa)",
+          "contributor": "Labu1",
+          "merged_at": "2026-11-26T16:39:02Z",
+          "difficulty": "low",
+          "points": 3
+        },
+        {
+          "pr": 199,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/199",
+          "issue": 172,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/172",
+          "issue_title": "CI example: Bitbucket Pipelines (examples/ci + docs/CI.md)",
+          "contributor": "Labu1",
+          "merged_at": "2026-11-26T16:46:55Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 11,
+      "level": null
+    },
+    {
       "login": "nabeelbaghoor",
       "points": 3,
       "counts": {
@@ -580,7 +616,7 @@
           "points": 3
         }
       ],
-      "rank": 11,
+      "rank": 12,
       "level": null
     },
     {
@@ -605,7 +641,7 @@
           "points": 3
         }
       ],
-      "rank": 12,
+      "rank": 13,
       "level": null
     },
     {
@@ -626,31 +662,6 @@
           "issue_title": "Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed",
           "contributor": "cnYui",
           "merged_at": "2026-11-20T23:13:02Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 13,
-      "level": null
-    },
-    {
-      "login": "Labu1",
-      "points": 3,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 1
-      },
-      "merged_prs": 1,
-      "awards": [
-        {
-          "pr": 198,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/198",
-          "issue": 165,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/165",
-          "issue_title": "Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa)",
-          "contributor": "Labu1",
-          "merged_at": "2026-11-26T16:39:02Z",
           "difficulty": "low",
           "points": 3
         }
@@ -763,6 +774,17 @@
     }
   ],
   "awards": [
+    {
+      "pr": 199,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/199",
+      "issue": 172,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/172",
+      "issue_title": "CI example: Bitbucket Pipelines (examples/ci + docs/CI.md)",
+      "contributor": "Labu1",
+      "merged_at": "2026-11-26T16:46:55Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 198,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/198",

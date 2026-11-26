@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-26 16:39:13 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-26 16:47:05 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -16,10 +16,10 @@ _Updated 2026-11-26 16:39:13 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
 | 9 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
 | 10 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
-| 11 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
-| 12 | [@AyhamJo7](https://github.com/AyhamJo7) | **3** | — | 0 | 0 | 1 | 1 |
-| 13 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
-| 14 | [@Labu1](https://github.com/Labu1) | **3** | — | 0 | 0 | 1 | 1 |
+| 11 | [@Labu1](https://github.com/Labu1) | **6** | — | 0 | 0 | 2 | 2 |
+| 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
+| 13 | [@AyhamJo7](https://github.com/AyhamJo7) | **3** | — | 0 | 0 | 1 | 1 |
+| 14 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
 | 15 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
@@ -46,6 +46,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#199](https://github.com/secfoo-com/secfoo/pull/199) | [#172](https://github.com/secfoo-com/secfoo/issues/172) CI example: Bitbucket Pipelines (examples/ci + docs/CI.md) | low | +3 |
 | 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#198](https://github.com/secfoo-com/secfoo/pull/198) | [#165](https://github.com/secfoo-com/secfoo/issues/165) Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa) | low | +3 |
 | 2026-11-26 | [@AyhamJo7](https://github.com/AyhamJo7) | [#196](https://github.com/secfoo-com/secfoo/pull/196) | [#168](https://github.com/secfoo-com/secfoo/issues/168) Lint: fix error-handling ruff findings in src/ (blind except, try/except/pass, subprocess check) | low | +3 |
 | 2026-11-25 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#194](https://github.com/secfoo-com/secfoo/pull/194) | [#167](https://github.com/secfoo-com/secfoo/issues/167) Lint: fix the 17 ruff errors in tests/ (unused variables, nested with, dict()) | low | +3 |
@@ -70,7 +71,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-17 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | [#138](https://github.com/secfoo-com/secfoo/pull/138) | [#132](https://github.com/secfoo-com/secfoo/issues/132) Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard | medium | +6 |
 | 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
 | 2026-11-14 | [@AdithKB](https://github.com/AdithKB) | [#105](https://github.com/secfoo-com/secfoo/pull/105) | [#93](https://github.com/secfoo-com/secfoo/issues/93) Run your own skill from anywhere: `--skill-file` with URLs, and shared skill packs | medium | +6 |
-| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#103](https://github.com/secfoo-com/secfoo/pull/103) | [#68](https://github.com/secfoo-com/secfoo/issues/68) Runtime package inventory: loaded versions, drift and live advisories | medium | +6 |
 
 ## Needs a difficulty label
 
