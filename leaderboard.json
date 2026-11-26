@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-26T08:12:46Z",
+  "generated_at": "2026-11-26T15:37:14Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -559,6 +559,31 @@
       "level": null
     },
     {
+      "login": "nabeelbaghoor",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 2,
+      "awards": [
+        {
+          "pr": 182,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/182",
+          "issue": 171,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/171",
+          "issue_title": "Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers)",
+          "contributor": "nabeelbaghoor",
+          "merged_at": "2026-11-21T08:42:31Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 11,
+      "level": null
+    },
+    {
       "login": "cnYui",
       "points": 3,
       "counts": {
@@ -576,31 +601,6 @@
           "issue_title": "Bug: `secfoo mcp sync` shows a traceback when gemini or Cursor's agent CLI isn't installed",
           "contributor": "cnYui",
           "merged_at": "2026-11-20T23:13:02Z",
-          "difficulty": "low",
-          "points": 3
-        }
-      ],
-      "rank": 11,
-      "level": null
-    },
-    {
-      "login": "nabeelbaghoor",
-      "points": 3,
-      "counts": {
-        "hard": 0,
-        "medium": 0,
-        "low": 1
-      },
-      "merged_prs": 1,
-      "awards": [
-        {
-          "pr": 182,
-          "pr_url": "https://github.com/secfoo-com/secfoo/pull/182",
-          "issue": 171,
-          "issue_url": "https://github.com/secfoo-com/secfoo/issues/171",
-          "issue_title": "Security: write ~/.cursor/mcp.json with 0600 permissions (it holds MCP auth headers)",
-          "contributor": "nabeelbaghoor",
-          "merged_at": "2026-11-21T08:42:31Z",
           "difficulty": "low",
           "points": 3
         }

@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-26 08:12:46 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-26 15:37:14 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -16,8 +16,8 @@ _Updated 2026-11-26 08:12:46 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
 | 9 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
 | 10 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
-| 11 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
-| 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 1 |
+| 11 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
+| 12 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
 | 13 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
