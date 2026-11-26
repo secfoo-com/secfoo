@@ -1,0 +1,41 @@
+# Add to your repository as bitbucket-pipelines.yml (or merge the step into
+# an existing one).
+#
+# AI security review as a Bitbucket Pipelines step, on every pull request and
+# on pushes to the main branch. Set OPENAI_API_KEY (or ANTHROPIC_API_KEY /
+# GEMINI_API_KEY) as a secured variable under Repository settings ->
+# Pipelines -> Repository variables, with "Secured" ticked.
+image: python:3.12-slim
+
+clone:
+  depth: 50
+
+definitions:
+  steps:
+    - step: &secfoo
+        name: secfoo security review
+        script:
+          - apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null
+          - pip install --quiet secfoo
+          # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+          - |
+            code=0
+            secfoo run --agent api --target . --depth quick --json --rescan \
+              --project-name "$BITBUCKET_REPO_FULL_NAME" \
+              --skill sast --skill secret-scanning \
+              --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+            secfoo findings export --format sarif -o secfoo.sarif
+            secfoo findings export -o secfoo-findings.jsonl
+            exit $code
+        artifacts:
+          - secfoo-result.json
+          - secfoo.sarif
+          - secfoo-findings.jsonl
+
+pipelines:
+  pull-requests:
+    '**':
+      - step: *secfoo
+  branches:
+    main:   # your default branch
+      - step: *secfoo
