@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-26 17:03:41 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-26 17:25:27 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -12,11 +12,11 @@ _Updated 2026-11-26 17:03:41 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 4 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | **18** | — | 0 | 0 | 6 | 6 |
 | 5 | [@oliarmak-web](https://github.com/oliarmak-web) | **16** | — | 1 | 1 | 0 | 2 |
 | 6 | [@dbdefault](https://github.com/dbdefault) | **12** | — | 0 | 1 | 2 | 3 |
-| 7 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
-| 8 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
-| 9 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
-| 10 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
-| 11 | [@Labu1](https://github.com/Labu1) | **6** | — | 0 | 0 | 2 | 2 |
+| 7 | [@Labu1](https://github.com/Labu1) | **12** | — | 0 | 1 | 2 | 3 |
+| 8 | [@AdithKB](https://github.com/AdithKB) | **6** | — | 0 | 1 | 0 | 4 |
+| 9 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | **6** | — | 0 | 1 | 0 | 1 |
+| 10 | [@saryeljaramany](https://github.com/saryeljaramany) | **6** | — | 0 | 1 | 0 | 1 |
+| 11 | [@bfs2021](https://github.com/bfs2021) | **6** | — | 0 | 0 | 2 | 2 |
 | 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
 | 13 | [@AyhamJo7](https://github.com/AyhamJo7) | **3** | — | 0 | 0 | 1 | 1 |
 | 14 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
@@ -47,6 +47,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#202](https://github.com/secfoo-com/secfoo/pull/202) | [#110](https://github.com/secfoo-com/secfoo/issues/110) Every CI system: GitLab native SAST report, plus verified Bitbucket, Azure Pipelines, Jenkins and CircleCI examples | medium | +6 |
 | 2026-11-26 | [@niharika3715](https://github.com/niharika3715) | [#200](https://github.com/secfoo-com/secfoo/pull/200) | [#173](https://github.com/secfoo-com/secfoo/issues/173) CI example: Azure Pipelines (examples/ci + docs/CI.md) | low | +3 |
 | 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#199](https://github.com/secfoo-com/secfoo/pull/199) | [#172](https://github.com/secfoo-com/secfoo/issues/172) CI example: Bitbucket Pipelines (examples/ci + docs/CI.md) | low | +3 |
 | 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#198](https://github.com/secfoo-com/secfoo/pull/198) | [#165](https://github.com/secfoo-com/secfoo/issues/165) Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa) | low | +3 |
@@ -71,7 +72,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-19 | [@saryeljaramany](https://github.com/saryeljaramany) | [#146](https://github.com/secfoo-com/secfoo/pull/146) | [#125](https://github.com/secfoo-com/secfoo/issues/125) `--context <url|path>`: first-class context sources beyond Confluence (SharePoint, Jira, Notion, local design docs) with a coverage section that names each one | medium | +6 |
 | 2026-11-19 | [@karthickmk2001](https://github.com/karthickmk2001) | [#148](https://github.com/secfoo-com/secfoo/pull/148) | [#115](https://github.com/secfoo-com/secfoo/issues/115) Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI | medium | +6 |
 | 2026-11-17 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | [#138](https://github.com/secfoo-com/secfoo/pull/138) | [#132](https://github.com/secfoo-com/secfoo/issues/132) Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard | medium | +6 |
-| 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
 
 ## Needs a difficulty label
 
