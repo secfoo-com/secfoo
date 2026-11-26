@@ -29,6 +29,7 @@ from secfoo.config import CLOUD_CONFIG_PATH, STORE_DIR, attachment_dir
 from secfoo.context_run import resolve_run_context
 from secfoo.context_sources import ContextSourceError
 from secfoo.cost import format_cost, format_tokens, sum_optional
+from secfoo.report.gitlab import REPORT_TYPES as GITLAB_REPORT_TYPES, findings_to_gitlab
 from secfoo.report.jsonl import findings_to_jsonl
 from secfoo.report.sarif import findings_to_sarif
 from secfoo.runner import _project_display_name, already_scanned_skills, execute_runs
@@ -1857,6 +1858,15 @@ class FindingsStatus(str, Enum):
 class FindingsFormat(str, Enum):
     JSONL = "jsonl"
     SARIF = "sarif"
+    GITLAB_SAST = "gitlab-sast"
+    GITLAB_SECRET_DETECTION = "gitlab-secret-detection"
+
+
+# GitLab report formats -> the report type findings_to_gitlab builds.
+_GITLAB_REPORT_TYPES = {
+    FindingsFormat.GITLAB_SAST: "sast",
+    FindingsFormat.GITLAB_SECRET_DETECTION: "secret_detection",
+}
 
 
 # Lifecycle bookkeeping that means nothing outside this one SQLite file.
@@ -1884,7 +1894,11 @@ def findings_export(
     project: int | None = typer.Option(None, "--project", help="Limit to one project id."),
     status: FindingsStatus = typer.Option(FindingsStatus.OPEN, "--status", help="open, closed, or all."),
     output: Path | None = typer.Option(None, "--output", "-o", help="Write the export here instead of stdout."),
-    format: Annotated[FindingsFormat, typer.Option("--format", help="Export format: jsonl or sarif.")] = FindingsFormat.JSONL,
+    format: Annotated[FindingsFormat, typer.Option(
+        "--format",
+        help="Export format: jsonl, sarif, or GitLab's gitlab-sast (SAST findings) / "
+             "gitlab-secret-detection (secret-scanning findings) report.",
+    )] = FindingsFormat.JSONL,
     no_locations: bool = typer.Option(
         False, "--no-locations",
         help="Drop file paths, line numbers, code-region hashes and reachability evidence.",
@@ -1896,7 +1910,7 @@ def findings_export(
         "--runtime-priority", help="SARIF: raise findings reached in production to level 'error'.",
     )] = False,
 ) -> None:
-    """Export structured findings (SAST, SCA, secret scanning) as JSONL or SARIF.
+    """Export structured findings (SAST, SCA, secret scanning) as JSONL, SARIF or a GitLab report.
 
     One record per finding, with its skill, severity, stack (language/
     framework) and code-free construct description -- the same shape for
@@ -1927,15 +1941,27 @@ def findings_export(
             records.append(record)
     for note in lookup.notes:
         err_console.print(f"[yellow]Note:[/] {note}")
+    written = len(records)
     if format is FindingsFormat.SARIF:
         text = json.dumps(findings_to_sarif(records, runtime_priority=runtime_priority), indent=2, sort_keys=True) + "\n"
+    elif format in _GITLAB_REPORT_TYPES:
+        report = findings_to_gitlab(
+            records, report_type=_GITLAB_REPORT_TYPES[format], start_time=datetime.now(timezone.utc),
+        )
+        written = len(report["vulnerabilities"])
+        if written < len(records):
+            err_console.print(
+                f"[yellow]Note:[/] left out {len(records) - written} finding(s) from other skills; "
+                f"--format {format.value} carries only {GITLAB_REPORT_TYPES[report['scan']['type']][0]} findings."
+            )
+        text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     else:
         text = findings_to_jsonl(records)
     if output is None:
         sys.stdout.write(text)
         return
     output.write_text(text, encoding="utf-8")
-    err_console.print(f"Wrote {len(records)} finding(s) to {output}.")
+    err_console.print(f"Wrote {written} finding(s) to {output}.")
 
 
 EXIT_RUNTIME_REACHED = 4

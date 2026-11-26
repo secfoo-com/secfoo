@@ -186,17 +186,29 @@ secfoo:
         --project-name "$CI_PROJECT_PATH" \
         --skill sast --skill secret-scanning \
         --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+    - secfoo findings export --format gitlab-sast -o gl-sast-report.json
+    - secfoo findings export --format gitlab-secret-detection -o gl-secret-detection-report.json
     - secfoo findings export --format sarif -o secfoo.sarif
     - exit ${code:-0}
   artifacts:
     when: always
+    reports:
+      sast: gl-sast-report.json
+      secret_detection: gl-secret-detection-report.json
     paths: [secfoo-result.json, secfoo.sarif]
 ```
 
-Set the provider key as a masked CI/CD variable. The SARIF file is kept as
-an artifact; GitLab's own security dashboard expects its report formats,
-not SARIF, so treat this as the hand-off file for other tools. Full job,
-including merge-request rules and a container-image variant:
+Set the provider key as a masked CI/CD variable. GitLab's merge-request
+security widget and Vulnerability Report don't read SARIF, so the job also
+exports findings in GitLab's own report formats (schema v15):
+`--format gitlab-sast` carries the SAST findings and
+`--format gitlab-secret-detection` the secret-scanning ones (the secret
+value itself is never copied). Attached under `artifacts: reports:`, they
+show up in the MR widget and the Vulnerability Report on GitLab Ultimate;
+on other tiers they are plain downloadable artifacts. SCA findings have no
+GitLab report here (GitLab's dependency-scanning format describes
+dependency files), so they stay in the SARIF and JSON Lines exports. Full
+job, including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
 ## Bitbucket Pipelines
