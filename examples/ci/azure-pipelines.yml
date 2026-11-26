@@ -1,0 +1,61 @@
+# azure-pipelines.yml
+#
+# AI security review as an Azure Pipelines job. Add OPENAI_API_KEY (or
+# ANTHROPIC_API_KEY / GEMINI_API_KEY) as a secret pipeline variable:
+# Pipelines -> your pipeline -> Edit -> Variables -> New variable, tick
+# "Keep this value secret". Azure does not expose secret variables to
+# scripts automatically, so the step below maps it into env: explicitly.
+
+trigger:
+  branches:
+    include:
+      - main            # your default branch
+
+# PR builds for GitHub and Bitbucket repositories. For Azure Repos, add a
+# build-validation branch policy on the default branch instead; this
+# block is ignored there.
+pr:
+  branches:
+    include:
+      - "*"
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 50
+
+  # The hosted image already has git; this pins the Python that installs
+  # secfoo.
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.12"
+
+  - script: python -m pip install --quiet secfoo
+    displayName: Install secfoo
+
+  # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+  # Output goes to the artifact staging directory, outside the scanned checkout.
+  - script: |
+      out="$(Build.ArtifactStagingDirectory)"
+      code=0
+      secfoo run --agent api --target . --depth quick --json --rescan \
+        --project-name "$(Build.Repository.Name)" \
+        --skill sast --skill secret-scanning \
+        --fail-on high --max-cost 2.00 > "$out/secfoo-result.json" || code=$?
+      secfoo findings export --format sarif -o "$out/secfoo.sarif"
+      secfoo findings export -o "$out/secfoo-findings.jsonl"
+      exit $code
+    displayName: secfoo security review
+    env:
+      OPENAI_API_KEY: $(OPENAI_API_KEY)   # or ANTHROPIC_API_KEY / GEMINI_API_KEY
+
+  # Keep the files even when a gate fails. The artifact name CodeAnalysisLogs
+  # is what the "SARIF SAST Scans Tab" extension reads, if you install it.
+  - task: PublishPipelineArtifact@1
+    displayName: Publish secfoo results
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)
+      artifact: CodeAnalysisLogs

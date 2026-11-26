@@ -199,6 +199,69 @@ not SARIF, so treat this as the hand-off file for other tools. Full job,
 including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
+## Azure Pipelines
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches:
+    include: [main]
+pr:
+  branches:
+    include: ["*"]
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 50
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.12"
+  - script: python -m pip install --quiet secfoo
+    displayName: Install secfoo
+  - script: |
+      out="$(Build.ArtifactStagingDirectory)"
+      code=0
+      secfoo run --agent api --target . --depth quick --json --rescan \
+        --project-name "$(Build.Repository.Name)" \
+        --skill sast --skill secret-scanning \
+        --fail-on high --max-cost 2.00 > "$out/secfoo-result.json" || code=$?
+      secfoo findings export --format sarif -o "$out/secfoo.sarif"
+      secfoo findings export -o "$out/secfoo-findings.jsonl"
+      exit $code
+    displayName: secfoo security review
+    env:
+      OPENAI_API_KEY: $(OPENAI_API_KEY)
+  - task: PublishPipelineArtifact@1
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)
+      artifact: CodeAnalysisLogs
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) under
+**Pipelines → your pipeline → Edit → Variables → New variable** and tick
+**Keep this value secret** (or put it in a variable group linked to the
+pipeline). Azure Pipelines does not pass secret variables to scripts on its
+own, so the `env:` mapping on the step is required; without it the `api`
+agent reports `not_configured`. Secrets are masked in the log.
+
+The step records `secfoo run`'s exit code so both exports always run before
+it fails: `0` is clean, `1` means a skill run failed or timed out, `2` means
+`--fail-on` tripped, and `3` means `--max-cost` tripped. The results are
+written to `$(Build.ArtifactStagingDirectory)`, outside the scanned checkout,
+and `PublishPipelineArtifact` with `condition: succeededOrFailed()` keeps
+`secfoo-result.json`, `secfoo.sarif` and `secfoo-findings.jsonl` on the run
+even when a gate fails. The artifact is named `CodeAnalysisLogs` because
+that is where the SARIF SAST Scans Tab extension looks for `.sarif` files,
+if you want the findings shown on the run page.
+
+The `pr:` trigger applies to GitHub and Bitbucket repositories; for Azure
+Repos, add a build-validation branch policy on the default branch instead.
+Full pipeline: [examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
+
 ## Jenkins
 
 A declarative pipeline that runs in the published image. It needs the
@@ -273,7 +336,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Buildkite, CircleCI, Azure Pipelines, ...)
+## Anything else (Buildkite, CircleCI, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...
