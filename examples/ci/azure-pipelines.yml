@@ -1,0 +1,63 @@
+# Add to your repository as azure-pipelines.yml (or merge the job into an
+# existing pipeline).
+#
+# AI security review as an Azure Pipelines job, on pull requests and on pushes
+# to main. Add OPENAI_API_KEY (or ANTHROPIC_API_KEY / GEMINI_API_KEY) as a
+# secret pipeline variable: Pipelines -> your pipeline -> Edit -> Variables ->
+# New variable, with "Keep this value secret" ticked. Azure does not pass
+# secret variables to scripts on its own, so the step maps it under env:.
+#
+# The pr: trigger below works for GitHub and Bitbucket Cloud repositories.
+# For Azure Repos Git, PR runs come from a branch policy instead (Repos ->
+# Branches -> main -> Branch policies -> Build validation).
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+jobs:
+  - job: secfoo
+    displayName: secfoo security review
+    # A Microsoft-hosted agent: git is preinstalled, and pip can install
+    # without root (a container job runs steps as a non-root user).
+    pool:
+      vmImage: ubuntu-latest
+
+    steps:
+      - checkout: self
+        fetchDepth: 50
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+        displayName: Use Python 3.12
+
+      - bash: pip install --quiet secfoo
+        displayName: Install secfoo
+
+      - bash: |
+          # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+          code=0
+          mkdir -p secfoo-reports
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$(Build.Repository.Name)" \
+            --skill sast --skill secret-scanning \
+            --fail-on high --max-cost 2.00 > secfoo-reports/secfoo-result.json || code=$?
+          secfoo findings export --format sarif -o secfoo-reports/secfoo.sarif
+          secfoo findings export -o secfoo-reports/secfoo-findings.jsonl
+          exit $code
+        displayName: Run secfoo
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish secfoo reports
+        condition: always()
+        inputs:
+          targetPath: secfoo-reports
+          artifact: secfoo-reports

@@ -251,6 +251,65 @@ Lines and `--json` files are kept as step artifacts, downloadable from the
 `secfoo.sarif` as the hand-off file for other tools. Full file:
 [examples/ci/bitbucket-pipelines.yml](../examples/ci/bitbucket-pipelines.yml).
 
+## Azure Pipelines
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches: { include: [main] }
+pr:
+  branches: { include: [main] }
+
+jobs:
+  - job: secfoo
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+        fetchDepth: 50
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+      - bash: pip install --quiet secfoo
+      - bash: |
+          code=0
+          mkdir -p secfoo-reports
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$(Build.Repository.Name)" \
+            --skill sast --skill secret-scanning \
+            --fail-on high --max-cost 2.00 > secfoo-reports/secfoo-result.json || code=$?
+          secfoo findings export --format sarif -o secfoo-reports/secfoo.sarif
+          secfoo findings export -o secfoo-reports/secfoo-findings.jsonl
+          exit $code
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+      - task: PublishPipelineArtifact@1
+        condition: always()
+        inputs:
+          targetPath: secfoo-reports
+          artifact: secfoo-reports
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) as a secret
+pipeline variable under **Pipelines → your pipeline → Edit → Variables → New
+variable**, with **Keep this value secret** ticked. Azure Pipelines does not
+pass secret variables to scripts on its own, so the step maps it under `env:`.
+The job uses a Microsoft-hosted `ubuntu-latest` agent: git is preinstalled,
+and `pip install` works without root (a container job runs steps as a
+non-root user, so `apt-get` and a system-wide `pip install` fail there).
+
+The `pr:` trigger works for GitHub and Bitbucket Cloud repositories. For Azure
+Repos Git, pull-request runs come from a branch policy instead: **Repos →
+Branches → main → Branch policies → Build validation**.
+
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped. The reports are
+published as the `secfoo-reports` pipeline artifact even when the step fails.
+Azure has no built-in SARIF viewer, so treat `secfoo.sarif` as the hand-off
+file for other tools. Full file:
+[examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
+
 ## Jenkins
 
 A declarative pipeline that runs in the published image. It needs the
@@ -325,7 +384,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Buildkite, CircleCI, Azure Pipelines, ...)
+## Anything else (Buildkite, CircleCI, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...
