@@ -201,8 +201,6 @@ including merge-request rules and a container-image variant:
 
 ## Azure Pipelines
 
-## Azure Pipelines
-
 Add `OPENAI_API_KEY` as a secret pipeline variable under
 Pipelines → your pipeline → Edit → Variables → New variable.
 Enable "Keep this value secret".
