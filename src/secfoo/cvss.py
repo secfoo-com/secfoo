@@ -73,6 +73,10 @@ def parse_vector(vector: str) -> dict[str, str]:
         key, value = key.strip().upper(), value.strip().upper()
         if key not in _METRIC_ORDER:
             continue  # ignore unrecognized/optional metrics (e.g. temporal/environmental)
+        if key in metrics and metrics[key] != value:
+            raise CvssError(
+                f"CVSS metric {key} given conflicting values: {metrics[key]!r} and {value!r}"
+            )
         metrics[key] = value
 
     missing = [m for m in _METRIC_ORDER if m not in metrics]
