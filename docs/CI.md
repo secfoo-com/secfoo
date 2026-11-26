@@ -201,29 +201,62 @@ including merge-request rules and a container-image variant:
 
 ## Azure Pipelines
 
-Add `OPENAI_API_KEY` as a secret pipeline variable under
-Pipelines → your pipeline → Edit → Variables → New variable.
-Enable "Keep this value secret".
-
-Azure Pipelines does not automatically expose secret variables to
-scripts. Map the variable into the environment explicitly:
-
 ```yaml
-- bash: |
-    secfoo run --agent api --target . --depth quick --json --rescan \
-      --skill sast --skill secret-scanning \
-      --fail-on high --max-cost 2.00
-  env:
-    OPENAI_API_KEY: $(OPENAI_API_KEY)
+# azure-pipelines.yml
+trigger:
+  branches: { include: [main] }
+pr:
+  branches: { include: [main] }
+
+jobs:
+  - job: secfoo
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+        fetchDepth: 50
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+      - bash: pip install --quiet secfoo
+      - bash: |
+          code=0
+          mkdir -p secfoo-reports
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$(Build.Repository.Name)" \
+            --skill sast --skill secret-scanning \
+            --fail-on high --max-cost 2.00 > secfoo-reports/secfoo-result.json || code=$?
+          secfoo findings export --format sarif -o secfoo-reports/secfoo.sarif
+          secfoo findings export -o secfoo-reports/secfoo-findings.jsonl
+          exit $code
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+      - task: PublishPipelineArtifact@1
+        condition: always()
+        inputs:
+          targetPath: secfoo-reports
+          artifact: secfoo-reports
 ```
 
-Exit codes: `0` means the scan completed cleanly, `1` means the run
-failed, `2` means the `--fail-on` severity gate was tripped, and
-`3` means the `--max-cost` budget gate was tripped.
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) as a secret
+pipeline variable under **Pipelines → your pipeline → Edit → Variables → New
+variable**, with **Keep this value secret** ticked. Azure Pipelines does not
+pass secret variables to scripts on its own, so the step maps it under `env:`.
+The job uses a Microsoft-hosted `ubuntu-latest` agent: git is preinstalled,
+and `pip install` works without root (a container job runs steps as a
+non-root user, so `apt-get` and a system-wide `pip install` fail there).
 
-The SARIF and JSONL reports are published as pipeline artifacts.
-Full pipeline configuration: [examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
+The `pr:` trigger works for GitHub and Bitbucket Cloud repositories. For Azure
+Repos Git, pull-request runs come from a branch policy instead: **Repos →
+Branches → main → Branch policies → Build validation**.
 
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped. The reports are
+published as the `secfoo-reports` pipeline artifact even when the step fails.
+Azure has no built-in SARIF viewer, so treat `secfoo.sarif` as the hand-off
+file for other tools. Full file:
+[examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
 
 ## Jenkins
 

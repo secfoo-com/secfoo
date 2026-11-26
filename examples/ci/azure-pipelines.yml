@@ -1,6 +1,15 @@
-
-# Azure Pipelines: Secfoo AI security review
-
+# Add to your repository as azure-pipelines.yml (or merge the job into an
+# existing pipeline).
+#
+# AI security review as an Azure Pipelines job, on pull requests and on pushes
+# to main. Add OPENAI_API_KEY (or ANTHROPIC_API_KEY / GEMINI_API_KEY) as a
+# secret pipeline variable: Pipelines -> your pipeline -> Edit -> Variables ->
+# New variable, with "Keep this value secret" ticked. Azure does not pass
+# secret variables to scripts on its own, so the step maps it under env:.
+#
+# The pr: trigger below works for GitHub and Bitbucket Cloud repositories.
+# For Azure Repos Git, PR runs come from a branch policy instead (Repos ->
+# Branches -> main -> Branch policies -> Build validation).
 trigger:
   branches:
     include:
@@ -12,53 +21,43 @@ pr:
       - main
 
 jobs:
-  - job: Secfoo
-    displayName: Secfoo Security Scan
-    container: python:3.12-slim
+  - job: secfoo
+    displayName: secfoo security review
+    # A Microsoft-hosted agent: git is preinstalled, and pip can install
+    # without root (a container job runs steps as a non-root user).
+    pool:
+      vmImage: ubuntu-latest
 
     steps:
       - checkout: self
         fetchDepth: 50
 
-      - bash: |
-          mkdir -p secfoo-artifacts
-        displayName: Prepare artifacts directory
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+        displayName: Use Python 3.12
+
+      - bash: pip install --quiet secfoo
+        displayName: Install secfoo
 
       - bash: |
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends git
-          pip install --quiet secfoo
-        displayName: Install Secfoo
-
-      - bash: |
-          # Exit codes:
-          # 0 = clean
-          # 1 = run failed
-          # 2 = --fail-on gate tripped
-          # 3 = --max-cost gate tripped
-
+          # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
           code=0
-
+          mkdir -p secfoo-reports
           secfoo run --agent api --target . --depth quick --json --rescan \
             --project-name "$(Build.Repository.Name)" \
             --skill sast --skill secret-scanning \
-            --fail-on high --max-cost 2.00 \
-            > secfoo-result.json || code=$?
-
-          secfoo findings export --format sarif -o secfoo.sarif || code=$?
-          secfoo findings export -o secfoo-findings.jsonl || code=$?
-
-          cp secfoo-result.json secfoo.sarif secfoo-findings.jsonl secfoo-artifacts/ || code=$?
-
-          exit "$code"
-        displayName: Run Secfoo Security Scan
+            --fail-on high --max-cost 2.00 > secfoo-reports/secfoo-result.json || code=$?
+          secfoo findings export --format sarif -o secfoo-reports/secfoo.sarif
+          secfoo findings export -o secfoo-reports/secfoo-findings.jsonl
+          exit $code
+        displayName: Run secfoo
         env:
           OPENAI_API_KEY: $(OPENAI_API_KEY)
 
       - task: PublishPipelineArtifact@1
-        displayName: Publish Secfoo Reports
+        displayName: Publish secfoo reports
         condition: always()
         inputs:
-          targetPath: $(System.DefaultWorkingDirectory)/secfoo-artifacts
+          targetPath: secfoo-reports
           artifact: secfoo-reports
-          publishLocation: pipeline
