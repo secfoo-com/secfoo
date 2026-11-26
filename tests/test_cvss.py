@@ -66,6 +66,18 @@ def test_parse_vector_rejects_unrecognized_scope_value():
         parse_vector("AV:N/AC:L/PR:N/UI:N/S:X/C:H/I:H/A:N")
 
 
+def test_parse_vector_rejects_metric_repeated_with_a_conflicting_value():
+    # Keeping the last AV would score this as physical access (6.8), not 9.8.
+    with pytest.raises(CvssError, match="AV"):
+        parse_vector("AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/AV:P")
+    with pytest.raises(CvssError):
+        base_score("AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/AV:P")
+
+
+def test_parse_vector_accepts_metric_repeated_with_the_same_value():
+    assert parse_vector("AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/av:n")["AV"] == "N"
+
+
 def test_base_score_raises_on_malformed_vector_rather_than_guessing():
     with pytest.raises(CvssError):
         base_score("not a vector")
