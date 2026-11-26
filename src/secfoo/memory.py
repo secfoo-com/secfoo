@@ -175,7 +175,7 @@ def _request(url: str, *, payload: dict | None = None, api_key: str | None = Non
         headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=data, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # noqa: S310  # nosec B310 -- user-configured memory URL, same trust as MCP settings
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # nosec B310 -- user-configured memory URL, same trust as MCP settings
             return json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")

@@ -60,7 +60,7 @@ WIDGETS = [
 def test_every_threat_modeling_widget_has_an_info_tip(client, tmp_path):
     _seed(tmp_path, "acme/app", "Lightweight")
     html = client.get("/activities/threat-modeling").text
-    tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', html, re.S)
+    tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', html, re.DOTALL)
     titles = [re.search(r'<p class="info-tip__title">([^<]*)</p>', t).group(1) for t in tips]
     # The activity page also shows the generic severity card under the
     # program dashboard. Architecture, SAST, SCA, and secret scanning hide it.
@@ -119,7 +119,7 @@ def test_long_lists_scroll_after_ten_rows():
 
 
 def _assert_titled_tips(page: str, expected: list[str]) -> None:
-    tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', page, re.S)
+    tips = re.findall(r'<details class="info-tip[^"]*">.*?</details>', page, re.DOTALL)
     titles = [
         html.unescape(re.search(r'<p class="info-tip__title">([^<]*)</p>', tip).group(1))
         for tip in tips
