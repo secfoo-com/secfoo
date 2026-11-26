@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-26 16:33:14 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-26 16:39:13 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -19,7 +19,8 @@ _Updated 2026-11-26 16:33:14 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 11 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
 | 12 | [@AyhamJo7](https://github.com/AyhamJo7) | **3** | — | 0 | 0 | 1 | 1 |
 | 13 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
-| 14 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
+| 14 | [@Labu1](https://github.com/Labu1) | **3** | — | 0 | 0 | 1 | 1 |
+| 15 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
@@ -45,6 +46,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#198](https://github.com/secfoo-com/secfoo/pull/198) | [#165](https://github.com/secfoo-com/secfoo/issues/165) Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa) | low | +3 |
 | 2026-11-26 | [@AyhamJo7](https://github.com/AyhamJo7) | [#196](https://github.com/secfoo-com/secfoo/pull/196) | [#168](https://github.com/secfoo-com/secfoo/issues/168) Lint: fix error-handling ruff findings in src/ (blind except, try/except/pass, subprocess check) | low | +3 |
 | 2026-11-25 | [@RiccardoBifulco](https://github.com/RiccardoBifulco) | [#194](https://github.com/secfoo-com/secfoo/pull/194) | [#167](https://github.com/secfoo-com/secfoo/issues/167) Lint: fix the 17 ruff errors in tests/ (unused variables, nested with, dict()) | low | +3 |
 | 2026-11-22 | [@aaas72](https://github.com/aaas72) | [#191](https://github.com/secfoo-com/secfoo/pull/191) | [#113](https://github.com/secfoo-com/secfoo/issues/113) Bug: sensor test fails on macOS; CI only runs on Ubuntu. Add macOS and Windows to the matrix and fix what breaks | medium | +6 |
@@ -69,7 +71,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
 | 2026-11-14 | [@AdithKB](https://github.com/AdithKB) | [#105](https://github.com/secfoo-com/secfoo/pull/105) | [#93](https://github.com/secfoo-com/secfoo/issues/93) Run your own skill from anywhere: `--skill-file` with URLs, and shared skill packs | medium | +6 |
 | 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#103](https://github.com/secfoo-com/secfoo/pull/103) | [#68](https://github.com/secfoo-com/secfoo/issues/68) Runtime package inventory: loaded versions, drift and live advisories | medium | +6 |
-| 2026-11-12 | [@karthickmk2001](https://github.com/karthickmk2001) | [#102](https://github.com/secfoo-com/secfoo/pull/102) | [#54](https://github.com/secfoo-com/secfoo/issues/54) Import coverage files as runtime evidence | low | +3 |
 
 ## Needs a difficulty label
 

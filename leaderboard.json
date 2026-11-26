@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-26T16:33:14Z",
+  "generated_at": "2026-11-26T16:39:13Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -634,6 +634,31 @@
       "level": null
     },
     {
+      "login": "Labu1",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 198,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/198",
+          "issue": 165,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/165",
+          "issue_title": "Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa)",
+          "contributor": "Labu1",
+          "merged_at": "2026-11-26T16:39:02Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 14,
+      "level": null
+    },
+    {
       "login": "onetwothird",
       "points": 3,
       "counts": {
@@ -655,7 +680,7 @@
           "points": 3
         }
       ],
-      "rank": 14,
+      "rank": 15,
       "level": null
     },
     {
@@ -668,7 +693,7 @@
       },
       "merged_prs": 32,
       "awards": [],
-      "rank": 15,
+      "rank": 16,
       "level": null
     },
     {
@@ -681,7 +706,7 @@
       },
       "merged_prs": 9,
       "awards": [],
-      "rank": 16,
+      "rank": 17,
       "level": null
     },
     {
@@ -694,7 +719,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 17,
+      "rank": 18,
       "level": null
     },
     {
@@ -707,7 +732,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 18,
+      "rank": 19,
       "level": null
     },
     {
@@ -720,7 +745,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 19,
+      "rank": 20,
       "level": null
     },
     {
@@ -733,11 +758,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 20,
+      "rank": 21,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 198,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/198",
+      "issue": 165,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/165",
+      "issue_title": "Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa)",
+      "contributor": "Labu1",
+      "merged_at": "2026-11-26T16:39:02Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 196,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/196",
