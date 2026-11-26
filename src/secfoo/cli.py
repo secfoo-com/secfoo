@@ -978,17 +978,31 @@ def serve_key_revoke(key_id: Annotated[int, typer.Argument(help="Key id from `se
 
 @app.command()
 def agents() -> None:
-    """List known agent adapters and whether their CLI is installed."""
+    """List known agent adapters, whether their CLI is installed, and their MCP support."""
     table = Table(title="Agent adapters")
     table.add_column("Agent ID")
     table.add_column("Binary")
     table.add_column("Available")
+    table.add_column("MCP")
 
     for agent_id in ADAPTERS:
         adapter = get_adapter(agent_id)
         available = adapter.is_available()
-        style = "green" if available else "red"
-        table.add_row(agent_id, adapter.binary, f"[{style}]{'yes' if available else 'no'}[/]")
+        avail_style = "green" if available else "red"
+        mcp_support = mcp_module.CANONICAL_MCP_SUPPORT.get(agent_id)
+        mechanism = mcp_support.mechanism if mcp_support else "none"
+        if mechanism == "per-run":
+            mcp_style = "green"
+        elif mechanism == "sync":
+            mcp_style = "cyan"
+        else:
+            mcp_style = "dim"
+        table.add_row(
+            agent_id,
+            adapter.binary,
+            f"[{avail_style}]{'yes' if available else 'no'}[/]",
+            f"[{mcp_style}]{mechanism}[/]",
+        )
     console.print(table)
 
 
@@ -2681,19 +2695,27 @@ def mcp_list() -> None:
     console.print(table)
     console.print(
         "\n[bold]claude[/] picks these up automatically on every run (--mcp-config, "
-        "scoped to that run only).\nFor [bold]gemini[/] or [bold]agent[/] (Cursor), run "
+        "scoped to that run only).\nFor [bold]gemini[/], [bold]agent[/] (Cursor) or [bold]codex[/], run "
         "[bold]secfoo mcp sync --agent <agent>[/] once to register them persistently."
     )
 
 
 @mcp_app.command(name="sync")
 def mcp_sync(
-    agent: AgentId = typer.Option(..., "--agent", "-a", help="Which agent's MCP config to update."),
+    agent: AgentId | None = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Which agent's MCP config to update. If omitted, syncs all installed sync-supported agents.",
+    ),
 ) -> None:
-    """Register configured MCP servers persistently into gemini's or Cursor's own
-    config. claude doesn't need this -- it picks up ~/.secfoo/config.toml
-    automatically on every run. agy isn't supported (its CLI has no MCP
-    configuration mechanism yet).
+    """Register configured MCP servers persistently into gemini, Cursor or Codex config.
+    claude doesn't need this -- it picks up ~/.secfoo/config.toml automatically on every run.
+    Other agents are not yet supported for automated sync.
+
+    Existing same-named servers are preserved and skipped to prevent overwriting user edits.
+    To update credentials after rotating keys (e.g. secfoo-memory), remove the server entry
+    from the agent's config or re-run sync after removing it.
     """
     try:
         cfg = load_config()
@@ -2704,6 +2726,29 @@ def mcp_sync(
     servers = mcp_module.effective_servers(cfg.mcp_servers)
     if not servers:
         console.print(f"No MCP servers configured in {CONFIG_PATH} -- nothing to sync.")
+        return
+
+    if agent is None:
+        targets = [
+            aid for aid in sorted(mcp_module.SYNC_SUPPORTED_AGENTS)
+            if get_adapter(aid).is_available()
+        ]
+        if not targets:
+            console.print("[yellow]No sync-supported agent CLIs are installed on PATH.[/]")
+            return
+        any_failed = False
+        for aid in targets:
+            console.print(f"\n[bold]Syncing {aid}...[/]")
+            results = mcp_module.sync(aid, servers)
+            for result in results:
+                style = "green" if result.ok else "red"
+                console.print(
+                    f"  [{style}]{'ok' if result.ok else 'failed'}[/] {result.server_name}: {result.message}"
+                )
+                if not result.ok:
+                    any_failed = True
+        if any_failed:
+            raise typer.Exit(code=1)
         return
 
     if agent.value == "claude":
