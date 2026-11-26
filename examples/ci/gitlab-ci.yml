@@ -3,6 +3,12 @@
 # AI security review as a GitLab CI job. Set OPENAI_API_KEY (or
 # ANTHROPIC_API_KEY / GEMINI_API_KEY) as a masked CI/CD variable under
 # Settings -> CI/CD -> Variables.
+#
+# Findings are exported in GitLab's own report formats and attached as
+# `artifacts: reports:`, so they show in the merge-request security widget
+# and the Vulnerability Report (GitLab Ultimate; on other tiers the reports
+# are still downloadable job artifacts). The SARIF and JSON Lines files are
+# kept for other tools.
 secfoo:
   stage: test
   image: python:3.12-slim
@@ -18,12 +24,17 @@ secfoo:
         --project-name "$CI_PROJECT_PATH" \
         --skill sast --skill secret-scanning \
         --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+    - secfoo findings export --format gitlab-sast -o gl-sast-report.json
+    - secfoo findings export --format gitlab-secret-detection -o gl-secret-detection-report.json
     - secfoo findings export --format sarif -o secfoo.sarif
     - secfoo findings export -o secfoo-findings.jsonl
     - exit ${code:-0}
   artifacts:
     when: always
     expire_in: 30 days
+    reports:
+      sast: gl-sast-report.json
+      secret_detection: gl-secret-detection-report.json
     paths:
       - secfoo-result.json
       - secfoo.sarif
@@ -40,4 +51,10 @@ secfoo:
 #     name: ghcr.io/secfoo-com/secfoo:latest
 #     entrypoint: [""]
 #   script:
-#     - secfoo run --agent api --target . --depth quick --json --rescan --skill sast --fail-on high > secfoo-result.json
+#     - secfoo run --agent api --target . --depth quick --json --rescan --skill sast --fail-on high > secfoo-result.json || code=$?
+#     - secfoo findings export --format gitlab-sast -o gl-sast-report.json
+#     - exit ${code:-0}
+#   artifacts:
+#     when: always
+#     reports:
+#       sast: gl-sast-report.json

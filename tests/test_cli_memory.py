@@ -217,6 +217,43 @@ def test_findings_export_sarif_uses_existing_filters_and_location_redaction(monk
     assert result.stdout == ""
 
 
+def test_findings_export_gitlab_reports_split_sast_and_secrets(monkeypatch, tmp_path):
+    from test_report.test_gitlab import VALIDATORS
+
+    class Repository:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def list_structured_findings(self, **kwargs):
+            return [
+                ("sast", {"id": 1, "display_name": "proj", "fingerprint": "a", "title": "SQL injection",
+                          "severity": "High", "cwe": "CWE-89", "location_file": "app/db.py", "location_line": "4"}),
+                ("secret-scanning", {"id": 2, "display_name": "proj", "fingerprint": "s", "secret_type": "API token",
+                                     "severity": "High", "evidence": "private-evidence", "location_file": "ci.yml"}),
+            ]
+
+    monkeypatch.setattr("secfoo.cli.RunRepository", Repository)
+    output = tmp_path / "gl-sast-report.json"
+    result = runner.invoke(app, ["findings", "export", "--format", "gitlab-sast", "-o", str(output)])
+    assert result.exit_code == 0, result.output
+    report = json.loads(output.read_text(encoding="utf-8"))
+    VALIDATORS["sast"].validate(report)
+    assert [v["name"] for v in report["vulnerabilities"]] == ["SQL injection"]
+    assert "Wrote 1 finding(s)" in result.stderr
+    assert "left out 1 finding(s)" in result.stderr
+
+    result = runner.invoke(app, ["findings", "export", "--format", "gitlab-secret-detection", "--no-locations"])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    VALIDATORS["secret_detection"].validate(report)
+    (vulnerability,) = report["vulnerabilities"]
+    assert vulnerability["location"] == {"commit": {"sha": "0000000"}}
+    assert "private-evidence" not in result.stdout
+
+
 def test_findings_export_rejects_unknown_format():
     result = runner.invoke(app, ["findings", "export", "--format", "xml"])
     assert result.exit_code == 2
