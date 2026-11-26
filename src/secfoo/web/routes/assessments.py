@@ -5,7 +5,6 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
@@ -167,12 +166,12 @@ def _list_query(**params: object) -> str:
 @router.get("/assessments")
 def assessments_list(
     request: Request,
-    type: Optional[str] = None,  # noqa: A002 -- matches the query param name
-    status: Optional[str] = None,
-    q: Optional[str] = None,
-    sort: Optional[str] = None,
-    updated: Optional[int] = None,
-    updated_to: Optional[str] = None,
+    type: str | None = None,  # noqa: A002 -- matches the query param name
+    status: str | None = None,
+    q: str | None = None,
+    sort: str | None = None,
+    updated: int | None = None,
+    updated_to: str | None = None,
 ):
     """Sorting happens in Python over the rows the page already shows
     (list_assessments' most-recently-updated cap), which keeps the
