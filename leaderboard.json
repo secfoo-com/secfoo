@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-26T16:47:05Z",
+  "generated_at": "2026-11-26T17:03:41Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -670,6 +670,31 @@
       "level": null
     },
     {
+      "login": "niharika3715",
+      "points": 3,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 1
+      },
+      "merged_prs": 1,
+      "awards": [
+        {
+          "pr": 200,
+          "pr_url": "https://github.com/secfoo-com/secfoo/pull/200",
+          "issue": 173,
+          "issue_url": "https://github.com/secfoo-com/secfoo/issues/173",
+          "issue_title": "CI example: Azure Pipelines (examples/ci + docs/CI.md)",
+          "contributor": "niharika3715",
+          "merged_at": "2026-11-26T17:03:30Z",
+          "difficulty": "low",
+          "points": 3
+        }
+      ],
+      "rank": 15,
+      "level": null
+    },
+    {
       "login": "onetwothird",
       "points": 3,
       "counts": {
@@ -691,7 +716,7 @@
           "points": 3
         }
       ],
-      "rank": 15,
+      "rank": 16,
       "level": null
     },
     {
@@ -704,7 +729,7 @@
       },
       "merged_prs": 32,
       "awards": [],
-      "rank": 16,
+      "rank": 17,
       "level": null
     },
     {
@@ -717,7 +742,7 @@
       },
       "merged_prs": 9,
       "awards": [],
-      "rank": 17,
+      "rank": 18,
       "level": null
     },
     {
@@ -730,7 +755,7 @@
       },
       "merged_prs": 7,
       "awards": [],
-      "rank": 18,
+      "rank": 19,
       "level": null
     },
     {
@@ -743,7 +768,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 19,
+      "rank": 20,
       "level": null
     },
     {
@@ -756,7 +781,7 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 20,
+      "rank": 21,
       "level": null
     },
     {
@@ -769,11 +794,22 @@
       },
       "merged_prs": 1,
       "awards": [],
-      "rank": 21,
+      "rank": 22,
       "level": null
     }
   ],
   "awards": [
+    {
+      "pr": 200,
+      "pr_url": "https://github.com/secfoo-com/secfoo/pull/200",
+      "issue": 173,
+      "issue_url": "https://github.com/secfoo-com/secfoo/issues/173",
+      "issue_title": "CI example: Azure Pipelines (examples/ci + docs/CI.md)",
+      "contributor": "niharika3715",
+      "merged_at": "2026-11-26T17:03:30Z",
+      "difficulty": "low",
+      "points": 3
+    },
     {
       "pr": 199,
       "pr_url": "https://github.com/secfoo-com/secfoo/pull/199",

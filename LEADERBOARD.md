@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-26 16:47:05 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-26 17:03:41 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -20,7 +20,8 @@ _Updated 2026-11-26 16:47:05 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 12 | [@nabeelbaghoor](https://github.com/nabeelbaghoor) | **3** | — | 0 | 0 | 1 | 2 |
 | 13 | [@AyhamJo7](https://github.com/AyhamJo7) | **3** | — | 0 | 0 | 1 | 1 |
 | 14 | [@cnYui](https://github.com/cnYui) | **3** | — | 0 | 0 | 1 | 1 |
-| 15 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
+| 15 | [@niharika3715](https://github.com/niharika3715) | **3** | — | 0 | 0 | 1 | 1 |
+| 16 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
 Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
@@ -46,6 +47,7 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 
 | Merged | Contributor | PR | Issue | Difficulty | Points |
 |---|---|---|---|---|---:|
+| 2026-11-26 | [@niharika3715](https://github.com/niharika3715) | [#200](https://github.com/secfoo-com/secfoo/pull/200) | [#173](https://github.com/secfoo-com/secfoo/issues/173) CI example: Azure Pipelines (examples/ci + docs/CI.md) | low | +3 |
 | 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#199](https://github.com/secfoo-com/secfoo/pull/199) | [#172](https://github.com/secfoo-com/secfoo/issues/172) CI example: Bitbucket Pipelines (examples/ci + docs/CI.md) | low | +3 |
 | 2026-11-26 | [@Labu1](https://github.com/Labu1) | [#198](https://github.com/secfoo-com/secfoo/pull/198) | [#165](https://github.com/secfoo-com/secfoo/issues/165) Lint: apply ruff's safe autofixes (98 errors: Optional[X], import order, unused noqa) | low | +3 |
 | 2026-11-26 | [@AyhamJo7](https://github.com/AyhamJo7) | [#196](https://github.com/secfoo-com/secfoo/pull/196) | [#168](https://github.com/secfoo-com/secfoo/issues/168) Lint: fix error-handling ruff findings in src/ (blind except, try/except/pass, subprocess check) | low | +3 |
@@ -70,7 +72,6 @@ Each issue is scored once, for the first PR merged that closes it. Bots are excl
 | 2026-11-19 | [@karthickmk2001](https://github.com/karthickmk2001) | [#148](https://github.com/secfoo-com/secfoo/pull/148) | [#115](https://github.com/secfoo-com/secfoo/issues/115) Test coverage: the runtime probe is at 43% while the project is at 90%; add probe tests and a coverage floor in CI | medium | +6 |
 | 2026-11-17 | [@Arush-Banerjee](https://github.com/Arush-Banerjee) | [#138](https://github.com/secfoo-com/secfoo/pull/138) | [#132](https://github.com/secfoo-com/secfoo/issues/132) Responsible AI: end-to-end tests from a real-shaped report to the CLI, JSON and dashboard | medium | +6 |
 | 2026-11-15 | [@bfs2021](https://github.com/bfs2021) | [#126](https://github.com/secfoo-com/secfoo/pull/126) | [#119](https://github.com/secfoo-com/secfoo/issues/119) CLI bugs: no `--version`, spinner floods non-TTY logs when FORCE_COLOR is set, completion lines printed twice | low | +3 |
-| 2026-11-14 | [@AdithKB](https://github.com/AdithKB) | [#105](https://github.com/secfoo-com/secfoo/pull/105) | [#93](https://github.com/secfoo-com/secfoo/issues/93) Run your own skill from anywhere: `--skill-file` with URLs, and shared skill packs | medium | +6 |
 
 ## Needs a difficulty label
 
