@@ -12,8 +12,8 @@ __all__ = [
     "ResolvedTarget",
     "TargetKind",
     "TargetResolutionError",
+    "clone_shallow",
     "is_github_url",
     "looks_like_url",
     "resolve_target",
-    "clone_shallow",
 ]

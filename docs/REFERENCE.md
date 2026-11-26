@@ -342,6 +342,13 @@ inventing one.
 secfoo findings export --format sarif --project 1 -o findings.sarif
 ```
 
+For GitLab, `--format gitlab-sast` and `--format gitlab-secret-detection`
+write GitLab's SAST and Secret Detection report JSON (schema v15) for
+`artifacts: reports: sast:` / `secret_detection:`. Each carries only its own
+skill's findings (SCA findings are left out, with a note on stderr); every
+vulnerability's primary identifier is its secfoo fingerprint, followed by its
+CWEs, and secret values are never copied. See [CI.md](CI.md#gitlab-ci).
+
 After a scan has populated secfoo's local findings database, upload the export
 in a GitHub Actions job (the checkout, scan and export must use the same runner
 and secfoo store):
