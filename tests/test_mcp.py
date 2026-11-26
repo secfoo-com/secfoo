@@ -4,6 +4,7 @@ import json
 import stat
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 import tomlkit
@@ -382,6 +383,44 @@ def test_sync_codex_writes_config_owner_only(tmp_path, monkeypatch):
     results = mcp.sync_codex([REMOTE_SERVER])
     assert results[0].ok is True
     assert stat.S_IMODE(codex_path.stat().st_mode) == 0o600
+
+
+def test_codex_config_path_honours_codex_home(tmp_path, monkeypatch):
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", None)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    assert mcp.codex_config_path() == tmp_path / "codex-home" / "config.toml"
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is True
+    assert (tmp_path / "codex-home" / "config.toml").exists()
+
+
+def test_codex_config_path_defaults_to_home_dot_codex(monkeypatch):
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", None)
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    assert mcp.codex_config_path() == Path.home() / ".codex" / "config.toml"
+
+
+def test_sync_codex_new_file_has_no_empty_mcp_servers_header(tmp_path, monkeypatch):
+    codex_path = tmp_path / "config.toml"
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    mcp.sync_codex([REMOTE_SERVER])
+    text = codex_path.read_text(encoding="utf-8")
+    assert "[mcp_servers]\n" not in text
+    assert "[mcp_servers.example]" in text
+
+
+def test_sync_codex_reports_inline_mcp_servers_table(tmp_path, monkeypatch):
+    codex_path = tmp_path / "config.toml"
+    original = 'mcp_servers = { other = { command = "x" } }\n'
+    codex_path.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(mcp, "CODEX_CONFIG_PATH", codex_path)
+
+    results = mcp.sync_codex([STDIO_SERVER])
+    assert results[0].ok is False
+    assert "inline table" in results[0].message
+    assert codex_path.read_text(encoding="utf-8") == original
 
 
 # ---------- dispatch ----------

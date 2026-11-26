@@ -23,6 +23,7 @@ against each `--help` output, Aug 2026):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -36,9 +37,21 @@ from tomlkit.exceptions import TOMLKitError
 from secfoo.config import STORE_DIR, write_private_text
 from secfoo.settings import MCPServerConfig
 
+logger = logging.getLogger(__name__)
+
 CLAUDE_MCP_CONFIG_PATH = STORE_DIR / "claude-mcp-config.json"
 CURSOR_MCP_CONFIG_PATH = Path.home() / ".cursor" / "mcp.json"
-CODEX_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
+# None = resolve at call time from $CODEX_HOME (Codex's own override), falling
+# back to ~/.codex. Tests set this to a fixed path.
+CODEX_CONFIG_PATH: Path | None = None
+
+
+def codex_config_path() -> Path:
+    """The config.toml Codex itself reads: $CODEX_HOME/config.toml when set."""
+    if CODEX_CONFIG_PATH is not None:
+        return CODEX_CONFIG_PATH
+    home = os.environ.get("CODEX_HOME")
+    return (Path(home).expanduser() if home else Path.home() / ".codex") / "config.toml"
 
 SYNC_SUPPORTED_AGENTS = {"gemini", "agent", "codex"}
 
@@ -76,7 +89,7 @@ CANONICAL_MCP_SUPPORT: dict[str, AgentMCPSupport] = {
     "codex": AgentMCPSupport(
         agent_id="codex",
         mechanism="sync",
-        guidance="Run `secfoo mcp sync --agent codex` once to register persistently in ~/.codex/config.toml",
+        guidance="Run `secfoo mcp sync --agent codex` once to register persistently in $CODEX_HOME/config.toml (default ~/.codex/config.toml)",
     ),
     "copilot": AgentMCPSupport(
         agent_id="copilot",
@@ -281,23 +294,35 @@ def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
     if shutil.which("codex") is None:
         return [SyncResult("*", False, "codex isn't installed (not found on PATH)")]
 
+    config_path = codex_config_path()
     doc = tomlkit.document()
-    if CODEX_CONFIG_PATH.exists():
+    if config_path.exists():
         try:
-            content = CODEX_CONFIG_PATH.read_text(encoding="utf-8")
+            content = config_path.read_text(encoding="utf-8")
             parsed = tomlkit.parse(content)
         except (TOMLKitError, OSError) as exc:
-            return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not valid TOML: {exc}")]
+            return [SyncResult("*", False, f"{config_path} is not valid TOML: {exc}")]
         if not isinstance(parsed, dict):
-            return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} is not a TOML table")]
+            return [SyncResult("*", False, f"{config_path} is not a TOML table")]
         doc = parsed
 
     mcp_servers = doc.get("mcp_servers")
     if mcp_servers is None:
-        mcp_servers = tomlkit.table()
+        # A super table writes only [mcp_servers.<name>] headers, not an
+        # empty [mcp_servers] above them.
+        mcp_servers = tomlkit.table(is_super_table=True)
         doc["mcp_servers"] = mcp_servers
+    elif isinstance(mcp_servers, tomlkit.items.InlineTable):
+        return [
+            SyncResult(
+                "*",
+                False,
+                f"{config_path} defines mcp_servers as an inline table; rewrite it as "
+                "[mcp_servers.<name>] tables and run sync again",
+            )
+        ]
     elif not isinstance(mcp_servers, dict):
-        return [SyncResult("*", False, f"{CODEX_CONFIG_PATH} has a non-table mcp_servers entry")]
+        return [SyncResult("*", False, f"{config_path} has a non-table mcp_servers entry")]
 
     results = []
     newly_added: list[str] = []
@@ -317,7 +342,7 @@ def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
                 server_tbl["env"] = env_tbl
             mcp_servers[server.name] = server_tbl
             newly_added.append(server.name)
-            results.append(SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}"))
+            results.append(SyncResult(server.name, True, f"added to {config_path}"))
         elif server.url:
             if server.transport == "sse":
                 results.append(
@@ -337,17 +362,17 @@ def sync_codex(servers: list[MCPServerConfig]) -> list[SyncResult]:
                 server_tbl["http_headers"] = headers_tbl
             mcp_servers[server.name] = server_tbl
             newly_added.append(server.name)
-            results.append(SyncResult(server.name, True, f"added to {CODEX_CONFIG_PATH}"))
+            results.append(SyncResult(server.name, True, f"added to {config_path}"))
         else:
             results.append(SyncResult(server.name, False, "server must define either 'command' or 'url'"))
 
     if newly_added:
-        write_private_text(CODEX_CONFIG_PATH, tomlkit.dumps(doc))
-    elif os.name == "posix":
+        write_private_text(config_path, tomlkit.dumps(doc))
+    elif os.name == "posix" and config_path.exists():
         try:
-            CODEX_CONFIG_PATH.resolve().chmod(0o600)
-        except OSError:
-            pass  # e.g. not our file or missing; the sync itself still succeeded
+            config_path.resolve().chmod(0o600)
+        except OSError as exc:  # e.g. not our file; the sync itself still succeeded
+            logger.debug("could not tighten permissions on %s: %s", config_path, exc)
     return results
 
 
