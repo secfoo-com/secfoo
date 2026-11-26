@@ -8,7 +8,7 @@ import sys
 from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -113,7 +113,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _validate_date(value: Optional[str]) -> Optional[str]:
+def _validate_date(value: str | None) -> str | None:
     """Typer callback for the `--expires-at` / `--discovered-at` style
     options that are documented as YYYY-MM-DD: rejects anything that
     doesn't parse as that shape at input time.
@@ -294,7 +294,7 @@ def run(
         help="Skip the confirmation before running a skill that isn't a built-in or a file under "
         "~/.secfoo/skills/ (a non-interactive run, e.g. --json or CI, always skips it).",
     )] = False,
-    target: Optional[str] = typer.Option(
+    target: str | None = typer.Option(
         None, "--target", "-t", help="GitHub URL or local directory. Defaults to the current directory."
     ),
     confluence: list[str] = typer.Option(
@@ -306,7 +306,7 @@ def run(
         "SharePoint, Notion, Google Docs) or a local Markdown, text, PDF, DOCX or PPTX file or "
         "folder. Repeatable, and added on top of [defaults].context in ~/.secfoo/config.toml.",
     )] = None,
-    agent: Optional[AgentId] = typer.Option(
+    agent: AgentId | None = typer.Option(
         None,
         "--agent",
         "-a",
@@ -314,7 +314,7 @@ def run(
         "~/.secfoo/config.toml, then to claude.",
     ),
     model: str | None = typer.Option(None, "--model", help="Model for this run; overrides [agents.<agent>].model."),
-    depth: Optional[DepthId] = typer.Option(
+    depth: DepthId | None = typer.Option(
         None,
         "--depth",
         "-d",
@@ -322,19 +322,19 @@ def run(
         "standard: thorough, full checklist coverage, takes longer. Falls back to "
         "[defaults].depth in ~/.secfoo/config.toml, then to quick.",
     ),
-    timeout: Optional[int] = typer.Option(
+    timeout: int | None = typer.Option(
         None,
         "--timeout",
         help="Per-skill timeout in seconds. Falls back to [defaults].timeout in "
         "~/.secfoo/config.toml, then to the agent's own default.",
     ),
-    assessment: Optional[int] = typer.Option(
+    assessment: int | None = typer.Option(
         None,
         "--assessment",
         help="Attach this run to an existing assessment case file. "
         "See `secfoo assessment create`.",
     ),
-    project_name: Optional[str] = typer.Option(
+    project_name: str | None = typer.Option(
         None,
         "--project-name",
         help="Friendly name for this project, shown across the dashboard instead "
@@ -342,7 +342,7 @@ def run(
         "assessment is being auto-created); prompted for interactively if left "
         "unset on a terminal.",
     ),
-    app_id: Optional[str] = typer.Option(
+    app_id: str | None = typer.Option(
         None,
         "--app-id",
         help="Application ID to record on the auto-created assessment (e.g. from "
@@ -357,14 +357,14 @@ def run(
         "checked-out repo). Repeatable, and added on top of [defaults].exclude "
         "in ~/.secfoo/config.toml and the built-in exclusions.",
     ),
-    fail_on: Optional[FailOn] = typer.Option(
+    fail_on: FailOn | None = typer.Option(
         None,
         "--fail-on",
         help="Exit 2 if any run reports a finding at this severity or worse "
         "(critical|high|medium|low). Falls back to [defaults].fail_on in "
         "~/.secfoo/config.toml; unset means findings never fail the command.",
     ),
-    max_cost: Optional[float] = typer.Option(
+    max_cost: float | None = typer.Option(
         None,
         "--max-cost",
         min=0.0,
@@ -742,9 +742,9 @@ def _runtime_summary_line(outcomes) -> str | None:
 
 @app.command(name="list")
 def list_runs(
-    project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project name/URL substring."),
+    project: str | None = typer.Option(None, "--project", "-p", help="Filter by project name/URL substring."),
     limit: int = typer.Option(50, "--limit", help="Maximum runs to show."),
-    status: Optional[str] = typer.Option(None, "--status", help="Filter by run status."),
+    status: str | None = typer.Option(None, "--status", help="Filter by run status."),
 ) -> None:
     """List past assessment runs."""
     with RunRepository() as repo:
@@ -873,7 +873,7 @@ def serve(
         "--runtime-recheck-hours",
         help="Re-check running package versions against OSV this often (#68). 0 disables.",
     )] = 6.0,
-    allow_host: Annotated[Optional[list[str]], typer.Option(
+    allow_host: Annotated[list[str] | None, typer.Option(
         "--allow-host",
         help="Also answer to this host name (repeatable), e.g. a port-forwarding or reverse-proxy name. "
         "Requests naming any other host are refused, which blocks DNS rebinding.",
@@ -1000,10 +1000,10 @@ class CostGroup(str, Enum):
 @app.command()
 def cost(
     by: CostGroup = typer.Option(CostGroup.AGENT, "--by", help="Group spend by agent, skill, or project."),
-    since: Optional[str] = typer.Option(
+    since: str | None = typer.Option(
         None, "--since", help="Only count runs started on or after this date, YYYY-MM-DD.", callback=_validate_date
     ),
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None, "--project", "-p", help="Only count one project (name/URL substring)."
     ),
 ) -> None:
@@ -1064,22 +1064,22 @@ def cost(
 
 @assessment_app.command(name="create")
 def assessment_create(
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None,
         "--project",
         "-p",
         help="Public GitHub repo URL or local directory. Defaults to the current directory.",
     ),
-    name: Optional[str] = typer.Option(
+    name: str | None = typer.Option(
         None, "--name", help="Friendly project name to display. Defaults to the name derived from --project."
     ),
     assessment_type: AssessmentTypeId = typer.Option(..., "--type", help="internal or third-party."),
     status: AssessmentStatusId = typer.Option(AssessmentStatusId.READY.value, "--status"),
-    app_id: Optional[str] = typer.Option(None, "--app-id", help="Application ID."),
-    sar: Optional[str] = typer.Option(None, "--sar", help="Security Assessment Request number."),
-    reviewer: Optional[str] = typer.Option(None, "--reviewer"),
-    review_date: Optional[str] = typer.Option(None, "--review-date"),
-    notes: Optional[str] = typer.Option(None, "--notes"),
+    app_id: str | None = typer.Option(None, "--app-id", help="Application ID."),
+    sar: str | None = typer.Option(None, "--sar", help="Security Assessment Request number."),
+    reviewer: str | None = typer.Option(None, "--reviewer"),
+    review_date: str | None = typer.Option(None, "--review-date"),
+    notes: str | None = typer.Option(None, "--notes"),
 ) -> None:
     """Create a new assessment case file that runs (and file attachments) can attach to."""
     try:
@@ -1105,9 +1105,9 @@ def assessment_create(
 
 @assessment_app.command(name="list")
 def assessment_list(
-    assessment_type: Optional[AssessmentTypeId] = typer.Option(None, "--type"),
-    status: Optional[AssessmentStatusId] = typer.Option(None, "--status"),
-    search: Optional[str] = typer.Option(None, "--search"),
+    assessment_type: AssessmentTypeId | None = typer.Option(None, "--type"),
+    status: AssessmentStatusId | None = typer.Option(None, "--status"),
+    search: str | None = typer.Option(None, "--search"),
 ) -> None:
     """List assessment case files."""
     with RunRepository() as repo:
@@ -1196,12 +1196,12 @@ def assessment_show(assessment_id: int) -> None:
 @assessment_app.command(name="update")
 def assessment_update(
     assessment_id: int,
-    status: Optional[AssessmentStatusId] = typer.Option(None, "--status"),
-    app_id: Optional[str] = typer.Option(None, "--app-id"),
-    sar: Optional[str] = typer.Option(None, "--sar"),
-    reviewer: Optional[str] = typer.Option(None, "--reviewer"),
-    review_date: Optional[str] = typer.Option(None, "--review-date"),
-    notes: Optional[str] = typer.Option(None, "--notes"),
+    status: AssessmentStatusId | None = typer.Option(None, "--status"),
+    app_id: str | None = typer.Option(None, "--app-id"),
+    sar: str | None = typer.Option(None, "--sar"),
+    reviewer: str | None = typer.Option(None, "--reviewer"),
+    review_date: str | None = typer.Option(None, "--review-date"),
+    notes: str | None = typer.Option(None, "--notes"),
 ) -> None:
     """Update fields on an existing assessment."""
     fields: dict[str, object] = {}
@@ -1286,7 +1286,7 @@ def assessment_delete(assessment_id: int) -> None:
 
 @exception_app.command(name="create")
 def exception_create(
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None, "--project", "-p", help="Public GitHub repo URL or local directory. Defaults to the current directory."
     ),
     title: str = typer.Option(..., "--title", help="Short description of what's being accepted."),
@@ -1295,10 +1295,10 @@ def exception_create(
     expires_at: str = typer.Option(
         ..., "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
     ),
-    standard_or_control: Optional[str] = typer.Option(
+    standard_or_control: str | None = typer.Option(
         None, "--control", help="CCM domain code or standard clause this exception covers, e.g. IAM or 'SOC 2 CC6.1'."
     ),
-    assessment_id: Optional[int] = typer.Option(None, "--assessment", help="Optionally scope to one assessment."),
+    assessment_id: int | None = typer.Option(None, "--assessment", help="Optionally scope to one assessment."),
 ) -> None:
     """Grant a risk acceptance / waiver against a project."""
     try:
@@ -1321,7 +1321,7 @@ def exception_create(
 
 @exception_app.command(name="list")
 def exception_list(
-    status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
+    status: str | None = typer.Option(None, "--status", help="active or revoked."),
 ) -> None:
     """List exceptions, soonest-expiring first."""
     with RunRepository() as repo:
@@ -1373,11 +1373,11 @@ def exception_show(exception_id: int) -> None:
 @exception_app.command(name="update")
 def exception_update(
     exception_id: int,
-    status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(
+    status: str | None = typer.Option(None, "--status", help="active or revoked."),
+    expires_at: str | None = typer.Option(
         None, "--expires-at", help="Expiry date, YYYY-MM-DD.", callback=_validate_date
     ),
-    justification: Optional[str] = typer.Option(None, "--justification"),
+    justification: str | None = typer.Option(None, "--justification"),
 ) -> None:
     """Update an exception -- e.g. revoke it, or extend its expiry."""
     fields: dict[str, object] = {}
@@ -1413,16 +1413,16 @@ def exception_delete(exception_id: int) -> None:
 
 @miss_app.command(name="create")
 def miss_create(
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None, "--project", "-p", help="Public GitHub repo URL or local directory. Defaults to the current directory."
     ),
     title: str = typer.Option(..., "--title", help="What was found."),
     discovered_at: str = typer.Option(
         ..., "--discovered-at", help="When it was found, YYYY-MM-DD.", callback=_validate_date
     ),
-    description: Optional[str] = typer.Option(None, "--description"),
-    discovered_by: Optional[str] = typer.Option(None, "--discovered-by", help="Who/what found it (incident, pen test, ...)."),
-    run: Optional[str] = typer.Option(None, "--run", help="Run UUID of the threat model that should have caught this, if known."),
+    description: str | None = typer.Option(None, "--description"),
+    discovered_by: str | None = typer.Option(None, "--discovered-by", help="Who/what found it (incident, pen test, ...)."),
+    run: str | None = typer.Option(None, "--run", help="Run UUID of the threat model that should have caught this, if known."),
 ) -> None:
     """Record a threat found after build that an earlier threat model missed.
 
@@ -1503,17 +1503,17 @@ def miss_delete(finding_id: int) -> None:
 
 @accept_app.command(name="create")
 def accept_create(
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None, "--project", "-p", help="Public GitHub repo URL or local directory. Defaults to the current directory."
     ),
     threat_id: str = typer.Option(..., "--threat-id", help="The Threat Register row ID from the report, e.g. T4."),
     title: str = typer.Option(..., "--title", help="Short description of the threat being accepted."),
     justification: str = typer.Option(..., "--justification", help="Why this risk is being accepted."),
     accepted_by: str = typer.Option(..., "--accepted-by", help="Who is accepting this risk."),
-    expires_at: Optional[str] = typer.Option(
+    expires_at: str | None = typer.Option(
         None, "--expires-at", help="Optional review-by date, YYYY-MM-DD.", callback=_validate_date
     ),
-    run: Optional[str] = typer.Option(None, "--run", help="Run UUID this threat came from, if known."),
+    run: str | None = typer.Option(None, "--run", help="Run UUID this threat came from, if known."),
 ) -> None:
     """Record a human risk acceptance for one threat from a Threat Register.
 
@@ -1544,7 +1544,7 @@ def accept_create(
 
 @accept_app.command(name="list")
 def accept_list(
-    status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
+    status: str | None = typer.Option(None, "--status", help="active or revoked."),
 ) -> None:
     """List recorded threat acceptances, most recent first."""
     with RunRepository() as repo:
@@ -1588,11 +1588,11 @@ def accept_show(acceptance_id: int) -> None:
 @accept_app.command(name="update")
 def accept_update(
     acceptance_id: int,
-    status: Optional[str] = typer.Option(None, "--status", help="active or revoked."),
-    expires_at: Optional[str] = typer.Option(
+    status: str | None = typer.Option(None, "--status", help="active or revoked."),
+    expires_at: str | None = typer.Option(
         None, "--expires-at", help="Review-by date, YYYY-MM-DD.", callback=_validate_date
     ),
-    justification: Optional[str] = typer.Option(None, "--justification"),
+    justification: str | None = typer.Option(None, "--justification"),
 ) -> None:
     """Update a threat acceptance -- e.g. revoke it, or extend its review date."""
     fields: dict[str, object] = {}
@@ -1740,8 +1740,8 @@ def _memory_whoami_line(info: dict) -> str:
 
 @memory_app.command(name="signup")
 def memory_signup(
-    email: Optional[str] = typer.Option(None, "--email", help="Where to send the one-time verification code."),
-    code: Optional[str] = typer.Option(
+    email: str | None = typer.Option(None, "--email", help="Where to send the one-time verification code."),
+    code: str | None = typer.Option(
         None, "--code", help="The emailed code, for a non-interactive second step (skips sending a new one)."
     ),
     url: str = typer.Option(
@@ -1881,9 +1881,9 @@ def _decoded_locations(value: object) -> list | None:
 @findings_app.command(name="export")
 def findings_export(
     skill: list[FindingsSkill] = typer.Option([], "--skill", "-s", help="Limit to these skills. Repeatable."),
-    project: Optional[int] = typer.Option(None, "--project", help="Limit to one project id."),
+    project: int | None = typer.Option(None, "--project", help="Limit to one project id."),
     status: FindingsStatus = typer.Option(FindingsStatus.OPEN, "--status", help="open, closed, or all."),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write the export here instead of stdout."),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Write the export here instead of stdout."),
     format: Annotated[FindingsFormat, typer.Option("--format", help="Export format: jsonl or sarif.")] = FindingsFormat.JSONL,
     no_locations: bool = typer.Option(
         False, "--no-locations",
@@ -2600,7 +2600,7 @@ def vendor_mermaid(
     url = MERMAID_CDN_URL
     console.print(f"Downloading {url} ...")
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310  # nosec B310 -- pinned https CDN URL for mermaid bundle
+        with urllib.request.urlopen(url, timeout=60) as response:  # nosec B310 -- pinned https CDN URL for mermaid bundle
             payload = response.read()
     except (urllib.error.URLError, TimeoutError) as exc:
         err_console.print(f"[red]Download failed:[/] {exc}")

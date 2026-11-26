@@ -4,8 +4,8 @@ from secfoo.skills.renderer import TargetContext, render_prompt
 __all__ = [
     "Skill",
     "SkillLoadError",
+    "TargetContext",
     "load_all_skills",
     "load_skill",
-    "TargetContext",
     "render_prompt",
 ]

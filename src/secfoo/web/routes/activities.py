@@ -30,10 +30,12 @@ from secfoo.report.architecture import (
 from secfoo.skills.loader import SkillLoadError, load_skill
 from secfoo.storage.repository import RunRepository
 from secfoo.web import architecture_dashboard as arch_dashboard
-from secfoo.web import finding_filters
-from secfoo.web import sast_dashboard
-from secfoo.web import sca_dashboard
-from secfoo.web import secret_scanning_dashboard
+from secfoo.web import (
+    finding_filters,
+    sast_dashboard,
+    sca_dashboard,
+    secret_scanning_dashboard,
+)
 from secfoo.web import threat_modeling_dashboard as tm_dashboard
 from secfoo.web.templating import severity_rows, templates
 
