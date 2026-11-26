@@ -138,8 +138,7 @@ class RunOutcome:
 def _project_display_name(resolved: ResolvedTarget) -> str:
     if resolved.is_temporary:
         cleaned = resolved.display_name.rstrip("/")
-        if cleaned.endswith(".git"):
-            cleaned = cleaned[: -len(".git")]
+        cleaned = cleaned.removesuffix(".git")
         match = re.search(r"(?:https?://[^/]+/|git@[^:]+:)(.+)$", cleaned)
         return match.group(1) if match else cleaned
     return Path(resolved.display_name).name or resolved.display_name

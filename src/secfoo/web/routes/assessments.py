@@ -166,7 +166,7 @@ def _list_query(**params: object) -> str:
 @router.get("/assessments")
 def assessments_list(
     request: Request,
-    type: str | None = None,  # noqa: A002 -- matches the query param name
+    type: str | None = None,  # matches the query param name
     status: str | None = None,
     q: str | None = None,
     sort: str | None = None,
@@ -210,7 +210,7 @@ def assessments_list(
 def assessments_bulk_status(
     ids: list[int] = Form(default_factory=list),
     new_status: str = Form(...),
-    type: str = Form(""),  # noqa: A002 -- the list's current filters, to return to the same view
+    type: str = Form(""),  # the list's current filters, to return to the same view
     status: str = Form(""),
     q: str = Form(""),
     sort: str = Form(""),

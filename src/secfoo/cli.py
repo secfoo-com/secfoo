@@ -2600,7 +2600,7 @@ def vendor_mermaid(
     url = MERMAID_CDN_URL
     console.print(f"Downloading {url} ...")
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310  # nosec B310 -- pinned https CDN URL for mermaid bundle
+        with urllib.request.urlopen(url, timeout=60) as response:  # nosec B310 -- pinned https CDN URL for mermaid bundle
             payload = response.read()
     except (urllib.error.URLError, TimeoutError) as exc:
         err_console.print(f"[red]Download failed:[/] {exc}")

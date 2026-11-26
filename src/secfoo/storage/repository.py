@@ -344,7 +344,7 @@ class RunRepository:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> RunRepository:
+    def __enter__(self) -> "RunRepository":
         return self
 
     def __exit__(self, *exc: object) -> None:

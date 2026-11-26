@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from secfoo.report.sast import SKILL_ID
+from secfoo.report.sast import SKILL_ID  # noqa: F401 -- re-exported: routes/activities.py uses sast_dashboard.SKILL_ID
 from secfoo.storage.models import SastFindingRecord
 from secfoo.storage.repository import RunRepository
 
