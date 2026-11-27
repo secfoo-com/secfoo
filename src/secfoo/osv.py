@@ -73,7 +73,7 @@ def query_osv(ecosystem: str, package: str, version: str) -> list[dict]:
     """
     payload = {"package": {"name": package, "ecosystem": ecosystem}, "version": version}
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # nosec B310 -- hardcoded public OSV.dev API URL
         OSV_API_URL, data=body, headers={"Content-Type": "application/json"}, method="POST"
     )
     try:

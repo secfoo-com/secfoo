@@ -173,7 +173,7 @@ def _request(url: str, *, payload: dict | None = None, api_key: str | None = Non
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(url, data=data, headers=headers)
+    request = urllib.request.Request(url, data=data, headers=headers)  # nosec B310 -- user-configured memory URL
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # nosec B310 -- user-configured memory URL, same trust as MCP settings
             return json.loads(response.read().decode("utf-8") or "{}")

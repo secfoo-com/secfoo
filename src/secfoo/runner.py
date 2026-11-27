@@ -429,7 +429,9 @@ def _target_workdir(resolved: ResolvedTarget) -> Iterator[Path]:
         with clone_forge(resolved.display_name, kind=resolved.kind) as tmp_dir:
             yield tmp_dir
     else:
-        assert resolved.path is not None
+        # A real check, not an assert: asserts are stripped under `python -O`.
+        if resolved.path is None:
+            raise ValueError(f"local target {resolved.display_name!r} has no path")
         yield resolved.path
 
 

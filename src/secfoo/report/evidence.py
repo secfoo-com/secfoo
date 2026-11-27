@@ -11,7 +11,7 @@ _REMOVED = {'sessionid', 'uuid', 'messagingsocketpath', 'credentialexpiresat', '
 # macOS hands out per-user temp roots as /var/folders/<a>/<b>/T and
 # tempfile.gettempdir() may return either that or the /private/var form.
 _HOST_PATHS = (
-    (re.compile(r'(?:/private)?/var/folders/[^/\s"\\]+/[^/\s"\\]+/T(?=/|\b|$)'), '/tmp/evaluator'),
+    (re.compile(r'(?:/private)?/var/folders/[^/\s"\\]+/[^/\s"\\]+/T(?=/|\b|$)'), '/tmp/evaluator'),  # nosec B108 -- replacement text, never a file path
     (re.compile(r'(?i)\b([A-Z]):(\\\\|\\|/)Users\2(?!evaluator\b)[^\\/\s"]+'), r'\1:\2Users\2evaluator'),
     (re.compile(r'/Users/(?!evaluator\b)[^/\s"\\]+'), '/home/evaluator'),
     (re.compile(r'/home/(?!evaluator\b)[^/\s"\\]+'), '/home/evaluator'),

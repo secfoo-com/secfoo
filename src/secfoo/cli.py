@@ -1845,7 +1845,7 @@ def memory_status() -> None:
 class FindingsSkill(str, Enum):
     SAST = "sast"
     SCA = "sca-reachability"
-    SECRET = "secret-scanning"
+    SECRET = "secret-scanning"  # nosec B105 -- a skill id, not a password
 
 
 class FindingsStatus(str, Enum):

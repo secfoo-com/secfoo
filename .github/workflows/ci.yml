@@ -56,12 +56,9 @@ jobs:
         run: secfoo vendor mermaid
 
       - name: Lint (ruff)
-        # Non-blocking for now: 102 pre-existing findings (mostly Optional[X]
-        # vs X | None style, plus a few unused test fixtures) predate this
-        # workflow. Reporting them here for visibility without turning every
-        # unrelated PR red; flip to a hard failure once that backlog is
-        # cleared (tracked separately from this CI/CD setup).
-        run: ruff check . || true
+        # Blocking (#114). ruff is pinned in pyproject.toml's dev extra so a
+        # new ruff release can't turn an unrelated PR red; bump it on purpose.
+        run: ruff check .
 
       - name: Test (secfoo core)
         # Coverage is collected here and gated in its own last step, so a
@@ -101,6 +98,42 @@ jobs:
         # it to make a PR pass.
         if: ${{ !cancelled() }}
         run: coverage report --fail-under=90
+
+  security:
+    name: Security (bandit, pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install package + dev deps
+        # pip itself is part of the audited environment, so start from the
+        # latest one rather than whatever the runner image ships.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: SAST (bandit, medium and above)
+        # Blocking (#114). Low findings are reported locally but don't fail
+        # the build; a reviewed false positive gets `# nosec BXXX -- reason`
+        # on the flagged line.
+        run: bandit -r src/secfoo -c .bandit -ll
+
+      - name: Dependency audit (pip-audit)
+        # Blocking (#114): audits the installed environment, i.e. what
+        # `pip install -e ".[dev]"` actually resolved today. secfoo itself is
+        # skipped (editable, may be ahead of the latest release).
+        #
+        # Accepted advisories: add one `--ignore-vuln <ID>` per line below,
+        # each with a comment giving the date it was accepted and why, e.g.
+        #   --ignore-vuln GHSA-xxxx-xxxx-xxxx  # 2026-01-31: dev-only, no fix yet
+        # None are accepted today.
+        run: pip-audit --skip-editable
 
   docs:
     name: Docs (links, version)

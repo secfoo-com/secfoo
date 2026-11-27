@@ -30,7 +30,7 @@ from urllib.parse import urlsplit
 from starlette.responses import PlainTextResponse
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
-WILDCARD_BINDS = {"", "0.0.0.0", "::"}
+WILDCARD_BINDS = {"", "0.0.0.0", "::"}  # nosec B104 -- the set used to detect (and guard) wildcard binds, not a bind
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 MACHINE_API_PREFIX = "/api/runtime/"
 UPLOAD_PATH_RE = re.compile(r"/assessments/[^/]+/attachments/?")
