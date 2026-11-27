@@ -1,6 +1,6 @@
 {
   "repo": "secfoo-com/secfoo",
-  "generated_at": "2026-11-27T08:24:48Z",
+  "generated_at": "2026-11-27T14:44:04Z",
   "since": null,
   "points": {
     "hard": 10,
@@ -770,7 +770,7 @@
       "level": null
     },
     {
-      "login": "geet038",
+      "login": "deba310984",
       "points": 0,
       "counts": {
         "hard": 0,
@@ -783,7 +783,7 @@
       "level": null
     },
     {
-      "login": "Melwinjoel20",
+      "login": "geet038",
       "points": 0,
       "counts": {
         "hard": 0,
@@ -796,7 +796,7 @@
       "level": null
     },
     {
-      "login": "Theankitmishra",
+      "login": "Melwinjoel20",
       "points": 0,
       "counts": {
         "hard": 0,
@@ -806,6 +806,19 @@
       "merged_prs": 1,
       "awards": [],
       "rank": 22,
+      "level": null
+    },
+    {
+      "login": "Theankitmishra",
+      "points": 0,
+      "counts": {
+        "hard": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "merged_prs": 1,
+      "awards": [],
+      "rank": 23,
       "level": null
     }
   ],

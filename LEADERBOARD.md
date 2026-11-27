@@ -1,6 +1,6 @@
 # secfoo contributor leaderboard
 
-_Updated 2026-11-27 08:24:48 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
+_Updated 2026-11-27 14:44:04 UTC by [`leaderboard.yml`](https://github.com/secfoo-com/secfoo/blob/main/.github/workflows/leaderboard.yml). Generated file; edits here are overwritten._
 
 ## Standings
 
@@ -23,7 +23,7 @@ _Updated 2026-11-27 08:24:48 UTC by [`leaderboard.yml`](https://github.com/secfo
 | 15 | [@niharika3715](https://github.com/niharika3715) | **3** | — | 0 | 0 | 1 | 1 |
 | 16 | [@onetwothird](https://github.com/onetwothird) | **3** | — | 0 | 0 | 1 | 1 |
 
-Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
+Merged PRs but no scored issues yet: [@vsn411](https://github.com/vsn411), [@Varunpoojari](https://github.com/Varunpoojari), [@AmirNCI](https://github.com/AmirNCI), [@deba310984](https://github.com/deba310984), [@geet038](https://github.com/geet038), [@Melwinjoel20](https://github.com/Melwinjoel20), [@Theankitmishra](https://github.com/Theankitmishra).
 
 ## How points work
 
