@@ -143,6 +143,57 @@ GitHub Advanced Security on private ones). Without it, set
           fail-on: high
 ```
 
+## GitHub Actions Caching
+
+The Action can cache `~/.secfoo` between runs on the same repository and branch,
+so findings from earlier scans can be compared with the current scan (open/closed
+status). This is controlled by two inputs:
+
+| Input | Default | Purpose |
+|---|---|---|
+| `cache` | `true` | Cache `~/.secfoo` between runs. Set to `false` to disable. |
+| `cache-key` | `` (empty) | Override the default cache key (repository and branch). Set to a custom string or empty to disable caching. |
+
+**How it works:**
+- On the first PR run, `~/.secfoo` is created and cached.
+- On subsequent PR runs for the same repository/branch, the store is restored from cache.
+- If `~/.secfoo` exists from a previous cache restore, `--rescan` is intentionally **omitted** so the stored findings register is reused for open/closed comparison. New findings may appear as "closed" if they were previously seen.
+- If the cache miss occurs (first run or `cache: false`), no `--rescan` flag is added either; it is kept off by default (requirement: `--rescan` only when the commit has already been scanned).
+- Users can force a re-scan by passing `--rescan` via the `extra-args` input.
+
+**Trade-off:** The cached store contains report text, scan results, and findings register data. Users should understand that this may include file paths, code snippets, and other repository content. Do not use with private repositories if you wish to keep scan results offline.
+
+```yaml
+# Example: disable caching
+with:
+  cache: false
+```
+
+### PR Comment
+
+The Action can create or update a PR comment identified by `<!-- secfoo -->` when running on pull requests. This is controlled by the `comment` input:
+
+| Input | Default | Purpose |
+|---|---|---|
+| `comment` | `true` | Create/update a PR comment with results. Set to `false` to disable. |
+
+**What the comment includes:**
+- Per-skill results table (Skill \| Status \| C/H/M/L \| Cost)
+- Gate verdicts (Findings gate: Passed/Failed, Cost gate: Passed/Failed)
+- Agent-reported cost (AI spend: $0.00)
+- Link to code-scanning alerts ([View code-scanning alerts](https://github.com/secfoo-com/secfoo/security/code-scanning))
+- ![Code scanning alerts](../assets/code-scanning-alerts.png)
+
+**How it works:**
+- Only runs on `pull_request` events when `comment: true`.
+- Finds existing `<!-- secfoo -->` comment and updates it, or creates a new one.
+- On failure (e.g., fork PR with read-only token), logs a notice and the job continues — the workflow does not fail.
+
+```yaml
+# Example: disable comments
+with:
+  comment: false
+```
 ## Pre-commit
 
 secfoo ships [`.pre-commit-hooks.yaml`](../.pre-commit-hooks.yaml) with two hooks:

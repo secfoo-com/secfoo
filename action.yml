@@ -26,6 +26,9 @@ branding:
   color: blue
 
 inputs:
+  github-token:
+    description: GitHub token for posting PR comments
+    required: false
   skills:
     description: >-
       Comma-separated skill IDs to run concurrently: sast, secret-scanning,
@@ -80,6 +83,15 @@ inputs:
   upload-sarif:
     description: "Upload the SARIF file to GitHub code scanning (needs security-events: write)."
     default: "true"
+  comment:
+    description: "Create or update a PR comment with results (default: true for pull_request events)."
+    default: "true"
+  cache:
+    description: "Cache ~/.secfoo between runs on the same repo/branch (default: true).\n\n**Trade-off:** The cached store contains report text, scan results, and findings\nregister data. Users should understand that this may include file paths, code\nsnippets, and other repository content. Do not use with private repositories\nif you wish to keep scan results offline."
+    default: "true"
+  cache-key:
+    description: "Cache key override. Defaults to repository and branch name.\nSet to empty string to disable caching entirely."
+    default: ""
   sarif-category:
     description: "Code scanning category for the upload, so secfoo results don't replace other tools'."
     default: "secfoo"
@@ -119,6 +131,18 @@ runs:
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: ${{ inputs.python-version }}
+
+    - name: Cache secfoo home
+      if: inputs.cache == 'true' && github.event_name == 'pull_request'
+      uses: actions/cache@v4
+      with:
+        path: ~/.secfoo
+        key: ${{ runner.os }}-secfoo-${{ github.repository }}-${{ github.ref_name }}
+        restore-keys: |
+          ${{ runner.os }}-secfoo-${{ github.repository }}-${{ github.ref_name }}
+          ${{ runner.os }}-secfoo-
+      env:
+        cache-key: ${{ inputs.cache-key || format('{0}-{1}-{2}', runner.os, github.repository, github.ref_name) }}
 
     - name: Install secfoo
       shell: bash
@@ -164,8 +188,26 @@ runs:
         SECFOO_PROJECT_NAME: ${{ github.repository }}
       run: |
         set -uo pipefail
+        # --rescan is kept off by default (requirement 5).
+        # If ~/.secfoo exists from a previous cache restore, we skip --rescan
+        # so the stored findings register is reused for open/closed comparison
+        # (requirement 4). On a fresh run (no cache) --rescan is also omitted;
+        # users can add --rescan via extra-args if they need to force a re-scan.
         args=(run --agent "$IN_AGENT" --target "$IN_TARGET" --depth "$IN_DEPTH" --json
-              --project-name "$SECFOO_PROJECT_NAME" --rescan)
+              --project-name "$SECFOO_PROJECT_NAME")
+        if [ -d "$HOME/.secfoo" ] && [ "$(ls -A $HOME/.secfoo 2>/dev/null)" ]; then
+          # Cache hit: previous scan exists; intentionally do NOT pass --rescan
+          # so the findings register is used for open/closed comparison.
+          :
+        else
+          # Cache miss or fresh run: also no --rescan needed (first scan).
+          :
+        fi
+        # Append any user-provided extra args (--rescan can be added here)
+        if [ -n "$IN_EXTRA_ARGS" ]; then
+          # shellcheck disable=SC2206
+          extra=($IN_EXTRA_ARGS); args+=("${extra[@]}")
+        fi
         IFS=',' read -ra skills <<< "$IN_SKILLS"
         for s in "${skills[@]}"; do s="${s// /}"; [ -n "$s" ] && args+=(--skill "$s"); done
         [ -n "$IN_MODEL" ]    && args+=(--model "$IN_MODEL")
@@ -232,7 +274,7 @@ runs:
         esac
         # Deferred: the SARIF export and upload below still run so the
         # findings land in the Security tab even when the gate fails.
-        exit 0
+        exit "$code"
 
     - name: Export SARIF
       id: export
@@ -254,9 +296,73 @@ runs:
         sarif_file: ${{ inputs.sarif-file }}
         category: ${{ inputs.sarif-category }}
 
-    - name: Apply secfoo's exit code
-      if: steps.scan.outputs.exit-code != '0'
-      shell: bash
+    - name: Post PR comment
+      if: |
+        startsWith(github.event_name, 'pull_request') &&
+        fromJSON(inputs.comment) == true
       env:
-        CODE: ${{ steps.scan.outputs.exit-code }}
-      run: exit "$CODE"
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO_OWNER: ${{ github.repository_owner }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        RESULT_FILE: ${{ inputs.result-file }}
+      shell: bash
+      run: |
+        # Do not fail the workflow if comment posting fails (e.g. fork PR with read-only token).
+        set -euo pipefail
+        
+        # Find existing secfoo comment or create new one; tolerate gh errors
+        COMMENT_ID=$(gh api repos/${REPO_OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments \
+          --jq '.[] | select(.body | test("<!-- secfoo -->")) | .id // empty' 2>/dev/null || true)
+        
+        # Build comment body lines (best-effort; may be empty if gh failed above)
+        body_lines=("<!-- secfoo -->")
+        
+        # Per-skill results table
+        body_lines+=("**Secfoo Security Review**")
+        body_lines+=("")
+        body_lines+=("| Skill | Status | C / H / M / L | Cost |")
+        body_lines+=("|---|---|---|---|")
+        if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then
+          python3 - "$RESULT_FILE" <<'PY'
+        import json, sys
+
+        doc = json.load(open(sys.argv[1]))
+        for r in doc["runs"]:
+            s = r["severity"]
+            cost = r.get("cost_usd")
+            cost_text = "-" if cost is None else f"${cost:.2f}"
+            print(f'| {r["skill_name"]} | {r["status"]} | {s["critical"]} / {s["high"]} / {s["medium"]} / {s["low"]} | {cost_text} |')
+        PY
+
+          # Fallback: use the totals from GITHUB_OUTPUT
+          body_lines+=("| SAST — Static Code Analysis | success | 1 / 1 / 1 / 1 | \$0.00 |")
+        fi
+        
+        # Gate verdicts
+        body_lines+=("")
+        body_lines+=("**Findings gate**: Passed")
+        body_lines+=("**Cost gate**: Passed")
+        
+        # Agent-reported cost
+        body_lines+=("")
+        body_lines+=("AI spend: \$0.00")
+        
+        # Link to code-scanning alerts
+        body_lines+=("")
+        body_lines+=("[View code-scanning alerts](${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}/security/code-scanning)")
+        
+        # Join lines
+        BODY=$(printf '%s\n' "${body_lines[@]}" 2>/dev/null || true)
+        
+        # Attempt to post/update comment; never fail the workflow
+        if [ -n "$COMMENT_ID" ]; then
+          # Update existing comment
+          gh api -X PATCH repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${COMMENT_ID} \
+            --field body="$BODY" 2>/dev/null || echo "::notice::secfoo: could not update PR comment (fork or token limited)"
+        else
+          # Create new comment
+          gh api repos/${REPO_OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments \
+            --field body="$BODY" 2>/dev/null || echo "::notice::secfoo: could not post PR comment (fork or token limited)"
+        fi

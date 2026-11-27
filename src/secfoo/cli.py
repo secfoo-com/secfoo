@@ -159,6 +159,7 @@ class AgentId(str, Enum):
     DROID = "droid"
     DEVIN = "devin"
     OPENCODE = "opencode"
+    FAKE = "fake"
 
 
 class DepthId(str, Enum):

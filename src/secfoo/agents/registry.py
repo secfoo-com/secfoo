@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from secfoo.agents.fake import FakeAdapter
 from secfoo.agents.antigravity import AntigravityAdapter
 from secfoo.agents.api import ApiAdapter
 from secfoo.agents.base import AgentAdapter
@@ -24,7 +26,8 @@ ADAPTERS: dict[str, type[AgentAdapter]] = {
     DevinAdapter.name: DevinAdapter,
     OpenCodeAdapter.name: OpenCodeAdapter,
 }
-
+if os.getenv("SECFOO_FAKE_AGENT") == "1":
+    ADAPTERS[FakeAdapter.name] = FakeAdapter
 
 def get_adapter(agent_id: str) -> AgentAdapter:
     try:
