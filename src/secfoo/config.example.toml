@@ -51,6 +51,10 @@ enabled = true
 #   - claude: picked up automatically on every `secfoo run` (via
 #     `claude --mcp-config`, scoped to just that invocation -- your global
 #     Claude config is never touched).
+#   - api: secfoo connects to these servers itself on every run and offers
+#     the model only their read-only tools (annotated `readOnlyHint: true`).
+#     To choose the tools yourself, list them on the server entry, e.g.
+#     tools = ["getConfluencePage", "searchConfluenceUsingCql"]
 #   - gemini / agent (Cursor): run `secfoo mcp sync --agent <agent>` once
 #     to register these persistently in that tool's own config. Re-run
 #     after adding new servers here; already-registered ones are skipped.

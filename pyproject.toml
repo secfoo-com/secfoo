@@ -64,12 +64,15 @@ dependencies = [
   "python-pptx>=1.0.2",
   "langgraph>=1.2.24",
   "litellm>=1.110.2",
+  # MCP client for the `api` agent's tool loop (agents/mcp_tools.py, #123).
+  # <2: the 2.x SDK reworks the client transports this module uses.
+  "mcp>=1.12,<2",
 ]
 
 [project.optional-dependencies]
 dev = ["jsonschema>=4.26.0", "pytest>=9.2.0", "pytest-cov>=7.1.0", "hypothesis>=6.168.5", "httpx>=0.28.1", "ruff>=0.17.6", "bandit>=1.9.4", "pip-audit>=2.10.1", "langgraph>=1.2.24"]
 build = ["pyinstaller>=6.22.3"]
-# The `api` agent (secfoo/agents/api.py) needs litellm and langgraph, which are regular
+# The `api` agent (secfoo/agents/api.py) needs litellm, langgraph and mcp, which are regular
 # dependencies above, so there is no separate `api` extra to install.
 # (dev lists langgraph too so the real graph runs in tests; litellm is faked.)
 

@@ -37,6 +37,9 @@ class MCPServerConfig:
     headers: dict[str, str] = field(default_factory=dict)
     # Documentation hostnames this server can read, e.g. a self-hosted Confluence or Jira; not the server's own `url`
     hosts: list[str] = field(default_factory=list)
+    # Tools the `api` agent may call on this server (#123). Empty = only the
+    # tools the server annotates `readOnlyHint: true`; set = exactly these.
+    tools: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if bool(self.command) == bool(self.url):
@@ -148,6 +151,10 @@ def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
             seen_hosts.add(cleaned)
             hosts.append(cleaned)
 
+    tools_raw = raw.get("tools", [])
+    if not isinstance(tools_raw, list) or not all(isinstance(t, str) and t.strip() for t in tools_raw):
+        raise ConfigError(f"mcp_servers.{name}.tools must be an array of tool names")
+
     try:
         return MCPServerConfig(
             name=name,
@@ -158,6 +165,7 @@ def _parse_mcp_server(name: str, raw: dict) -> MCPServerConfig:
             env=dict(raw.get("env", {})),
             headers=dict(raw.get("headers", {})),
             hosts=hosts,
+            tools=[t.strip() for t in tools_raw],
         )
     except ConfigError:
         raise

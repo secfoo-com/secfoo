@@ -49,12 +49,15 @@ SERVER_NAME = "secfoo-memory"
 REQUEST_TIMEOUT_SECONDS = 15
 ENV_TOGGLE = "SECFOO_MEMORY"
 
-# Agents whose CLI can actually reach an MCP server secfoo registers:
-# claude via --mcp-config on every run, gemini/agent (Cursor) after a one-
-# time `secfoo mcp sync`. The api agent has no tool loop at all, and agy /
-# codex / copilot aren't wired up for MCP here -- prompting those to "call
-# the memory tools" would only produce a Coverage Notes complaint.
-MEMORY_CAPABLE_AGENTS = frozenset({"claude", "gemini", "agent"})
+MEMORY_TOOLS = ("lookup_patterns", "get_remediation", "check_false_positive")
+
+# Agents that can actually reach an MCP server secfoo registers: claude via
+# --mcp-config on every run, gemini/agent (Cursor) after a one-time
+# `secfoo mcp sync`, and api through its own MCP client and tool loop
+# (agents/mcp_tools.py). agy / codex / copilot aren't wired up for MCP here
+# -- prompting those to "call the memory tools" would only produce a
+# Coverage Notes complaint.
+MEMORY_CAPABLE_AGENTS = frozenset({"claude", "gemini", "agent", "api"})
 
 _OFF_VALUES = {"0", "off", "false", "no", "disabled"}
 
@@ -144,6 +147,9 @@ def memory_server(config: MemoryConfig | None = None) -> MCPServerConfig | None:
         url=origin + MCP_ENDPOINT,
         transport="http",
         headers={"Authorization": f"Bearer {config.api_key}"},
+        # All three are lookups. Named here so the api agent exposes them
+        # even if the service doesn't annotate them `readOnlyHint`.
+        tools=list(MEMORY_TOOLS),
     )
 
 

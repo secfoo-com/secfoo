@@ -79,6 +79,7 @@ def test_key_gives_an_http_server_with_a_bearer_header(user_config, memory_key):
         url="https://memory.secfoo.com/mcp",
         transport="http",
         headers={"Authorization": "Bearer sfm_free_test"},
+        tools=list(memory.MEMORY_TOOLS),
     )
 
 
@@ -107,7 +108,7 @@ def test_effective_servers_appends_default_but_user_entry_with_same_name_wins(us
 def test_capable_agents(user_config, memory_key):
     assert memory.is_active_for_agent("claude")
     assert memory.is_active_for_agent("gemini")
-    assert not memory.is_active_for_agent("api")
+    assert memory.is_active_for_agent("api")  # #123: the api agent has a tool loop now
     assert not memory.is_active_for_agent("agy")
 
 
@@ -246,7 +247,7 @@ def test_run_with_no_memory_env_or_incapable_agent_stays_off(user_config, memory
     memory.disable_for_this_process()  # what `secfoo run --no-memory` does
     disabled = execute_runs(skill_ids=["sast"], target=target, confluence_urls=[], agent_id="claude", repo=repo)
     monkeypatch.delenv("SECFOO_MEMORY")
-    no_tool_loop = execute_runs(skill_ids=["sast"], target=target, confluence_urls=[], agent_id="api", repo=repo)
+    no_tool_loop = execute_runs(skill_ids=["sast"], target=target, confluence_urls=[], agent_id="agy", repo=repo)
 
     assert repo.get_run(disabled[0].run_uuid).memory_enabled == 0
     assert repo.get_run(no_tool_loop[0].run_uuid).memory_enabled == 0
