@@ -20,6 +20,7 @@ task.
 from __future__ import annotations
 
 import asyncio
+import builtins
 import concurrent.futures
 import json
 import re
@@ -34,6 +35,28 @@ CALL_TIMEOUT_SECONDS = 60
 MAX_DESCRIPTION_CHARS = 1024
 _NAME_RE = re.compile(r"[^A-Za-z0-9_-]")
 _MAX_NAME = 64  # OpenAI's limit for a function name
+
+
+def _worker_stop_errors() -> tuple[type[BaseException], ...]:
+    """What can end the worker thread's event loop without ending the run.
+
+    Besides ordinary exceptions, the SDK's anyio transports can surface a
+    cancellation, or a BaseExceptionGroup wrapping one, out of asyncio.run().
+    KeyboardInterrupt and SystemExit are deliberately not listed.
+    """
+    errors: list[type[BaseException]] = [Exception, asyncio.CancelledError]
+    group = getattr(builtins, "BaseExceptionGroup", None)  # Python 3.11+
+    if group is None:
+        try:  # Python 3.10: anyio depends on the backport
+            from exceptiongroup import BaseExceptionGroup as group
+        except ImportError:
+            group = None
+    if group is not None:
+        errors.append(group)
+    return tuple(errors)
+
+
+_WORKER_STOP_ERRORS = _worker_stop_errors()
 
 
 @dataclass(frozen=True)
@@ -221,7 +244,7 @@ class McpToolbox:
     def _thread_main(self) -> None:
         try:
             asyncio.run(self._main())
-        except BaseException as exc:  # noqa: BLE001 -- a transport crash ends tool use, not the run
+        except _WORKER_STOP_ERRORS as exc:  # a transport crash ends tool use, not the run
             self.errors.append(f"MCP client stopped: {_describe(exc)}")
         finally:
             self._ready.set()

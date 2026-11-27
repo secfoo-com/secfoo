@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -564,6 +565,35 @@ def test_an_unreachable_server_is_reported_and_skipped():
     with McpToolbox([broken, _fake_server()], connect_timeout=20) as toolbox:
         assert list(toolbox.tools) == [TOOL]
         assert len(toolbox.errors) == 1 and toolbox.errors[0].startswith("broken: could not connect")
+
+
+@pytest.mark.parametrize("error", [RuntimeError("transport died"), asyncio.CancelledError()])
+def test_a_worker_crash_is_recorded_and_does_not_escape(error):
+    from secfoo.agents.mcp_tools import McpToolbox
+
+    toolbox = McpToolbox([])
+
+    async def crash():
+        raise error
+
+    toolbox._main = crash
+    toolbox._thread_main()  # must not raise
+    assert len(toolbox.errors) == 1 and toolbox.errors[0].startswith("MCP client stopped")
+    assert toolbox._ready.is_set()
+
+
+def test_a_keyboard_interrupt_in_the_worker_is_not_swallowed():
+    from secfoo.agents.mcp_tools import McpToolbox
+
+    toolbox = McpToolbox([])
+
+    async def interrupt():
+        raise KeyboardInterrupt
+
+    toolbox._main = interrupt
+    with pytest.raises(KeyboardInterrupt):
+        toolbox._thread_main()
+    assert toolbox._ready.is_set()
 
 
 def test_api_run_calls_a_configured_mcp_server(tmp_path, monkeypatch):
