@@ -952,6 +952,8 @@ args = ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
 hosts = ["wiki.internal.example", "*.atlassian.net"]
 ```
 
+The optional `tools` array (e.g. `["confluence_get_page", "jira_get_issue"]`) lists the tools the `api` agent may call on this server. Without it, only tools the server annotates `readOnlyHint: true` are offered. Other agents ignore it.
+
 The optional `hosts` array specifies hostnames or domain patterns served by this MCP server (e.g. `["wiki.internal.example", "*.atlassian.net"]`). A `*.` pattern matches subdomains only; list the bare domain too if needed. secfoo uses `hosts` to route URL context sources to their likely MCP readers and classify internal enterprise Confluence / Jira URLs.
 
 CLI flags always override `[defaults]`. See
@@ -979,6 +981,7 @@ How MCP servers reach each agent varies by what its CLI actually supports:
 | Agent | Mechanism |
 |---|---|
 | `claude` | Automatic on every `secfoo run` (`--mcp-config`, scoped to that invocation only — your global Claude config is never touched). These are the only MCP servers loaded during a scan (`--strict-mcp-config`): servers from your global Claude config or from the target's `.mcp.json` are not started |
+| `api` | Automatic on every `secfoo run`: secfoo connects to each server itself (stdio, HTTP or SSE) and offers its tools to the model as function tools. Only tools the server annotates `readOnlyHint: true` are offered, unless the server's entry lists tools by name in `tools = [...]`, which then offers exactly those. At most 20 tool calls and 5 minutes of tool use per run. After that the model is told the budget is spent and asked to finish the report. Results count toward `--max-input-tokens`, and a result over 40,000 characters is cut with a visible marker. Every call (server, tool, arguments, bytes returned) is logged to the run's `stderr.log`, and the log is shown to the model, so the coverage section can only claim pages a tool actually returned |
 | `gemini`, `agent` (Cursor) | Run `secfoo mcp sync --agent <agent>` once to register persistently in that tool's own config |
 | `codex` | Not wired up yet — Codex reads MCP servers from its own `~/.codex/config.toml` |
 | `agy` (Antigravity) | Not supported yet — its CLI has no MCP configuration mechanism as of this writing |
@@ -1005,9 +1008,8 @@ secfoo memory logout
 
 Once a key is saved, secfoo registers `secfoo-memory` as a default MCP
 server. `secfoo mcp list` shows it next to your own servers. `claude` picks
-it up on every run. For `gemini` or Cursor (`agent`), run
-`secfoo mcp sync --agent <agent>` once. The `api` agent has no tool loop,
-so memory doesn't apply to it. When memory is on, the prompt tells the
+it up on every run, and so does the `api` agent. For `gemini` or Cursor
+(`agent`), run `secfoo mcp sync --agent <agent>` once. When memory is on, the prompt tells the
 agent when to use the three tools (`lookup_patterns`, `get_remediation`,
 `check_false_positive`) and how to phrase a query.
 

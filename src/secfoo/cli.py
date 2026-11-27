@@ -1785,7 +1785,7 @@ def memory_signup(
 
     memory_module.save_memory_config(memory_module.MemoryConfig(api_key=api_key, url=url))
     console.print(f"Saved your secfoo-memory key to {memory_module.MEMORY_CONFIG_PATH}.")
-    console.print("Pattern lookups are now on for claude runs. Opt out per run with [bold]--no-memory[/].")
+    console.print("Pattern lookups are now on for claude and api runs. Opt out per run with [bold]--no-memory[/].")
 
 
 @memory_app.command(name="login")
@@ -1833,7 +1833,7 @@ def memory_status() -> None:
     elif memory_module.memory_server(config) is None:
         console.print(f"[yellow]Disabled in {CONFIG_PATH}[/] ([memory] enabled = false).")
     else:
-        console.print("Pattern lookups: [green]on[/] for claude (gemini/Cursor after `secfoo mcp sync`).")
+        console.print("Pattern lookups: [green]on[/] for claude and api (gemini/Cursor after `secfoo mcp sync`).")
     try:
         info = memory_module.whoami(config)
     except memory_module.MemoryServiceError as exc:

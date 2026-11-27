@@ -210,6 +210,21 @@ command = "npx"
     )
     cfg = load_config(path)
     assert cfg.mcp_servers[0].hosts == []
+    assert cfg.mcp_servers[0].tools == []
+
+
+def test_load_config_parses_mcp_server_tools_allowlist(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[[mcp_servers]]\nname = "atlassian"\ncommand = "npx"\ntools = [" getConfluencePage ", "search"]\n')
+    assert load_config(path).mcp_servers[0].tools == ["getConfluencePage", "search"]
+
+
+@pytest.mark.parametrize("value", ['"search"', "[1]", '[""]', "{ a = 1 }"])
+def test_load_config_rejects_an_invalid_mcp_server_tools_allowlist(tmp_path, value):
+    path = tmp_path / "config.toml"
+    path.write_text(f'[[mcp_servers]]\nname = "atlassian"\ncommand = "npx"\ntools = {value}\n')
+    with pytest.raises(ConfigError, match=r"mcp_servers\.atlassian\.tools"):
+        load_config(path)
 
 
 @pytest.mark.parametrize("value", ['"wiki.example.com"', "42", "true", "{ key = 'val' }"])
