@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "agent": "opencode",
+  "cli_version": "2.3.0",
+  "scenario": "auth_failure",
+  "verified_at": "2026-11-27T18:30:17+00:00",
+  "verified_by": "Shruti Singh",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "command": [
+    "C:\\Users\\shrut\\AppData\\Roaming\\npm\\opencode.CMD",
+    "run",
+    "--standalone",
+    "--format",
+    "json",
+    "-m",
+    "anthropic/claude-sonnet-4-6"
+  ],
+  "workdir": ".",
+  "prompt": "Reply with exactly: OK\n",
+  "status": "completed",
+  "exit_code": 1,
+  "stdout": "{\"type\":\"error\",\"timestamp\":1795804221674,\"sessionID\":\"ses_de1ba356effehbijTS1Le1HHsz\",\"error\":{\"type\":\"provider.no-route\",\"message\":\"Model unavailable: anthropic/claude-sonnet-4-6\"}}\n",
+  "stderr": ""
+}

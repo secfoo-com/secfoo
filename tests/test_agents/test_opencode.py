@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 from secfoo.agents import ADAPTERS, get_adapter
 from secfoo.agents.codex import CodexAdapter
@@ -17,14 +18,15 @@ def test_registered_for_cli():
 
 def test_build_command_is_noninteractive_and_does_not_auto_approve(tmp_path):
     command = OpenCodeAdapter().build_command("review", workdir=tmp_path)
-    assert command == ["opencode", "run", "--pure", "--format", "json", "--dir", str(tmp_path)]
+    assert command == ["opencode", "run", "--standalone", "--format", "json"]
     assert "--auto" not in command
+    assert "--pure" not in command  # removed in v2.3.0
+    assert "--dir" not in command  # removed in v2.3.0; cwd is set by run()
 
 
-def test_run_sets_permissions_and_pipes_prompt(fake_popen, tmp_path, monkeypatch):
+def test_run_sets_readonly_config_and_pipes_prompt(fake_popen, tmp_path, monkeypatch):
     monkeypatch.setenv("SECFOO_TEST_INHERITED", "present")
-    monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", '{"permission":{"bash":"allow"}}')
-    monkeypatch.setenv("OPENCODE_PERMISSION", '{"bash":"allow"}')
+    monkeypatch.setenv("OPENCODE_CONFIG", "somewhere-else.json")
     fake = fake_popen(stdout='{"type":"text","part":{"text":"report"}}', returncode=0)
     result = OpenCodeAdapter().run("review\nfiles", workdir=tmp_path)
     assert result.raw_report == "report"
@@ -32,10 +34,13 @@ def test_run_sets_permissions_and_pipes_prompt(fake_popen, tmp_path, monkeypatch
     assert fake.stdin_input == "review\nfiles"
     env = fake.call_kwargs["env"]
     assert env["SECFOO_TEST_INHERITED"] == "present"
-    assert json.loads(env["OPENCODE_CONFIG_CONTENT"]) == {
-        "permission": {"bash": "deny", "edit": "deny", "webfetch": "deny"}
+    config_path = Path(env["OPENCODE_CONFIG"])
+    assert config_path.is_file()
+    rules = json.loads(config_path.read_text(encoding="utf-8"))["permissions"]
+    assert rules[0] == {"action": "*", "resource": "*", "effect": "deny"}
+    assert {(rule["action"], rule["effect"]) for rule in rules[1:]} == {
+        ("read", "allow"), ("glob", "allow"), ("grep", "allow")
     }
-    assert json.loads(env["OPENCODE_PERMISSION"]) == {"bash": "deny", "edit": "deny", "webfetch": "deny"}
 
 
 def test_other_adapters_still_inherit_environment_by_default(fake_popen, tmp_path):

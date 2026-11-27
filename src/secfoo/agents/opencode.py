@@ -1,8 +1,11 @@
-"""OpenCode CLI adapter, tested against opencode 1.18.34.
+"""OpenCode CLI adapter, verified against @opencode/cli 2.3.0 (Windows x64, 2026-11-27).
 
-The non-interactive `run` command reads the prompt from stdin and rejects
-permission requests without --auto. Read-only permissions are configured via
-OPENCODE_CONFIG_CONTENT and OPENCODE_PERMISSION; --pure disables external plugins.
+OpenCode v2 removed the v1 ``--pure`` and ``--dir`` flags (passing either makes
+``run`` print help and exit 1), and moved permissions from the v1 ``permission``
+object to an ordered ``permissions`` array. The CLI only loads an explicit
+config when ``--standalone`` is used; with the shared background server the
+v1 env overrides are ignored and writes are allowed. The read-only policy is
+therefore shipped in ``opencode-readonly.json`` and passed via OPENCODE_CONFIG.
 """
 
 from __future__ import annotations
@@ -24,22 +27,31 @@ def _events(stdout: str):
             yield event
 
 
+def _errors(stdout: str):
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "error" and isinstance(event.get("error"), dict):
+            yield event["error"]
+
+
 class OpenCodeAdapter(AgentAdapter):
     name = "opencode"
     binary = "opencode"
     prompt_via_stdin = True
     model_flag = "-m"
     extra_env: ClassVar[dict[str, str]] = {
-        "OPENCODE_CONFIG_CONTENT": json.dumps(
-            {"permission": {"bash": "deny", "edit": "deny", "webfetch": "deny"}}
-        ),
-        "OPENCODE_PERMISSION": json.dumps({"bash": "deny", "edit": "deny", "webfetch": "deny"}),
+        "OPENCODE_CONFIG": str(Path(__file__).with_name("opencode-readonly.json")),
     }
 
     def build_command(self, prompt: str, *, workdir: Path) -> list[str]:
+        # --standalone is required for OPENCODE_CONFIG to be applied; cwd is
+        # set by AgentAdapter.run(), so no --dir is needed (v2 has no --dir).
         return [
-            self.binary, "run", "--pure", "--format", "json",
-            "--dir", str(workdir), *self.model_arguments(),
+            self.binary, "run", "--standalone", "--format", "json",
+            *self.model_arguments(),
         ]
 
     def extract_report(self, stdout: str) -> str:
@@ -65,3 +77,12 @@ class OpenCodeAdapter(AgentAdapter):
             output_tokens=total(token.get("output") for token in tokens),
             cost_usd=total(part.get("cost") for part in steps),
         )
+
+    def describe_failure(self, stdout: str, stderr: str) -> str | None:
+        # v2 reports auth/no-route failures as JSON events on stdout with an
+        # empty stderr; surface the CLI's own message instead of a blank error.
+        for error in _errors(stdout):
+            message = error.get("message")
+            if isinstance(message, str) and message:
+                return message
+        return None
