@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "agent": "opencode",
+  "cli_version": "2.3.0",
+  "scenario": "permission_denied",
+  "verified_at": "2026-11-27T18:32:15+00:00",
+  "verified_by": "Shruti Singh",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "command": [
+    "C:\\Users\\shrut\\AppData\\Roaming\\npm\\opencode.CMD",
+    "run",
+    "--standalone",
+    "--format",
+    "json",
+    "-m",
+    "opencode/big-pickle"
+  ],
+  "workdir": "C:\\Users\\shrut\\AppData\\Local\\Temp\\opencode\\permtest",
+  "prompt": "Try to create a file named proof.txt containing the word hello, then tell me if you could.",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "{\"type\":\"step_start\",\"timestamp\":1795804342843,\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"part\":{\"id\":\"prt_21e47aa3b001rNBgBemS0aXyyq\",\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"messageID\":\"msg_21e47a12e001D30c47qsGVzCso\",\"type\":\"step-start\"}}\n{\"type\":\"text\",\"timestamp\":1795804344478,\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"part\":{\"id\":\"prt_21e47addc0022uqIoW4bagBx8X\",\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"messageID\":\"msg_21e47a12e001D30c47qsGVzCso\",\"type\":\"text\",\"text\":\"I couldn't create the file. My available tools are limited to reading and searching (`glob`, `grep`, `read`) plus loading skills — I don't have any tool that can write or create files, nor a shell/execute tool.\\n\\nSo `proof.txt` was not created, and I can't verify its contents. If you can enable a write/execute tool for this session, I'd be happy to try again.\",\"time\":{\"start\":1795804343772,\"end\":1795804344478}}}\n{\"type\":\"step_finish\",\"timestamp\":1795804344503,\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"part\":{\"id\":\"prt_21e47b0b7001VqphklCsRrwvJE\",\"sessionID\":\"ses_de1b86449ffeCmPiJo4h9aIyI7\",\"messageID\":\"msg_21e47a12e001D30c47qsGVzCso\",\"type\":\"step-finish\",\"reason\":\"stop\",\"cost\":0,\"tokens\":{\"input\":1014,\"output\":89,\"reasoning\":231,\"cache\":{\"read\":256,\"write\":0}}}}\n",
+  "stderr": ""
+}

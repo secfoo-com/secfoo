@@ -18,7 +18,34 @@ brackets indicate optional arguments. All CLI processes run in `WORKDIR`.
 | `copilot` | Install via `npm install -g @github/copilot` ([docs](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli)). Authenticate by running `copilot` and using its `/login` command, or set `GH_TOKEN` / `GITHUB_TOKEN` (a fine-grained token with the Copilot Requests permission) for non-interactive use (checked against official docs on 2026-11-21). `copilot [--model MODEL] --output-format json --allow-all-tools` (prompt on stdin). Tools, including writes, are auto-approved: read-only behavior relies on review instructions, not a sandbox. |
 | `droid` | Install via `curl -fsSL https://app.factory.ai/cli \| sh` ([docs](https://docs.factory.ai/cli/getting-started/overview)). Set `FACTORY_API_KEY` for non-interactive use or run `droid` to sign in interactively (checked against official docs on 2026-11-21, not on an installed CLI). `droid exec [-m MODEL] --output-format json --cwd WORKDIR -- PROMPT`. Droid defaults to read-only; a full authenticated secfoo run was not verified in the adapter. |
 | `devin` | Install via `brew install --cask devin-cli` ([docs](https://docs.devin.ai)). Authenticate beforehand with `devin auth login`; credential reuse for headless runs is unverified (install and login checked against official docs on 2026-11-21, not on an installed CLI). `devin -p PROMPT --respect-workspace-trust false --permission-mode auto`. The combined command and an authenticated end-to-end run are unverified; `auto` is documented by the CLI as approving read-only tools. |
+| `opencode` | Install via `npm install -g @opencode/cli` ([docs](https://opencode.ai/docs/)); the installed package was `@opencode/cli@2.3.0` on 2026-11-28, Windows x64. Authenticate for paid providers with `opencode auth login` (or `/connect` in the TUI); the free `opencode/*` models used for verification needed no login (`opencode auth list` reported no integrations). `opencode run --standalone --format json [-m MODEL]` (prompt on stdin). v2 removed the v1 `--pure` and `--dir` flags, and the v1 permission env vars are ignored: the read-only `permissions` array is shipped in `src/secfoo/agents/opencode-readonly.json`, loaded via `OPENCODE_CONFIG`, and requires `--standalone` to take effect. |
 | `api` | No agent binary is invoked. `litellm` and `langgraph` are installed with secfoo; if importing them fails, reinstall secfoo the way you installed it (`pipx reinstall secfoo` or `pip install --force-reinstall secfoo`). Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`. Source files are included in the API prompt. Model selection uses the configured model, then `SECFOO_API_MODEL`, then `openai/gpt-4.1-mini`. |
+
+## Verification matrix
+
+Recordings are made with `scripts/record_agent.py` (raw stdout/stderr/exit code,
+prompt and CLI version; credentials are redacted and the script refuses to save
+a transcript containing a key-shaped value). They live under
+`tests/fixtures/agents/<id>/<cli-version>/` and are replayed by tests. A blank
+cell means "not checked yet", not "verified working".
+
+| `--agent` | CLI version | Date | Verified by | Install | Auth | Run | Timeout | Cost | Recordings |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `opencode` | `opencode v2.3.0` (`@opencode/cli@2.3.0`, Windows x64) | 2026-11-28 | Shruti Singh | Command from official docs; installed package observed | Free `opencode/*` models needed no login; paid model returned `provider.no-route` | ✅ `secret-scanning --depth quick` on `examples/`, report parsed by `extract_report()` | ✅ 8 s run killed, `status=timeout` | ✅ `step_finish` cost 0; input 46675 / output 3382 tokens | `success`, `auth_failure`, `timeout`, `permission_denied`, `flag_drift` |
+
+The other adapters' version/date/check notes are in the table above; this
+matrix is filled in as real recordings land. Issue #116 stays open until every
+CLI adapter has a success and a failure recording.
+
+To repeat the opencode run:
+
+```bash
+python scripts/record_agent.py --agent opencode --version 2.3.0 \
+  --scenario success --verified-by "Your Name" --workdir examples \
+  --prompt-file prompt.md --timeout 180 \
+  --env OPENCODE_CONFIG=src/secfoo/agents/opencode-readonly.json -- \
+  opencode run --standalone --format json -m opencode/big-pickle
+```
 
 `agy` and `devin` do not support adapter model selection; secfoo warns and
 ignores a requested model. Other CLI model flags are shown above.
@@ -28,6 +55,12 @@ ignores a requested model. Other CLI model flags are shown above.
 - `binary_not_found`: `binary '<name>' not found on PATH` means the CLI
   was not found. Install it and make its binary available on `PATH`.
   Detection checks the binary, not authentication.
+- OpenCode v2.3.0 ignores the v1 `OPENCODE_CONFIG_CONTENT`/`OPENCODE_PERMISSION`
+  env vars and the v1 `--pure`/`--dir` flags (`flag_drift.json` records the
+  CLI's `Unrecognized flag` errors). With those env vars alone a write tool
+  was observed actually creating `proof.txt`; the shipped v2 `permissions`
+  array plus `--standalone` denied the same write (`permission_denied.json`).
+  Keep secfoo updated when upgrading OpenCode majors.
 - Authentication or trust prompts cannot be answered during a run: stdin
   is closed or used for the prompt. Authenticate beforehand. Droid reports
   `Authentication failed` without its key; Devin was observed reporting
@@ -37,7 +70,11 @@ ignores a requested model. Other CLI model flags are shown above.
 - `timeout`: secfoo kills the process tree. Cursor's headless mode has a
   documented hang; its default timeout is 900 seconds (other CLI adapters
   default to 1800). Antigravity also receives its effective print timeout.
-- `failed`: inspect the error. Gemini can report `IneligibleTierError`;
+  OpenCode's 8-second recording produced `status=timeout` with no report.
+- `failed`: inspect the error. OpenCode v2 reports an unconfigured provider as
+  a stdout JSON event (`provider.no-route`, `Model unavailable: ...`) with an
+  empty stderr; secfoo extracts that message so the reason is not lost. Gemini
+  can report `IneligibleTierError`;
   the adapter suggests Antigravity (`--agent agy`) if it persists. Codex
   reports a failed run if its sandbox rejects commands. Antigravity may
   return empty output or `Error: Agent execution terminated due to error.`;
