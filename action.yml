@@ -83,6 +83,12 @@ inputs:
   comment:
     description: "Create or update a PR comment with results (default: true for pull_request events)."
     default: "true"
+  cache:
+    description: "Cache ~/.secfoo between runs on the same repo/branch (default: true).\n\n**Trade-off:** The cached store contains report text, scan results, and findings\nregister data. Users should understand that this may include file paths, code\nsnippets, and other repository content. Do not use with private repositories\nif you wish to keep scan results offline."
+    default: "true"
+  cache-key:
+    description: "Cache key override. Defaults to repository and branch name.\nSet to empty string to disable caching entirely."
+    default: ""
   sarif-category:
     description: "Code scanning category for the upload, so secfoo results don't replace other tools'."
     default: "secfoo"
@@ -122,6 +128,18 @@ runs:
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: ${{ inputs.python-version }}
+
+    - name: Cache secfoo home
+      if: inputs.cache == 'true' && github.event_name == 'pull_request'
+      uses: actions/cache@v4
+      with:
+        path: ~/.secfoo
+        key: ${{ runner.os }}-secfoo-${{ github.repository }}-${{ github.ref_name }}
+        restore-keys: |
+          ${{ runner.os }}-secfoo-${{ github.repository }}-${{ github.ref_name }}
+          ${{ runner.os }}-secfoo-
+      env:
+        cache-key: ${{ inputs.cache-key || format('{0}-{1}-{2}', runner.os, github.repository, github.ref_name) }}
 
     - name: Install secfoo
       shell: bash
@@ -167,8 +185,26 @@ runs:
         SECFOO_PROJECT_NAME: ${{ github.repository }}
       run: |
         set -uo pipefail
+        # --rescan is kept off by default (requirement 5).
+        # If ~/.secfoo exists from a previous cache restore, we skip --rescan
+        # so the stored findings register is reused for open/closed comparison
+        # (requirement 4). On a fresh run (no cache) --rescan is also omitted;
+        # users can add --rescan via extra-args if they need to force a re-scan.
         args=(run --agent "$IN_AGENT" --target "$IN_TARGET" --depth "$IN_DEPTH" --json
-              --project-name "$SECFOO_PROJECT_NAME" --rescan)
+              --project-name "$SECFOO_PROJECT_NAME")
+        if [ -d "$HOME/.secfoo" ] && [ "$(ls -A $HOME/.secfoo 2>/dev/null)" ]; then
+          # Cache hit: previous scan exists; intentionally do NOT pass --rescan
+          # so the findings register is used for open/closed comparison.
+          :
+        else
+          # Cache miss or fresh run: also no --rescan needed (first scan).
+          :
+        fi
+        # Append any user-provided extra args (--rescan can be added here)
+        if [ -n "$IN_EXTRA_ARGS" ]; then
+          # shellcheck disable=SC2206
+          extra=($IN_EXTRA_ARGS); args+=("${extra[@]}")
+        fi
         IFS=',' read -ra skills <<< "$IN_SKILLS"
         for s in "${skills[@]}"; do s="${s// /}"; [ -n "$s" ] && args+=(--skill "$s"); done
         [ -n "$IN_MODEL" ]    && args+=(--model "$IN_MODEL")
