@@ -1,0 +1,208 @@
+{% if rai_dash.unparsable_reports %}
+<p class="alert alert--warning" role="status">{{ rai_dash.unparsable_reports|unique|list|length }} stored report(s) could not be parsed and were excluded. Open the original report to inspect them; these results are not a clean scan.</p>
+{% endif %}
+{# Responsible AI program dashboard (#131): the skill's own seven dimensions,
+   findings tagged by dimension and framework, and the stakes tier of each
+   system. Data comes from the newest successful run per project. #}
+{% from "_macros.html" import info_tip %}
+
+<span class="ds-overline u-d-block u-mt-8">Program dashboard</span>
+
+<div class="stat-card-grid u-mt-4">
+  <div class="stat-card has-info">
+    {% call info_tip("Systems reviewed") %}
+    <p>Systems with at least one successful Responsible AI Compliance run that produced dimension coverage.</p>
+    <p>Old reports are read once as a fallback when no structured rows exist yet.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.systems|length }}</span>
+    <span class="stat-card__label">Systems reviewed</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("Coverage of projects in scope") %}
+    <p>Reviewed systems as a share of every project with an assessment.</p>
+    <p>A system counts once even when it has several runs; only the newest successful run supplies its coverage.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.coverage_pct }}%</span>
+    <span class="stat-card__label">Coverage of projects in scope — {{ rai_dash.coverage_reviewed }} / {{ rai_dash.coverage_in_scope }}</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("Missing dimensions") %}
+    <p>Dimension × system pairs where the latest report says the safeguard is missing.</p>
+    <p>A missing dimension is different from a lower-severity finding: it means no usable control was found for that system.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.systems|sum(attribute="missing_count") }}</span>
+    <span class="stat-card__label">Missing dimensions</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("High-stakes systems") %}
+    <p>Systems whose AI System Profile records a high stakes tier for the decisions they make or influence.</p>
+    <p>Stakes come from the report's own profile, not from the worst finding; a low-stakes system with a finding stays low-stakes.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.systems|selectattr("stakes_tier", "equalto", "high")|list|length }}</span>
+    <span class="stat-card__label">High-stakes systems</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("Findings reviewed") %}
+    <p>Dimension-tagged findings from each system's newest Responsible AI report, added together.</p>
+    <p>This replaces the generic severity total: an adequate dimension with no finding contributes zero, while a missing one is shown as a finding.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.finding_count }}</span>
+    <span class="stat-card__label">Findings reviewed</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("Framework mappings") %}
+    <p>Findings that name a NIST AI RMF function, EU AI Act article or risk class, or an internal policy ID.</p>
+    <p>Unmapped findings are still shown under their dimension; the framework column is optional in the skill's contract.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ rai_dash.framework_rows|length }}</span>
+    <span class="stat-card__label">Frameworks referenced</span>
+  </div>
+</div>
+
+<div class="u-d-grid u-cols-3fr-2fr u-gap-6 u-mt-8">
+  <div class="card has-info">
+    {% call info_tip("Dimension × project coverage") %}
+    <p>One row per skill dimension, one column per system with structured coverage data. A cell shows the status the newest report gave that system.</p>
+    <p>Red is missing, amber is partial, green is adequate, and neutral means not applicable or not reported. "--" means the report did not cover the dimension.</p>
+    {% endcall %}
+    <h4 class="card__title">Dimension × project coverage</h4>
+    {% if rai_dash.systems %}
+    <div class="table-wrap widget-scroll" data-scroll-rows="10">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            {% for system in rai_dash.systems %}<th class="u-text-center">{{ system.project_display_name }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rai_dash.heatmap %}
+          <tr>
+            <td>{{ row.dimension }}</td>
+            {% for cell in row.cells %}
+            <td class="u-text-center
+              {%- if cell.status == 'missing' %} u-bg-error-bg
+              {%- elif cell.status == 'partial' %} u-bg-warning-bg
+              {%- elif cell.status == 'adequate' %} u-bg-success-bg
+              {%- else %} u-bg-neutral-bg{% endif %}">
+              {% if cell.status %}{{ cell.status }}{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="ds-body u-color-text-muted">No structured dimension coverage yet. Run Responsible AI Compliance against a project to fill this matrix.</p>
+    {% endif %}
+  </div>
+
+  <div class="card has-info">
+    {% call info_tip("Stakes tier per system") %}
+    <p>The stakes recorded in each system's AI System Profile, next to the models and providers the report found in code.</p>
+    <p>These are the report's own values. An empty tier means the report did not state one; nothing is inferred from severity.</p>
+    {% endcall %}
+    <h4 class="card__title">Stakes tier per system</h4>
+    {% if rai_dash.systems %}
+    <div class="table-wrap widget-scroll" data-scroll-rows="10">
+      <table class="table">
+        <thead><tr><th>System</th><th>Stakes</th><th>Rating</th><th>Models found in code</th></tr></thead>
+        <tbody>
+          {% for system in rai_dash.systems %}
+          <tr>
+            <td>{{ system.project_display_name }}</td>
+            <td>{{ system.stakes_tier or "—" }}</td>
+            <td>{{ system.overall_rating or "—" }}</td>
+            <td>{{ system.models|join(", ") if system.models else "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="ds-body u-color-text-muted">No system profiles have been reported yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card u-mt-8 has-info">
+  {% call info_tip("Open findings by dimension") %}
+  <p>Findings from each system's newest Responsible AI report, grouped by the dimension the report assigned them to.</p>
+  <p>Framework is optional: a "--" means the report named no NIST AI RMF function, EU AI Act article or internal policy.</p>
+  {% endcall %}
+  <h4 class="card__title">Open findings by dimension</h4>
+  {% if rai_dash.findings_by_dimension %}
+  <div class="table-wrap widget-scroll" data-scroll-rows="10">
+    <table class="table">
+      <thead><tr><th>Dimension</th><th>System</th><th>Finding</th><th>Severity</th><th>Framework</th></tr></thead>
+      <tbody>
+        {% for dimension, findings in rai_dash.findings_by_dimension.items() %}
+        {% for finding in findings %}
+        <tr>
+          <td>{{ dimension }}</td>
+          <td>{{ finding.project_display_name }}</td>
+          <td>
+            {% if finding.run_uuid %}<a href="/runs/{{ finding.run_uuid }}">{{ finding.title }}</a>{% else %}{{ finding.title }}{% endif %}
+            <span class="u-color-text-muted">{{ finding.finding_ref }}</span>
+          </td>
+          <td>{{ finding.severity }}</td>
+          <td>{{ finding.framework or "--" }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="ds-body u-color-text-muted">No dimension-tagged findings yet. Older reports without a Dimension column are not guessed at.</p>
+  {% endif %}
+</div>
+
+<div class="u-d-grid u-cols-2fr-3fr u-gap-6 u-mt-8">
+  <div class="card has-info">
+    {% call info_tip("Framework mapping") %}
+    <p>How many findings cite each governance framework. One finding can carry only one framework string.</p>
+    <p>Counts come from the newest report per system, so a re-run replaces rather than adds to that system's findings.</p>
+    {% endcall %}
+    <h4 class="card__title">Framework mapping</h4>
+    {% if rai_dash.framework_rows %}
+    <div class="table-wrap widget-scroll" data-scroll-rows="10">
+      <table class="table">
+        <thead><tr><th>Framework reference</th><th>Findings</th></tr></thead>
+        <tbody>
+          {% for row in rai_dash.framework_rows %}
+          <tr><td>{{ row.framework }}</td><td>{{ row.count }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="ds-body u-color-text-muted">No findings cite a framework yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card has-info">
+    {% call info_tip("AI-BOM cross-check") %}
+    <p>Models named in the newest Responsible AI report that are absent from the assessment's AI-BOM, and BOM models the report does not mention.</p>
+    <p>This is a review prompt, not an authoritative inventory: the report describes what was found in code, the BOM describes what was declared.</p>
+    {% endcall %}
+    <h4 class="card__title">AI-BOM cross-check</h4>
+    {% if rai_dash.bom_diff_rows %}
+    <div class="table-wrap widget-scroll" data-scroll-rows="10">
+      <table class="table">
+        <thead><tr><th>System</th><th>In code, not in AI-BOM</th><th>In AI-BOM, not in code</th></tr></thead>
+        <tbody>
+          {% for row in rai_dash.bom_diff_rows %}
+          <tr><td>{{ row.system }}</td><td>{{ row.code_only|join(", ") or "—" }}</td><td>{{ row.bom_only|join(", ") or "—" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="ds-body u-color-text-muted">No mismatches found. This panel appears only for assessments with an attached AI-BOM.</p>
+    {% endif %}
+  </div>
+</div>
+
+<p class="u-mt-6"><a class="btn btn--outline btn--sm" href="/activities/responsible-ai-compliance/dimensions">View all dimensions →</a></p>

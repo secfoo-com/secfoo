@@ -51,6 +51,8 @@ class RunRecord:
     skill_version: int | None = None
     skill_source: str | None = None
     skill_sha256: str | None = None
+    # #131: the report's own overall rating, stored at run completion.
+    overall_rating: str | None = None
 
 
 @dataclass(frozen=True)

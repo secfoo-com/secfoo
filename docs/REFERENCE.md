@@ -254,6 +254,52 @@ text on every request — there is no persistent per-finding lifecycle.
 Findings link to a detail page keyed by `(project, finding ID, type,
 location)` so duplicate rows in a report remain addressable.
 
+### Responsible AI program dashboard
+
+The Responsible AI Compliance activity page
+(`/activities/responsible-ai-compliance`) is **not** the generic SAST-shaped
+findings bar. Its own output contract asks the report for an **AI System
+Profile** (models, providers, what the system decides, who is affected, and
+the stakes tier), a **Findings Register** with `Dimension` and optional
+`Framework` columns instead of `CWE`, a `## Detailed Findings` section whose
+headings are `### [Severity] Fn:`, and a **Dimension Coverage** table with a
+row for each of the seven safeguards — Documentation, Bias & fairness,
+Human oversight, Transparency to end users, Data provenance & consent,
+Framework alignment, and Auditability & recourse. A safeguard with no
+finding is still reported as `adequate` with concrete evidence, never left
+blank.
+
+![Responsible AI program dashboard with the dimension coverage matrix, stakes tiers and AI-BOM cross-check](assets/responsible-ai-dashboard.png)
+
+At run completion secfoo parses that report once and writes the rating and
+the structured dimension/finding rows in the **same transaction** as the run
+row. The dashboard reads the newest successful run per project, so a re-run
+replaces that system's view rather than adding to a historical total. It
+answers four questions the old flat report could not:
+
+- **Which safeguard is failing?** A dimension × project coverage matrix,
+  with missing/partial/adequate cells and a clickable full view at
+  `/activities/responsible-ai-compliance/dimensions` carrying the report's
+  evidence and full finding text.
+- **Which system, and at what stakes?** A per-system list with the report's
+  own stakes tier, models found in code, and overall rating.
+- **Under which framework?** Framework tags (NIST AI RMF function, EU AI Act
+  article/risk class, internal policy ID) are counted and shown on every
+  finding; unmapped findings stay in their dimension.
+- **Does the inventory agree?** When an assessment has an attached AI-BOM,
+  the run brief includes it as reference data and both the assessment page
+  and the dashboard show models found in code but absent from the BOM, and
+  models declared in the BOM that the code does not use. The BOM is a claim,
+  not truth — the panel is a review prompt.
+
+The `/responsible-ai` page keeps the risk-tier mix (high, moderate, low and
+provisional counts) and links to the dimension dashboard. Reports written
+before this contract still produce a rating and finding counts, but their
+CWE column is never relabelled as a dimension; until a contract-shaped run
+exists, the activity page keeps its generic stat cards instead of showing
+an empty matrix. Deleting an assessment keeps the per-run RAI evidence but
+detaches it from the deleted case file.
+
 ### SAST Open/Closed finding identity
 
 The SAST activity dashboard (`/activities/sast`) is the one program view
@@ -919,7 +965,8 @@ secfoo assessment delete 1
 
 Responsible AI risk badges in the dashboard are derived automatically from
 an assessment's attached Responsible AI Compliance run (its `Overall risk
-rating` line) rather than set manually, and stay "provisional" until the
+rating` line, stored on the run at completion rather than re-read from the
+Markdown file) rather than set manually, and stay "provisional" until the
 assessment's own status is marked Completed.
 
 ## Configuration (`~/.secfoo/config.toml`)

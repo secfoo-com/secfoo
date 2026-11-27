@@ -87,7 +87,12 @@ CREATE TABLE IF NOT EXISTS runs (
     -- skill's Markdown file. NULL for runs from before these existed.
     skill_version     INTEGER,
     skill_source      TEXT,   -- builtin / user
-    skill_sha256      TEXT
+    skill_sha256      TEXT,
+    -- #131: the skill's own **Overall risk rating:** line, stored at run
+    -- completion. The Responsible AI badge reads this column instead of
+    -- re-opening every assessment's report file on every page load.
+    -- NULL for runs from before this column existed, or with no rating.
+    overall_rating    TEXT
 );
 
 -- Documentation sources a run was given and whether the agent reached each
@@ -327,6 +332,42 @@ CREATE TABLE IF NOT EXISTS secret_findings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_secret_findings_project_status ON secret_findings(project_id, status);
+
+-- #131: Responsible AI Compliance's own output shape. Unlike the code
+-- finding tables above these are a per-run snapshot of the report's
+-- dimension coverage and findings, not an open/closed lifecycle: the
+-- dashboard always reads the newest successful run for each project.
+-- `profile_json` holds the parsed AI System Profile (models, providers,
+-- what the system decides, who is affected, stakes tier) once per run.
+CREATE TABLE IF NOT EXISTS rai_dimensions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id         INTEGER NOT NULL REFERENCES runs(id),
+    project_id     INTEGER NOT NULL REFERENCES projects(id),
+    assessment_id  INTEGER REFERENCES assessments(id),
+    dimension      TEXT NOT NULL,
+    status         TEXT NOT NULL CHECK (status IN ('adequate','partial','missing','not applicable')),
+    evidence       TEXT NOT NULL DEFAULT '',
+    finding_ids    TEXT NOT NULL DEFAULT '',
+    stakes_tier    TEXT NOT NULL DEFAULT '',
+    profile_json   TEXT NOT NULL DEFAULT '{}',
+    UNIQUE (run_id, dimension)
+);
+
+CREATE TABLE IF NOT EXISTS rai_findings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id         INTEGER NOT NULL REFERENCES runs(id),
+    project_id     INTEGER NOT NULL REFERENCES projects(id),
+    assessment_id  INTEGER REFERENCES assessments(id),
+    finding_ref    TEXT NOT NULL,   -- the report's Fn id, display only
+    title          TEXT NOT NULL,
+    severity       TEXT NOT NULL,
+    dimension      TEXT NOT NULL DEFAULT '',
+    framework      TEXT NOT NULL DEFAULT '',
+    stakes         TEXT NOT NULL DEFAULT '',
+    description    TEXT NOT NULL DEFAULT '',
+    recommendation TEXT NOT NULL DEFAULT '',
+    UNIQUE (run_id, finding_ref)
+);
 
 -- Runtime evidence for SCA findings (#51 / #53): what a probe, sensor or
 -- imported coverage file observed in a running app. Written only by

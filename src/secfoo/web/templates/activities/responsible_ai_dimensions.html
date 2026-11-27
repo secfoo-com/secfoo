@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "_page.html" import page_head %}
+{% from "_macros.html" import info_tip %}
+{% block title %}Responsible AI dimensions — secfoo{% endblock %}
+{% block content %}
+{# Long-form companion to the activity dashboard (#131). The shared partial
+   gives the same coverage matrix and summary tiles; these tables carry the
+   underlying evidence and full finding text for reviewers who need it. #}
+{% set rai_dash = dash %}
+<a href="/activities/responsible-ai-compliance" class="ds-caption">&larr; Back to Responsible AI Compliance</a>
+{% call page_head(skill_id, "Activity", "Responsible AI compliance dimensions", "Per-system evidence for each of the skill's seven safeguards, and every dimension-tagged finding.") %}
+<a class="btn btn--outline btn--sm" href="/activities/responsible-ai-compliance">Program dashboard</a>
+{% endcall %}
+
+{% include "activities/responsible_ai_dashboard.html" %}
+
+<div class="card u-mt-8 has-info">
+  {% call info_tip("Dimension evidence") %}
+  <p>Every structured dimension row from the newest successful run of each system, including rows whose status is adequate.</p>
+  <p>Evidence is short supporting text copied from the report. Finding IDs link the row back to the findings table below; "—" means the report recorded no finding for that dimension.</p>
+  {% endcall %}
+  <h4 class="card__title">Dimension evidence</h4>
+  {% if rai_dash.dimension_rows %}
+  <div class="table-wrap widget-scroll" data-scroll-rows="10">
+    <table class="table">
+      <thead><tr><th>System</th><th>Dimension</th><th>Status</th><th>Evidence</th><th>Finding IDs</th><th>Run</th></tr></thead>
+      <tbody>
+        {% for row in rai_dash.dimension_rows %}
+        <tr>
+          <td>
+            {% if row.assessment_id %}<a href="/assessments/{{ row.assessment_id }}">{{ row.project_display_name }}</a>{% else %}{{ row.project_display_name }}{% endif %}
+          </td>
+          <td>{{ row.dimension }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.evidence or "—" }}</td>
+          <td>{{ row.finding_id_list | join(", ") if row.finding_id_list else "—" }}</td>
+          <td>{% if row.run_uuid %}<a href="/runs/{{ row.run_uuid }}">Report</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="ds-body u-color-text-muted">No structured dimension rows yet. Legacy reports need to be re-run to produce this evidence table.</p>
+  {% endif %}
+</div>
+
+<div class="card u-mt-8 has-info">
+  {% call info_tip("All findings") %}
+  <p>Full detail for the findings summarized on the activity page: what the report saw, who it affects, and what it recommends.</p>
+  <p>Stakes are copied from the same report, not inferred from severity. Reports that do not name a framework remain in this table with "--".</p>
+  {% endcall %}
+  <h4 class="card__title">All findings</h4>
+  {% if rai_dash.findings_by_dimension %}
+  <div class="table-wrap widget-scroll" data-scroll-rows="10">
+    <table class="table">
+      <thead><tr><th>System</th><th>Dimension</th><th>Finding</th><th>Severity</th><th>Stakes</th><th>Framework</th><th>Description</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        {% for dimension, findings in rai_dash.findings_by_dimension.items() %}
+        {% for finding in findings %}
+        <tr>
+          <td>{{ finding.project_display_name }}</td>
+          <td>{{ dimension }}</td>
+          <td>
+            {% if finding.run_uuid %}<a href="/runs/{{ finding.run_uuid }}">{{ finding.title }}</a>{% else %}{{ finding.title }}{% endif %}
+            <span class="u-color-text-muted">{{ finding.finding_ref }}</span>
+          </td>
+          <td>{{ finding.severity }}</td>
+          <td>{{ finding.stakes or "—" }}</td>
+          <td>{{ finding.framework or "--" }}</td>
+          <td>{{ finding.description or "—" }}</td>
+          <td>{{ finding.recommendation or "—" }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="ds-body u-color-text-muted">No dimension-tagged findings yet. Older CWE-shaped reports are not guessed at.</p>
+  {% endif %}
+</div>
+
+<div class="card u-mt-8 has-info">
+  {% call info_tip("Stakes distribution") %}
+  <p>How many reported findings affect each stakes tier, across the newest report of every system.</p>
+  <p>This counts findings, not systems. The per-system tier is shown in the stakes table above and comes from the AI System Profile.</p>
+  {% endcall %}
+  <h4 class="card__title">Stakes distribution</h4>
+  <div class="table-wrap widget-scroll" data-scroll-rows="10">
+    <table class="table">
+      <thead><tr><th>Stakes tier</th><th>Findings</th></tr></thead>
+      <tbody>
+        {% for row in rai_dash.stakes_rows %}
+        <tr><td>{{ row.stakes }}</td><td>{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

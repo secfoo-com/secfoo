@@ -17,6 +17,7 @@ from secfoo.attachments import infer_attachment_kind
 from secfoo.config import attachment_dir
 from secfoo.context_run import resolve_run_context
 from secfoo.context_sources import ContextSourceError, looks_like_url
+from secfoo.report.responsible_ai import AIProfile, ai_bom_diff
 from secfoo.runner import _project_display_name, execute_runs
 from secfoo.settings import ConfigError, load_config
 from secfoo.skills.loader import SkillLoadError, load_all_skills, load_skill
@@ -287,6 +288,22 @@ def assessment_detail(request: Request, assessment_id: int):
         runs = repo.list_runs(assessment_id=assessment_id, limit=200)
         attachments = repo.list_attachments(assessment_id)
         models_count, tools_count = repo.ai_bom_counts(assessment_id)
+        ai_bom_items = repo.list_ai_bom_items(assessment_id)
+        rai_profile, rai_rating = repo.latest_responsible_ai_profile(assessment_id)
+
+    # Cross-check the declared inventory against the models the newest
+    # Responsible AI report says it actually found in code (#131). Both sides
+    # stay visible in the template; neither is treated as authoritative.
+    ai_bom_check = None
+    if ai_bom_items and rai_profile:
+        profile = AIProfile(
+            models=tuple(rai_profile.get("models") or ()),
+            providers=tuple(rai_profile.get("providers") or ()),
+            decides=str(rai_profile.get("decides") or ""),
+            affected=str(rai_profile.get("affected") or ""),
+            stakes_tier=str(rai_profile.get("stakes_tier") or ""),
+        )
+        ai_bom_check = ai_bom_diff(profile, ai_bom_items)
 
     has_running_run = any(r.status in _ACTIVE_RUN_STATUSES for r in runs)
 
@@ -299,6 +316,9 @@ def assessment_detail(request: Request, assessment_id: int):
             "attachments": attachments,
             "models_count": models_count,
             "tools_count": tools_count,
+            "ai_bom_check": ai_bom_check,
+            "rai_profile": rai_profile,
+            "rai_rating": rai_rating,
             "has_running_run": has_running_run,
             "pipeline": assessment_pipeline(runs, _pipeline_skills(runs)),
             "severity_rows": severity_rows(

@@ -122,6 +122,34 @@
 </div>
 {% endif %}
 
+{% if ai_bom_check %}
+<div class="card u-mt-6 has-info">
+  {% call info_tip("AI-BOM cross-check") %}
+  <p>Models named in the newest Responsible AI report beside the models declared in the attached AI-BOM.</p>
+  <p>The BOM is reference data, not proof: this panel is a review prompt. A name counts as the same model when case and punctuation differ.</p>
+  {% endcall %}
+  <h4 class="card__title">AI-BOM cross-check</h4>
+  <p class="ds-body u-color-text-muted">
+    Responsible AI rating: {{ rai_rating or "—" }} · stakes: {{ rai_profile.stakes_tier or "—" }}
+  </p>
+  <div class="table-wrap widget-scroll u-mt-4" data-scroll-rows="10">
+    <table class="table">
+      <thead><tr><th>Found in code, not in AI-BOM</th><th>In AI-BOM, not found in code</th><th>Agreed on both</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>{{ ai_bom_check.code_only|join(", ") or "—" }}</td>
+          <td>{{ ai_bom_check.bom_only|join(", ") or "—" }}</td>
+          <td>{{ ai_bom_check.shared|join(", ") or "—" }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if not ai_bom_check.code_only and not ai_bom_check.bom_only %}
+  <p class="ds-body u-color-text-muted u-mt-4">No mismatches. The declared inventory agrees with the models in the report.</p>
+  {% endif %}
+</div>
+{% endif %}
+
 <form method="post" action="/assessments/{{ assessment.id }}/attachments" enctype="multipart/form-data" class="u-d-flex u-gap-3 u-items-center u-mt-4">
   <input class="input" type="file" name="file" required>
   <button class="btn btn--outline btn--sm" type="submit">Upload attachment</button>

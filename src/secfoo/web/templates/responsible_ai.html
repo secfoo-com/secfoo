@@ -23,6 +23,22 @@
     <span class="stat-card__label">High-risk</span>
   </div>
   <div class="stat-card has-info">
+    {% call info_tip("Moderate-risk") %}
+    <p>Of the rated assessments, how many the run placed in the middle tier.</p>
+    <p>These systems still need a documented safeguard review; see the dimension dashboard for which safeguard is weakest.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ moderate_risk }}</span>
+    <span class="stat-card__label">Moderate-risk</span>
+  </div>
+  <div class="stat-card has-info">
+    {% call info_tip("Low-risk") %}
+    <p>Of the rated assessments, how many the run placed in the lowest tier.</p>
+    <p>A low rating is not a waiver: dimension coverage and AI-BOM mismatches are still shown on the program dashboard.</p>
+    {% endcall %}
+    <span class="stat-card__value">{{ low_risk }}</span>
+    <span class="stat-card__label">Low-risk</span>
+  </div>
+  <div class="stat-card has-info">
     {% call info_tip("Provisional") %}
     <p>Ratings that are not final yet.</p>
     <p>An assessment stays provisional until its status is marked Completed. Completing it does not change the risk level, only that the rating is signed off.</p>
@@ -32,10 +48,12 @@
   </div>
 </div>
 
+<p class="u-mt-6"><a class="btn btn--outline btn--sm" href="/activities/responsible-ai-compliance/dimensions">View per-dimension coverage and AI-BOM cross-check →</a></p>
+
 {% if assessments %}
 <div class="table-wrap widget-scroll u-mt-8" data-scroll-rows="10">
   <table class="table">
-    <thead><tr><th>Project</th><th>Risk</th><th>Rating status</th><th>Assessment status</th></tr></thead>
+    <thead><tr><th>Project</th><th>Risk</th><th>Rating status</th><th>Assessment status</th><th>Dimensions</th></tr></thead>
     <tbody>
       {% for a in assessments %}
       <tr class="run-row" data-href="/assessments/{{ a.id }}" tabindex="0">
@@ -43,6 +61,7 @@
         <td><span class="badge {{ a.responsible_ai_risk | responsible_ai_risk_badge }}">{{ a.responsible_ai_risk }}</span></td>
         <td><span class="badge {{ a.responsible_ai_status | responsible_ai_status_badge }}">{{ a.responsible_ai_status }}</span></td>
         <td><span class="badge {{ a.status | assessment_status_badge }}">{{ a.status | assessment_status_label }}</span></td>
+        <td><a href="/activities/responsible-ai-compliance/dimensions">View dimensions</a></td>
       </tr>
       {% endfor %}
     </tbody>

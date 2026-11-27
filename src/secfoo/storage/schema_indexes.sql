@@ -12,3 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_assessments_type ON assessments(assessment_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_uuid ON assessments(assessment_uuid);
 CREATE INDEX IF NOT EXISTS idx_assessment_attachments_assessment_id ON assessment_attachments(assessment_id);
 CREATE INDEX IF NOT EXISTS idx_ai_bom_items_attachment_id ON ai_bom_items(attachment_id);
+CREATE INDEX IF NOT EXISTS idx_rai_dimensions_project ON rai_dimensions(project_id, run_id);
+CREATE INDEX IF NOT EXISTS idx_rai_dimensions_run ON rai_dimensions(run_id);
+CREATE INDEX IF NOT EXISTS idx_rai_findings_project ON rai_findings(project_id, run_id);
+CREATE INDEX IF NOT EXISTS idx_rai_findings_dimension ON rai_findings(dimension);
