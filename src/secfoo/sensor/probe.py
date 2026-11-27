@@ -160,7 +160,7 @@ class Probe:
                     _release_profiler()
                 if was_active or self._broken:
                     self.transport.close()
-            except Exception:  # noqa: BLE001, S110 -- shutting down; never raise into the app
+            except Exception:  # noqa: BLE001, S110 # nosec B110 -- shutting down; never raise into (or log through) the app
                 pass
         finally:
             if locked:
@@ -193,7 +193,7 @@ class Probe:
                 _release_profiler()
             print(f"secfoo sensor: disabled after an internal error ({exc.__class__.__name__}); "
                   "the app is unaffected", file=sys.stderr)
-        except Exception:  # noqa: BLE001, S110 -- never raise into the app
+        except Exception:  # noqa: BLE001, S110 # nosec B110 -- never raise into (or log through) the app
             pass
 
     # ---------- watchlist ----------

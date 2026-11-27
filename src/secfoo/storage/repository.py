@@ -299,7 +299,7 @@ class RunRepository:
                              new_sql, count=1, flags=re.IGNORECASE)
             columns = ", ".join(f'"{row["name"]}"' for row in self._conn.execute("PRAGMA table_info(runs)"))
             self._conn.execute(new_sql)
-            self._conn.execute(f"INSERT INTO runs_new ({columns}) SELECT {columns} FROM runs")
+            self._conn.execute(f"INSERT INTO runs_new ({columns}) SELECT {columns} FROM runs")  # nosec B608 -- column names from PRAGMA table_info(runs), not user input
             self._conn.execute("DROP TABLE runs")
             # Every row keeps its id, so references from other tables stay valid.
             self._conn.execute("ALTER TABLE runs_new RENAME TO runs")
@@ -725,7 +725,7 @@ class RunRepository:
             "project": "projects.display_name",
         }[group_by]
         query = (
-            f"SELECT {group_sql} AS label, COUNT(*) AS runs, "
+            f"SELECT {group_sql} AS label, COUNT(*) AS runs, "  # nosec B608 -- group_sql comes from the fixed dict above
             # No COALESCE here: SQLite's SUM() already returns NULL (not 0)
             # when every value in the group is NULL, and that distinction is
             # exactly "unknown" vs "zero" -- collapsing it to 0 is SECFOO-34.

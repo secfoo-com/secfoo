@@ -24,6 +24,25 @@ ruff check .
 
 CI runs both on every push and PR, on Python 3.10 and 3.12.
 
+### Pre-PR checklist
+
+CI also runs these and fails the build on any finding, so run them
+before opening a PR:
+
+```sh
+ruff check .                          # lint (ruff is pinned in the dev extra)
+bandit -r src/secfoo -c .bandit -ll   # SAST, medium severity and above
+pip-audit --skip-editable             # known vulnerabilities in installed deps
+```
+
+- **ruff**: fix the finding; if it's intentional, add it to
+  `[tool.ruff.lint.per-file-ignores]` in `pyproject.toml` with a reason.
+- **bandit**: fix real findings. For a reviewed false positive, put
+  `# nosec BXXX -- <why it's safe>` on the flagged line.
+- **pip-audit**: upgrade the dependency. If an advisory has to be
+  accepted, add `--ignore-vuln <ID>` to the `pip-audit` step in
+  `.github/workflows/ci.yml` with the date and the reason.
+
 ### Fuzzing
 
 Everything that parses untrusted input has a coverage-guided fuzz harness
