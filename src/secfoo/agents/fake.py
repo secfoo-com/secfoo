@@ -23,14 +23,11 @@ class FakeAdapter(AgentAdapter):
         timeout: int | None = None,
         prev_commit: str | None = None,
     ) -> AgentResult:
-        report_path = (
-            Path(__file__).resolve().parents[3]
-            / "tests"
-            / "fixtures"
-            / "ci"
-            / "fake-report.md"
-        )
-
+    report_path = (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "fake-report.md"
+    )
         raw_report = report_path.read_text(encoding="utf-8")
 
         return AgentResult(
