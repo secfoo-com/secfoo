@@ -232,7 +232,7 @@ runs:
         esac
         # Deferred: the SARIF export and upload below still run so the
         # findings land in the Security tab even when the gate fails.
-        exit 0
+        exit "$code"
 
     - name: Export SARIF
       id: export
