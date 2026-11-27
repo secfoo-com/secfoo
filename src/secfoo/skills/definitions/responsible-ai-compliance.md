@@ -41,6 +41,19 @@ governance and compliance practices.
    decisions? Is there a mechanism for a user to contest or appeal an
    AI-influenced decision?
 
+In the report's Dimension Coverage table, include a row for EVERY one of
+these seven dimensions, in the order above, even when there is no finding:
+mark such a dimension `adequate` and cite the concrete evidence that
+supports that call (a file, a section, a control), never just "none". Use
+`partial`, `missing` or `not applicable` with evidence when that is what
+the code shows. A CWE ID is not expected in a Responsible AI report -- the
+report's register uses a Dimension column and an optional Framework column
+(NIST AI RMF function, EU AI Act article or risk class, or an internal
+policy ID) instead of a CWE and a finding verdict. If an AI-BOM is attached
+to this assessment, its models are listed in the brief as reference data;
+compare them with the models you find in code and name both sides of any
+mismatch in the AI System Profile.
+
 Severity (this drives the assessment's overall risk rating, so ground it
 in what's actually true of this system rather than a general impression):
 **High** = the system makes or materially influences a high-stakes,

@@ -36,6 +36,7 @@ from secfoo.web import (
     sca_dashboard,
     secret_scanning_dashboard,
 )
+from secfoo.web import responsible_ai_dashboard as rai_dashboard
 from secfoo.web import threat_modeling_dashboard as tm_dashboard
 from secfoo.web.templating import severity_rows, templates
 
@@ -145,6 +146,12 @@ def activity_detail(
         secret_dash = (
             secret_scanning_dashboard.build(repo) if skill_id == secret_scanning_dashboard.SKILL_ID else None
         )
+        rai_dash = rai_dashboard.build(repo) if skill_id == rai_dashboard.SKILL_ID else None
+        # A report written before the #131 contract has no structured
+        # dimensions. Keep the generic cards in that case rather than showing
+        # an empty program dashboard in place of useful run statistics.
+        if rai_dash is not None and not rai_dash.systems:
+            rai_dash = None
 
     diagrams_available = _attach_architecture_signals(projects)
     verdict_count = sum(1 for p in projects if p.get("design_verdict"))
@@ -194,6 +201,7 @@ def activity_detail(
         "sca_dash": sca_dash,
         "sast_dash": sast_dash,
         "secret_dash": secret_dash,
+        "rai_dash": rai_dash,
     }
     if dash is not None:
         context["gate_mix_gradient"] = _donut_gradient(dash.gate_mix, _GATE_MIX_COLORS)
@@ -214,6 +222,20 @@ def activity_detail(
         context["secret_severity_gradient"] = _donut_gradient(secret_dash.severity_counts, _SCA_SEVERITY_COLORS)
 
     return templates.TemplateResponse(request, "activities/detail.html", context)
+
+
+@router.get("/activities/responsible-ai-compliance/dimensions")
+def responsible_ai_dimensions(request: Request):
+    """Full dimension view: every finding grouped by the skill's seven
+    dimensions, with the per-system stakes and framework mapping beside it.
+    """
+    with RunRepository() as repo:
+        dash = rai_dashboard.build(repo)
+    return templates.TemplateResponse(
+        request,
+        "activities/responsible_ai_dimensions.html",
+        {"dash": dash, "skill_id": rai_dashboard.SKILL_ID},
+    )
 
 
 @router.get("/activities/security-architecture-review/standards")

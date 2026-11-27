@@ -93,6 +93,8 @@ _RUNS_MIGRATIONS = {
     "skill_version": "ALTER TABLE runs ADD COLUMN skill_version INTEGER",
     "skill_source": "ALTER TABLE runs ADD COLUMN skill_source TEXT",
     "skill_sha256": "ALTER TABLE runs ADD COLUMN skill_sha256 TEXT",
+    # #131: stored so the Responsible AI badge doesn't re-read report files.
+    "overall_rating": "ALTER TABLE runs ADD COLUMN overall_rating TEXT",
 }
 
 _ASSESSMENTS_MIGRATIONS = {
@@ -226,8 +228,32 @@ class RunRepository:
                 self._add_column(ddl)
         self._conn.commit()
         self._backfill_locations()
+        self._backfill_responsible_ai_ratings()
         self._migrate_attachment_kind_check()
         self._migrate_runs_status_check()
+
+    def _backfill_responsible_ai_ratings(self) -> None:
+        """One-time upgrade for Responsible AI runs from before #131: read
+        their stored report ONCE and copy the parsed rating into the new
+        column. Later reads never touch the file. Runs whose report is
+        missing or has no rating stay NULL and fall back to the old path.
+        """
+        rows = self._conn.execute(
+            "SELECT id, report_path FROM runs WHERE skill_id = 'responsible-ai-compliance' "
+            "AND status = 'success' AND overall_rating IS NULL AND report_path IS NOT NULL"
+        ).fetchall()
+        for row in rows:
+            text = read_stored_report(row["report_path"])
+            try:
+                rating = extract_overall_risk_rating(text) if text else None
+            except Exception:  # a malformed stored report is not a migration failure
+                rating = None
+            if rating:
+                self._conn.execute(
+                    "UPDATE runs SET overall_rating = ? WHERE id = ? AND overall_rating IS NULL",
+                    (rating, row["id"]),
+                )
+        self._conn.commit()
 
     def _backfill_locations(self) -> None:
         """Re-derives `locations` for rows stored before #112. Those rows
@@ -447,20 +473,22 @@ class RunRepository:
         output_tokens: int | None = None,
         cost_usd: float | None = None,
         scan_scope: list[str] | None = None,
+        overall_rating: str | None = None,
     ) -> None:
         """Insert a run that already completed in another process."""
         self._conn.execute(
             "INSERT INTO runs (run_uuid, project_id, skill_id, skill_name, agent_id, confluence_urls, "
             "status, exit_code, started_at, finished_at, duration_seconds, report_path, "
             "critical_count, high_count, medium_count, low_count, info_count, assessment_id, "
-            "input_tokens, output_tokens, cost_usd, scan_scope) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "input_tokens, output_tokens, cost_usd, scan_scope, overall_rating) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 run_uuid, project_id, skill_id, skill_name, agent_id, json.dumps(confluence_urls),
                 status, exit_code, started_at, finished_at, duration_seconds, report_path,
                 critical_count, high_count, medium_count, low_count, info_count, assessment_id,
                 input_tokens, output_tokens, cost_usd,
                 None if scan_scope is None else json.dumps(scan_scope),
+                (overall_rating or "").strip().lower() or None,
             ),
         )
         self._conn.commit()
@@ -486,34 +514,90 @@ class RunRepository:
         target_commit: str | None = None,  # Memory Bank: HEAD SHA of the scanned repo.
         memory_enabled: bool | None = None,
         scan_scope: list[str] | None = None,  # Memory Bank: None = full scan.
+        overall_rating: str | None = None,  # #131: the report's own rating, normalized to lowercase.
+        rai_dimensions: list[dict] | None = None,  # #131: parsed Dimension Coverage rows.
+        rai_findings: list[dict] | None = None,  # #131: parsed Findings Register rows.
     ) -> None:
-        self._conn.execute(
-            "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
-            "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
-            "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
-            "cost_usd = ?, target_commit = ?, memory_enabled = ?, scan_scope = ? WHERE run_uuid = ?",
-            (
-                status,
-                exit_code,
-                _now(),
-                duration_seconds,
-                report_path,
-                prompt_path,
-                stderr_excerpt,
-                critical_count,
-                high_count,
-                medium_count,
-                low_count,
-                info_count,
-                input_tokens,
-                output_tokens,
-                cost_usd,
-                target_commit,
-                None if memory_enabled is None else int(memory_enabled),
-                None if scan_scope is None else json.dumps(scan_scope),
-                run_uuid,
-            ),
-        )
+        rating = (overall_rating or "").strip().lower() or None
+        with self._conn:
+            self._conn.execute(
+                "UPDATE runs SET status = ?, exit_code = ?, finished_at = ?, duration_seconds = ?, "
+                "report_path = ?, prompt_path = ?, stderr_excerpt = ?, critical_count = ?, high_count = ?, "
+                "medium_count = ?, low_count = ?, info_count = ?, input_tokens = ?, output_tokens = ?, "
+                "cost_usd = ?, target_commit = ?, memory_enabled = ?, scan_scope = ?, overall_rating = ? "
+                "WHERE run_uuid = ?",
+                (
+                    status,
+                    exit_code,
+                    _now(),
+                    duration_seconds,
+                    report_path,
+                    prompt_path,
+                    stderr_excerpt,
+                    critical_count,
+                    high_count,
+                    medium_count,
+                    low_count,
+                    info_count,
+                    input_tokens,
+                    output_tokens,
+                    cost_usd,
+                    target_commit,
+                    None if memory_enabled is None else int(memory_enabled),
+                    None if scan_scope is None else json.dumps(scan_scope),
+                    rating,
+                    run_uuid,
+                ),
+            )
+            if rai_dimensions is not None or rai_findings is not None:
+                run = self._conn.execute(
+                    "SELECT id, project_id, assessment_id FROM runs WHERE run_uuid = ?", (run_uuid,)
+                ).fetchone()
+                if run is not None:
+                    if rai_dimensions is not None:
+                        self._conn.execute("DELETE FROM rai_dimensions WHERE run_id = ?", (run["id"],))
+                        self._conn.executemany(
+                            "INSERT INTO rai_dimensions (run_id, project_id, assessment_id, dimension, "
+                            "status, evidence, finding_ids, stakes_tier, profile_json) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            [
+                                (
+                                    run["id"],
+                                    run["project_id"],
+                                    run["assessment_id"],
+                                    row["dimension"],
+                                    row["status"],
+                                    row.get("evidence", ""),
+                                    json.dumps(row.get("finding_ids", [])),
+                                    row.get("stakes_tier", ""),
+                                    json.dumps(row.get("profile", {})),
+                                )
+                                for row in rai_dimensions
+                            ],
+                        )
+                    if rai_findings is not None:
+                        self._conn.execute("DELETE FROM rai_findings WHERE run_id = ?", (run["id"],))
+                        self._conn.executemany(
+                            "INSERT INTO rai_findings (run_id, project_id, assessment_id, finding_ref, "
+                            "title, severity, dimension, framework, stakes, description, recommendation) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            [
+                                (
+                                    run["id"],
+                                    run["project_id"],
+                                    run["assessment_id"],
+                                    row["finding_ref"],
+                                    row["title"],
+                                    row["severity"],
+                                    row.get("dimension", ""),
+                                    row.get("framework", ""),
+                                    row.get("stakes", ""),
+                                    row.get("description", ""),
+                                    row.get("recommendation", ""),
+                                )
+                                for row in rai_findings
+                            ],
+                        )
         self._conn.commit()
 
     def resolve_project_ref(self, ref: str) -> int | None:
@@ -869,26 +953,31 @@ class RunRepository:
     # ---------- assessments ----------
 
     def _responsible_ai_badges(self, assessment_id: int, status: str) -> tuple[str | None, str | None]:
-        """Derived from the most recent successful Responsible AI Compliance
-        run attached to this assessment, per the plan's decision: no
-        separate manually-set risk field. Returns (risk, provisional-status),
-        both None if no such run (or no parsable rating) exists yet.
+        """Badge pair derived from the most recent successful Responsible AI
+        Compliance run attached to this assessment.
+
+        #131 stores that run's rating on the run itself, so the common path
+        is one indexed SQL read and never opens a report file. Legacy runs
+        (or ones written without a rating, e.g. by older portal payloads)
+        still fall back to the stored report once per read; their rating is
+        backfilled into the column at repository open when possible.
         """
         row = self._conn.execute(
-            "SELECT report_path FROM runs WHERE assessment_id = ? AND skill_id = 'responsible-ai-compliance' "
-            "AND status = 'success' AND report_path IS NOT NULL ORDER BY started_at DESC, id DESC LIMIT 1",
+            "SELECT overall_rating, report_path FROM runs WHERE assessment_id = ? "
+            "AND skill_id = 'responsible-ai-compliance' AND status = 'success' "
+            "ORDER BY started_at DESC, id DESC LIMIT 1",
             (assessment_id,),
         ).fetchone()
-        if row is None or not row["report_path"]:
+        if row is None:
             return None, None
-        path = Path(row["report_path"])
-        if not path.exists():
-            return None, None
-        text = read_stored_report(path)
-        if not text:
-            return None, None
-        rating = extract_overall_risk_rating(text)
-        risk = RESPONSIBLE_AI_RISK_BY_RATING.get(rating or "")
+        rating = (row["overall_rating"] or "").strip().lower()
+        if not rating and row["report_path"]:
+            try:
+                text = read_stored_report(Path(row["report_path"]))
+                rating = extract_overall_risk_rating(text) if text else ""
+            except Exception:  # malformed stored report -> not rated
+                rating = ""
+        risk = RESPONSIBLE_AI_RISK_BY_RATING.get(rating)
         if risk is None:
             return None, None
         ra_status = "confirmed" if status == "completed" else "provisional"
@@ -1029,11 +1118,41 @@ class RunRepository:
         return self._conn.execute(query, params).fetchone()["c"]
 
     def count_assessments_with_responsible_ai_risk(self) -> int:
-        rows = self._conn.execute("SELECT id, status FROM assessments").fetchall()
-        return sum(1 for row in rows if self._responsible_ai_badges(row["id"], row["status"])[0] is not None)
+        """Count rated assessments from the stored ratings, not by opening
+        every assessment's report on each overview page load (#131). Only
+        legacy runs still need a report read to resolve their rating.
+        """
+        placeholders = ",".join("?" for _ in RESPONSIBLE_AI_RISK_BY_RATING)
+        row = self._conn.execute(
+            "SELECT COUNT(DISTINCT assessment_id) c FROM runs WHERE assessment_id IS NOT NULL "
+            "AND skill_id = 'responsible-ai-compliance' AND status = 'success' "
+            f"AND LOWER(overall_rating) IN ({placeholders})",
+            tuple(RESPONSIBLE_AI_RISK_BY_RATING),
+        ).fetchone()
+        count = row["c"]
+        legacy = self._conn.execute(
+            "SELECT DISTINCT assessment_id FROM runs WHERE assessment_id IS NOT NULL "
+            "AND skill_id = 'responsible-ai-compliance' AND status = 'success' "
+            "AND overall_rating IS NULL"
+        ).fetchall()
+        for item in legacy:
+            assessment = self._conn.execute(
+                "SELECT status FROM assessments WHERE id = ?", (item["assessment_id"],)
+            ).fetchone()
+            if assessment and self._responsible_ai_badges(item["assessment_id"], assessment["status"])[0]:
+                count += 1
+        return count
 
     def delete_assessment(self, assessment_id: int) -> None:
         self._conn.execute("UPDATE runs SET assessment_id = NULL WHERE assessment_id = ?", (assessment_id,))
+        # Per-run RAI snapshots keep their evidence after the assessment is
+        # deleted, but must drop the reference to it (#131).
+        self._conn.execute(
+            "UPDATE rai_dimensions SET assessment_id = NULL WHERE assessment_id = ?", (assessment_id,)
+        )
+        self._conn.execute(
+            "UPDATE rai_findings SET assessment_id = NULL WHERE assessment_id = ?", (assessment_id,)
+        )
         attachments = self._conn.execute(
             "SELECT id, file_path FROM assessment_attachments WHERE assessment_id = ?", (assessment_id,)
         ).fetchall()
@@ -1102,6 +1221,77 @@ class RunRepository:
             "SUM(CASE WHEN kind = 'tool' THEN 1 ELSE 0 END) tools FROM ai_bom_items"
         ).fetchone()
         return (row["models"] or 0, row["tools"] or 0)
+
+    def list_ai_bom_items(self, assessment_id: int) -> list[dict[str, str | None]]:
+        """Every parsed AI-BOM item attached to an assessment, newest upload
+        first. Needed for the assessment page's code-vs-BOM cross-check (#131).
+        """
+        rows = self._conn.execute(
+            "SELECT ai_bom_items.kind, ai_bom_items.name, ai_bom_items.provider_or_type, "
+            "ai_bom_items.version, ai_bom_items.purpose, "
+            "assessment_attachments.original_name AS source, assessment_attachments.uploaded_at "
+            "FROM ai_bom_items JOIN assessment_attachments "
+            "ON assessment_attachments.id = ai_bom_items.attachment_id "
+            "WHERE assessment_attachments.assessment_id = ? "
+            "ORDER BY assessment_attachments.uploaded_at DESC, ai_bom_items.id DESC",
+            (assessment_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    # ---------- Responsible AI structured reports (#131) ----------
+
+    # The newest successful run per project is the one whose view of a
+    # system matters; older runs stay in the table as history but never
+    # contribute to the heat map or finding list.
+    _LATEST_RAI_RUN = (
+        "AND r.id = (SELECT MAX(r2.id) FROM runs r2 WHERE r2.project_id = r.project_id "
+        "AND r2.skill_id = r.skill_id AND r2.status = 'success' AND r2.report_path IS NOT NULL)"
+    )
+
+    def responsible_ai_dimensions(self, skill_id: str = "responsible-ai-compliance") -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT d.dimension, d.status, d.evidence, d.finding_ids, d.stakes_tier, d.profile_json, "
+            "d.run_id, d.project_id, p.display_name AS project_display_name, r.assessment_id, "
+            "r.run_uuid, r.overall_rating, r.report_path, r.finished_at AS latest_success_at "
+            "FROM rai_dimensions d JOIN runs r ON r.id = d.run_id "
+            "JOIN projects p ON p.id = d.project_id "
+            "WHERE r.skill_id = ? AND r.status = 'success' " + self._LATEST_RAI_RUN +
+            " ORDER BY p.display_name, d.rowid",
+            (skill_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def responsible_ai_findings(self, skill_id: str = "responsible-ai-compliance") -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT f.finding_ref, f.title, f.severity, f.dimension, f.framework, f.stakes, "
+            "f.description, f.recommendation, f.run_id, f.project_id, "
+            "p.display_name AS project_display_name, r.assessment_id, r.run_uuid, r.report_path "
+            "FROM rai_findings f JOIN runs r ON r.id = f.run_id "
+            "JOIN projects p ON p.id = f.project_id "
+            "WHERE r.skill_id = ? AND r.status = 'success' " + self._LATEST_RAI_RUN +
+            " ORDER BY f.severity, p.display_name, f.id",
+            (skill_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def latest_responsible_ai_profile(self, assessment_id: int) -> tuple[dict, str | None]:
+        """(profile, overall_rating) from the newest successful RAI run on
+        an assessment, or ({}, None). Drives the AI-BOM cross-check panel.
+        """
+        row = self._conn.execute(
+            "SELECT d.profile_json, r.overall_rating FROM rai_dimensions d "
+            "JOIN runs r ON r.id = d.run_id "
+            "WHERE r.assessment_id = ? AND r.skill_id = 'responsible-ai-compliance' "
+            "AND r.status = 'success' ORDER BY r.started_at DESC, r.id DESC, d.id LIMIT 1",
+            (assessment_id,),
+        ).fetchone()
+        if row is None:
+            return {}, None
+        try:
+            profile = json.loads(row["profile_json"] or "{}")
+        except (TypeError, ValueError):
+            profile = {}
+        return profile if isinstance(profile, dict) else {}, row["overall_rating"]
 
     # ---------- exceptions ----------
 

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Literal
 
 from secfoo import cloud, cvss, memory, osv
+from secfoo.aibom import ai_bom_brief_section
 from secfoo.agents.registry import get_adapter
 from secfoo.config import ensure_store_dirs, run_dir
 from secfoo.context_brief import build_context_brief
@@ -30,6 +31,8 @@ from secfoo.report import sca as sca_report
 from secfoo.report import secret_scanning as secret_report
 from secfoo.report.context_coverage import CoverageRecord, coverage_for_run
 from secfoo.report.markdown import MalformedReportError, parse_report, strip_preamble
+from secfoo.report.responsible_ai import SKILL_ID as RESPONSIBLE_AI_SKILL_ID
+from secfoo.report.responsible_ai import parse_responsible_ai_report
 from secfoo.report.sast import SKILL_ID as SAST_SKILL_ID
 from secfoo.report.sast import findings_with_fingerprints
 from secfoo.report.sca import SKILL_ID as SCA_SKILL_ID
@@ -518,6 +521,45 @@ def _run_single_skill(
             if on_skill_complete:
                 on_skill_complete(skill.name, result.status)
 
+            # #131: a Responsible AI report has its own contract. Parse it
+            # at completion (not on every dashboard request) and persist the
+            # profile, dimension coverage and per-finding tags in one
+            # transaction with the run row. A custom skill reusing the RAI
+            # output type gets the same treatment.
+            overall_rating = None
+            rai_dimensions = None
+            rai_findings = None
+            if result.status == "success" and skill.output_type == RESPONSIBLE_AI_SKILL_ID:
+                try:
+                    rai_report = parse_responsible_ai_report(report_text)
+                    overall_rating = rai_report.overall_rating
+                    rai_dimensions = [
+                        {
+                            "dimension": row.dimension,
+                            "status": row.status,
+                            "evidence": row.evidence,
+                            "finding_ids": list(row.finding_ids),
+                            "stakes_tier": rai_report.profile.stakes_tier,
+                            "profile": rai_report.profile.as_dict(),
+                        }
+                        for row in rai_report.dimensions
+                    ]
+                    rai_findings = [
+                        {
+                            "finding_ref": row.finding_id,
+                            "title": row.title,
+                            "severity": row.severity,
+                            "dimension": row.dimension,
+                            "framework": row.framework,
+                            "stakes": row.stakes,
+                            "description": row.description,
+                            "recommendation": row.recommendation,
+                        }
+                        for row in rai_report.findings
+                    ]
+                except Exception:
+                    logger.exception("Failed to parse Responsible AI report for run %s", run_uuid)
+
             repo.complete_run(
                 run_uuid,
                 status=result.status,
@@ -537,6 +579,9 @@ def _run_single_skill(
                 target_commit=target_commit,  # Memory Bank: persisted for incremental diff rescans.
                 memory_enabled=memory_enabled,
                 scan_scope=result.scan_scope,
+                overall_rating=overall_rating,
+                rai_dimensions=rai_dimensions,
+                rai_findings=rai_findings,
             )
         except BaseException:
             # BaseException so Ctrl+C mid-run is recorded too; re-raised
@@ -699,6 +744,12 @@ def execute_runs(
         db_path = repo.db_path
 
         context_brief = build_context_brief(context_sources, mcp_servers) if context_sources else None
+        # #131: an attached AI-BOM is included in every skill's brief as
+        # reference data (not instructions), so the Responsible AI profile
+        # and the code-vs-BOM diff can be built from one source of truth.
+        ai_bom_section = ai_bom_brief_section(
+            repo.list_ai_bom_items(assessment_id) if assessment_id is not None else []
+        )
         with _target_workdir(resolved) as workdir:
             target_ctx = TargetContext(
                 kind=resolved.kind.value,  # type: ignore[arg-type]
@@ -706,6 +757,7 @@ def execute_runs(
                 display_source=resolved.display_name,
                 confluence_urls=confluence_urls,
                 context_brief=context_brief,
+                ai_bom_section=ai_bom_section,
             )
             # Once per target, not per skill: every skill scans the same tree.
             stack = detect_stack(workdir)

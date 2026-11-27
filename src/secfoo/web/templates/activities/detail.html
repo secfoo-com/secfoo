@@ -34,9 +34,13 @@
 {% include "activities/secret_scanning_dashboard.html" %}
 {% endif %}
 
-{% if not tm_dash and not dash and not sca_dash and not sast_dash and not secret_dash %}
-{# All three program dashboards above already cover coverage, findings,
-   and trust-boundary counts with more specific tiles -- this generic block
+{% if rai_dash %}
+{% include "activities/responsible_ai_dashboard.html" %}
+{% endif %}
+
+{% if not tm_dash and not dash and not sca_dash and not sast_dash and not secret_dash and not rai_dash %}
+{# The program dashboards above already cover coverage, findings, and
+   trust-boundary counts with more specific tiles -- this generic block
    would just duplicate them. #}
 <div class="stat-card-grid u-mt-8">
   <div class="stat-card has-info">
@@ -124,11 +128,10 @@
 </div>
 {% endif %}
 
-{% if not dash and not sca_dash and not sast_dash and not secret_dash %}
-{# Security Architecture Review's and SCA's own program dashboards above
-   already have their own severity/disposition breakdowns -- a raw
-   severity-count bar here would just be a second, less specific cut of
-   the same findings. #}
+{% if not dash and not sca_dash and not sast_dash and not secret_dash and not rai_dash %}
+{# The program dashboards above already have their own severity/disposition
+   breakdowns -- a raw severity-count bar here would just be a second,
+   less specific cut of the same findings. #}
 <div class="card u-mt-8 has-info">
   {% call info_tip("Findings by severity") %}
   <p>Severity counts written on this activity's runs.</p>

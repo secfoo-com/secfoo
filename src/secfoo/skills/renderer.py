@@ -796,6 +796,84 @@ Reject, with the specific conditions or missing documentation named.
 
 """ + _REPORT_TRAILER
 
+RESPONSIBLE_AI_OUTPUT_CONTRACT = """\
+## Required output format
+
+Produce a single Markdown document with EXACTLY these sections, in order.
+Do NOT use CWE IDs or a Confirmed/Conditional/Latent verdict column: this
+is a governance report, not a code-finding report. The two shared
+invariants still apply: the bold **Overall risk rating:** line in the
+summary, and `### [SEVERITY] Fn:` detail headings.
+
+# Responsible AI Compliance Report
+
+## 1. Executive Summary
+2-4 sentences grounded in this system, then **Overall risk rating:**
+<severity> on its own line. Use only the severity levels in the skill's
+rubric above.
+
+## 2. AI System Profile
+A two-column table, one row per field, with EXACTLY these labels in this
+order (fill every row; write "not stated" rather than leaving a blank):
+
+| Field | Value |
+|-------|-------|
+| Models and providers | gpt-4o (OpenAI), Claude (Anthropic) |
+| What the system decides or influences | short factual description |
+| Who is affected | affected people or groups |
+| Stakes tier | high / moderate / low |
+
+List the models and providers actually found in the code. If an AI-BOM was
+attached, name in this table any model found in code that the AI-BOM does
+not list; name AI-BOM models the code does not use as well. Never guess a
+provider just to fill the cell.
+
+## 3. Dimension Coverage
+One row for EACH of the seven dimensions from the skill instructions,
+in that exact order, even when there is no finding for it (write
+`adequate` with the evidence that supports it). Status is exactly one of
+`adequate`, `partial`, `missing`, `not applicable`.
+
+| Dimension | Status | Evidence | Finding IDs |
+|-----------|--------|----------|-------------|
+| Documentation | partial | model card exists, no data card | F2 |
+| Bias & fairness | missing | no fairness testing found | F3 |
+
+Evidence cites a file, section, or documented absence; "none" is not
+evidence. Finding IDs refer to rows of the Findings Register below, or
+"--" when the dimension is adequate.
+
+## 4. Findings Register
+One compact table covering every finding, most severe first. Dimension
+must be one of the seven dimension names above. Framework is a NIST AI RMF
+function, an EU AI Act article or risk class, or an internal policy ID;
+write "--" if no framework is referenced.
+
+| ID | Finding | Severity | Dimension | Framework |
+|----|---------|----------|-----------|-----------|
+| F1 | short title | High | Human oversight | NIST AI RMF GOVERN 4.4 |
+
+If there are no findings at all, state that explicitly instead of an empty
+table.
+
+## 5. Detailed Findings
+Same order and IDs as the register. Exact heading shape required:
+
+### [SEVERITY] F1: Finding title
+- **Severity:** matches the register above
+- **Dimension:** one of the seven dimension names
+- **Framework:** the register's framework value, or "--"
+- **Stakes:** high / moderate / low, with one sentence on why
+- **Description:** what is missing or inadequate, and what is at risk
+- **Recommendation:** a concrete, actionable control -- not "review this"
+
+## 6. Remediation Roadmap
+P0 first (high-stakes gaps in oversight, transparency or recourse), then
+P1-P3 for documentation, testing and ongoing monitoring. Tie each item
+back to a finding ID or a dimension.
+
+""" + _REPORT_TRAILER
+
 # Skill id -> its own contract. Anything absent falls back to the shared
 # OUTPUT_CONTRACT (which is parameterized by skill name).
 SKILL_OUTPUT_CONTRACTS = {
@@ -805,6 +883,7 @@ SKILL_OUTPUT_CONTRACTS = {
     "sca-reachability": SCA_OUTPUT_CONTRACT,
     "secret-scanning": SECRET_SCANNING_OUTPUT_CONTRACT,
     "third-party-risk-assessment": THIRD_PARTY_RISK_ASSESSMENT_OUTPUT_CONTRACT,
+    "responsible-ai-compliance": RESPONSIBLE_AI_OUTPUT_CONTRACT,
 }
 
 
@@ -815,6 +894,9 @@ class TargetContext:
     display_source: str
     confluence_urls: list[str] = field(default_factory=list)
     context_brief: ContextBrief | None = None
+    # #131: an attached AI-BOM, rendered as additional reference data
+    # without replacing the Confluence sources or documentation brief.
+    ai_bom_section: str | None = None
 
 
 def _target_section(target: TargetContext) -> str:
@@ -862,9 +944,12 @@ def _confluence_section(target: TargetContext) -> str | None:
 
 
 def _additional_context_section(target: TargetContext) -> str | None:
-    if target.context_brief is not None:
-        return target.context_brief.section
-    return _confluence_section(target)
+    sections = [
+        target.context_brief.section if target.context_brief is not None else _confluence_section(target),
+        target.ai_bom_section,
+    ]
+    joined = "\n\n".join(section for section in sections if section)
+    return joined or None
 
 
 MEMORY_GUIDANCE = """\

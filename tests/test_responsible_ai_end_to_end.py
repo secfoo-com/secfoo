@@ -27,6 +27,15 @@ from secfoo.web.app import create_app
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "reports"
 SKILL_ID = "responsible-ai-compliance"
+_CONTRACT_DIMENSIONS = (
+    "Documentation",
+    "Bias & fairness",
+    "Human oversight",
+    "Transparency to end users",
+    "Data provenance & consent",
+    "Framework alignment",
+    "Auditability & recourse",
+)
 
 # fixture file, report rating, risk tier, risk badge class, severity counts
 TIERS = {
@@ -34,6 +43,12 @@ TIERS = {
     "medium": ("responsible-ai-compliance-medium.md", "moderate", "badge--warning", (0, 0, 2, 4, 0)),
     "high": ("responsible-ai-compliance-high.md", "high-risk", "badge--error", (0, 2, 2, 2, 0)),
     "critical": ("responsible-ai-compliance-critical.md", "high-risk", "badge--error", (1, 2, 2, 1, 0)),
+    # A report written to the #131 output contract: structured dimensions,
+    # framework mappings and an AI System Profile. Severity counts come from
+    # its three detailed findings.
+    "contract": (
+        "responsible-ai-compliance-contract.md", "moderate", "badge--warning", (0, 0, 2, 1, 0)
+    ),
 }
 
 cli_runner = CliRunner()
@@ -230,6 +245,8 @@ def test_overview_counts_the_rated_assessment(client, low_rated_assessment):
 def test_activity_page_shows_one_project_one_run_six_findings(client, low_rated_assessment):
     html = client.get(f"/activities/{SKILL_ID}").text
 
+    # Legacy fixture reports predate the #131 dimension contract, so the
+    # generic cards remain until a contract-shaped run has been recorded.
     assert _stat(html, "Projects covered") == "1"
     assert _stat(html, "Runs") == "1"
     assert _stat(html, "Total findings") == "6"
@@ -354,7 +371,9 @@ def test_run_attaches_to_an_existing_assessment_and_updates_its_badge(fake_popen
 # ---------- badge derivation edge cases ----------
 
 
-def test_a_missing_report_file_means_not_rated(fake_popen, target_dir):
+def test_a_missing_report_file_keeps_the_stored_rating(fake_popen, target_dir):
+    # #131 persists the rating on the run at completion time. Losing the
+    # Markdown file afterwards must not silently un-rate the assessment.
     assert _run_skill(fake_popen, target_dir, tier="high").exit_code == 0
     [assessment] = _all_assessments()
     with RunRepository() as repo:
@@ -362,8 +381,8 @@ def test_a_missing_report_file_means_not_rated(fake_popen, target_dir):
     Path(run.report_path).unlink()
 
     [assessment] = _all_assessments()
-    assert assessment.responsible_ai_risk is None
-    assert assessment.responsible_ai_status is None
+    assert assessment.responsible_ai_risk == "high-risk"
+    assert assessment.responsible_ai_status == "provisional"
 
 
 def test_an_assessment_without_a_report_path_is_not_rated(target_dir):
@@ -381,3 +400,90 @@ def test_an_assessment_without_a_report_path_is_not_rated(target_dir):
         assessment = repo.get_assessment(assessment_id)
 
     assert assessment.responsible_ai_risk is None
+
+
+# ---------- the #131 contract-shaped dashboard ----------
+
+
+@pytest.fixture
+def contract_assessment(fake_popen, target_dir) -> int:
+    assert _run_skill(fake_popen, target_dir, tier="contract").exit_code == 0
+    [assessment] = _all_assessments()
+    return assessment.id
+
+
+def test_contract_run_persists_structured_dimensions_and_findings(contract_assessment):
+    with RunRepository() as repo:
+        [run] = repo.list_runs(assessment_id=contract_assessment, limit=10)
+        dimensions = repo.responsible_ai_dimensions()
+        findings = repo.responsible_ai_findings()
+        profile, rating = repo.latest_responsible_ai_profile(contract_assessment)
+
+    assert run.overall_rating == "medium"
+    assert len(dimensions) == 7
+    assert {row["dimension"] for row in dimensions} == set(_CONTRACT_DIMENSIONS)
+    assert all(row["run_id"] == run.id for row in dimensions)
+    assert {row["finding_ref"] for row in findings} == {"F1", "F2", "F3"}
+    assert {row["dimension"] for row in findings} == {
+        "Human oversight",
+        "Transparency to end users",
+        "Auditability & recourse",
+    }
+    assert profile["stakes_tier"] == "high"
+    assert profile["models"] == ["gpt-4o", "claude-3-5-sonnet"]
+    assert rating == "medium"
+
+
+def test_contract_dashboard_replaces_the_generic_cards(client, contract_assessment):
+    html = client.get(f"/activities/{SKILL_ID}").text
+
+    assert _stat(html, "Systems reviewed") == "1"
+    assert _stat(html, "Findings reviewed") == "3"
+    assert "Dimension × project coverage" in html
+    assert "Open findings by dimension" in html
+    assert "NIST AI RMF GOVERN 4.2" in html
+    assert "High-stakes systems" in html
+    # The generic SAST-shaped counters are gone once real coverage exists.
+    assert "Projects covered" not in html
+    assert "Findings by severity" not in html
+
+
+def test_dimension_page_shows_evidence_and_full_findings(client, contract_assessment):
+    html = client.get("/activities/responsible-ai-compliance/dimensions").text
+
+    assert html.count("Dimension evidence") >= 1
+    assert "docs/model-card.md" in html
+    assert "F1" in html
+    assert "Reviewers can approve a recommendation" in html
+    assert "rubber stamp" in html
+    assert "All findings" in html
+    assert "EU AI Act Art. 26" in html
+
+
+def test_assessment_page_cross_checks_code_models_with_the_ai_bom(client, contract_assessment, tmp_path):
+    files = {
+        "file": (
+            "ai-bom.json",
+            '{"models": [{"name": "gpt-4o"}, {"name": "gemini"}], "tools": []}',
+            "application/json",
+        )
+    }
+    resp = client.post(f"/assessments/{contract_assessment}/attachments", files=files, follow_redirects=False)
+    assert resp.status_code == 303
+
+    html = client.get(f"/assessments/{contract_assessment}").text
+    assert "AI-BOM cross-check" in html
+    assert "claude-3-5-sonnet" in html  # in code, absent from the BOM
+    assert "gemini" in html  # in the BOM, absent from the code
+    assert "gpt-4o" in html  # agreed on both sides
+
+    activity = client.get(f"/activities/{SKILL_ID}").text
+    assert "AI-BOM cross-check" in activity
+    assert "gemini" in activity
+
+
+def test_responsible_ai_page_links_to_the_dimension_dashboard(client, contract_assessment):
+    html = client.get("/responsible-ai").text
+
+    assert "/activities/responsible-ai-compliance/dimensions" in html
+    assert _stat(html, "Moderate-risk") == "1"

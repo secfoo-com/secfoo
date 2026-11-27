@@ -15,10 +15,19 @@ def responsible_ai(request: Request):
 
     flagged = [a for a in all_assessments if a.responsible_ai_risk is not None]
     high_risk = sum(1 for a in flagged if a.responsible_ai_risk == "high-risk")
+    moderate_risk = sum(1 for a in flagged if a.responsible_ai_risk == "moderate")
+    low_risk = sum(1 for a in flagged if a.responsible_ai_risk == "low-risk")
     provisional = sum(1 for a in flagged if a.responsible_ai_status == "provisional")
 
     return templates.TemplateResponse(
         request,
         "responsible_ai.html",
-        {"assessments": flagged, "high_risk": high_risk, "provisional": provisional, "total": len(flagged)},
+        {
+            "assessments": flagged,
+            "high_risk": high_risk,
+            "moderate_risk": moderate_risk,
+            "low_risk": low_risk,
+            "provisional": provisional,
+            "total": len(flagged),
+        },
     )

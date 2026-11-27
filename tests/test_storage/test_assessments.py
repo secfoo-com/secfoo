@@ -1148,6 +1148,42 @@ def test_responsible_ai_risk_tier_follows_the_report_rating(tmp_path, rating, ex
     repo.close()
 
 
+def test_responsible_ai_rating_is_backfilled_once_from_the_stored_report(tmp_path):
+    """A pre-#131 run has no stored rating. Opening the store upgrades it
+    from its report once; later reads never depend on that file again.
+    """
+    repo = _repo(tmp_path)
+    project_id = repo.upsert_project("id-1", "P1", "local")
+    assessment_id = repo.create_assessment(project_id=project_id, assessment_type="internal", status="ready")
+    run_uuid = repo.create_run(
+        project_id=project_id, skill_id="responsible-ai-compliance", skill_name="Responsible AI Compliance",
+        agent_id="claude", confluence_urls=[], assessment_id=assessment_id,
+    )
+    report_path = tmp_path / "report.md"
+    report_path.write_text("# Report\n\n## Summary\n**Overall risk rating:** Medium\n")
+    repo.complete_run(
+        run_uuid, status="success", exit_code=0, duration_seconds=1, report_path=str(report_path),
+        prompt_path=None, stderr_excerpt=None,
+    )
+    # Simulate the pre-upgrade column value, then reopen to migrate it.
+    with sqlite3.connect(tmp_path / "secfoo.db") as conn:
+        conn.execute("UPDATE runs SET overall_rating = NULL")
+    repo.close()
+
+    repo = _repo(tmp_path)
+    assert repo.get_assessment(assessment_id).responsible_ai_risk == "moderate"
+    assert repo.count_assessments_with_responsible_ai_risk() == 1
+    with sqlite3.connect(tmp_path / "secfoo.db") as conn:
+        [stored] = conn.execute("SELECT overall_rating FROM runs").fetchone()
+    assert stored == "medium"
+    report_path.unlink()
+    repo.close()
+
+    repo = _repo(tmp_path)
+    assert repo.get_assessment(assessment_id).responsible_ai_risk == "moderate"
+    repo.close()
+
+
 def test_responsible_ai_unknown_rating_means_not_rated(tmp_path):
     repo = _repo(tmp_path)
     project_id = repo.upsert_project("id-1", "P1", "local")
