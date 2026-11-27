@@ -181,7 +181,7 @@ The Action can create or update a PR comment identified by `<!-- secfoo -->` whe
 - Per-skill results table (Skill \| Status \| C/H/M/L \| Cost)
 - Gate verdicts (Findings gate: Passed/Failed, Cost gate: Passed/Failed)
 - Agent-reported cost (AI spend: $0.00)
-- Link to code-scanning alerts ([View code-scanning alerts](https://github.com/niharika3715/secfoo/security/code-scanning))
+- Link to code-scanning alerts ([View code-scanning alerts](https://github.com/secfoo-com/secfoo/security/code-scanning))
 
 **How it works:**
 - Only runs on `pull_request` events when `comment: true`.
