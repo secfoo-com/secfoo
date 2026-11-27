@@ -236,18 +236,141 @@ secfoo:
         --project-name "$CI_PROJECT_PATH" \
         --skill sast --skill secret-scanning \
         --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+    - secfoo findings export --format gitlab-sast -o gl-sast-report.json
+    - secfoo findings export --format gitlab-secret-detection -o gl-secret-detection-report.json
     - secfoo findings export --format sarif -o secfoo.sarif
     - exit ${code:-0}
   artifacts:
     when: always
+    reports:
+      sast: gl-sast-report.json
+      secret_detection: gl-secret-detection-report.json
     paths: [secfoo-result.json, secfoo.sarif]
 ```
 
-Set the provider key as a masked CI/CD variable. The SARIF file is kept as
-an artifact; GitLab's own security dashboard expects its report formats,
-not SARIF, so treat this as the hand-off file for other tools. Full job,
-including merge-request rules and a container-image variant:
+Set the provider key as a masked CI/CD variable. GitLab's merge-request
+security widget and Vulnerability Report don't read SARIF, so the job also
+exports findings in GitLab's own report formats (schema v15):
+`--format gitlab-sast` carries the SAST findings and
+`--format gitlab-secret-detection` the secret-scanning ones (the secret
+value itself is never copied). Attached under `artifacts: reports:`, they
+show up in the MR widget and the Vulnerability Report on GitLab Ultimate;
+on other tiers they are plain downloadable artifacts. SCA findings have no
+GitLab report here (GitLab's dependency-scanning format describes
+dependency files), so they stay in the SARIF and JSON Lines exports. Full
+job, including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
+
+## Bitbucket Pipelines
+
+```yaml
+# bitbucket-pipelines.yml
+image: python:3.12-slim
+
+definitions:
+  steps:
+    - step: &secfoo
+        name: secfoo security review
+        script:
+          - apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null
+          - pip install --quiet secfoo
+          - |
+            code=0
+            secfoo run --agent api --target . --depth quick --json --rescan \
+              --project-name "$BITBUCKET_REPO_FULL_NAME" \
+              --skill sast --skill secret-scanning \
+              --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+            secfoo findings export --format sarif -o secfoo.sarif
+            secfoo findings export -o secfoo-findings.jsonl
+            exit $code
+        artifacts:
+          - secfoo-result.json
+          - secfoo.sarif
+          - secfoo-findings.jsonl
+
+pipelines:
+  pull-requests:
+    '**':
+      - step: *secfoo
+  branches:
+    main:
+      - step: *secfoo
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) under
+**Repository settings → Pipelines → Repository variables** (or as a
+workspace variable to share it across repositories) and tick **Secured**, so
+Bitbucket masks it in logs and hides its value after saving. Pipelines must be
+enabled for the repository. The `pull-requests` pipeline runs on every pull
+request; `branches: main` covers pushes to the default branch, so rename it if
+yours is not `main`.
+
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped. The SARIF, JSON
+Lines and `--json` files are kept as step artifacts, downloadable from the
+**Artifacts** tab of the pipeline run. Bitbucket has no SARIF viewer, so treat
+`secfoo.sarif` as the hand-off file for other tools. Full file:
+[examples/ci/bitbucket-pipelines.yml](../examples/ci/bitbucket-pipelines.yml).
+
+## Azure Pipelines
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches: { include: [main] }
+pr:
+  branches: { include: [main] }
+
+jobs:
+  - job: secfoo
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - checkout: self
+        fetchDepth: 50
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+      - bash: pip install --quiet secfoo
+      - bash: |
+          code=0
+          mkdir -p secfoo-reports
+          secfoo run --agent api --target . --depth quick --json --rescan \
+            --project-name "$(Build.Repository.Name)" \
+            --skill sast --skill secret-scanning \
+            --fail-on high --max-cost 2.00 > secfoo-reports/secfoo-result.json || code=$?
+          secfoo findings export --format sarif -o secfoo-reports/secfoo.sarif
+          secfoo findings export -o secfoo-reports/secfoo-findings.jsonl
+          exit $code
+        env:
+          OPENAI_API_KEY: $(OPENAI_API_KEY)
+      - task: PublishPipelineArtifact@1
+        condition: always()
+        inputs:
+          targetPath: secfoo-reports
+          artifact: secfoo-reports
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) as a secret
+pipeline variable under **Pipelines → your pipeline → Edit → Variables → New
+variable**, with **Keep this value secret** ticked. Azure Pipelines does not
+pass secret variables to scripts on its own, so the step maps it under `env:`.
+The job uses a Microsoft-hosted `ubuntu-latest` agent: git is preinstalled,
+and `pip install` works without root (a container job runs steps as a
+non-root user, so `apt-get` and a system-wide `pip install` fail there).
+
+The `pr:` trigger works for GitHub and Bitbucket Cloud repositories. For Azure
+Repos Git, pull-request runs come from a branch policy instead: **Repos →
+Branches → main → Branch policies → Build validation**.
+
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped. The reports are
+published as the `secfoo-reports` pipeline artifact even when the step fails.
+Azure has no built-in SARIF viewer, so treat `secfoo.sarif` as the hand-off
+file for other tools. Full file:
+[examples/ci/azure-pipelines.yml](../examples/ci/azure-pipelines.yml).
 
 ## Jenkins
 
@@ -323,7 +446,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Buildkite, CircleCI, Azure Pipelines, ...)
+## Anything else (Buildkite, CircleCI, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...

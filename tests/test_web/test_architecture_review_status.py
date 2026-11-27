@@ -75,8 +75,8 @@ def test_by_project_ends_with_each_projects_review_status(client, tmp_path):
     assert header[-1] == "Review status"
 
     def status_of(name: str) -> str:
-        row = re.search(rf"<tr[^>]*>(?:(?!</tr>).)*{re.escape(name)}(?:(?!</tr>).)*</tr>", table, re.S).group(0)
-        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+        row = re.search(rf"<tr[^>]*>(?:(?!</tr>).)*{re.escape(name)}(?:(?!</tr>).)*</tr>", table, re.DOTALL).group(0)
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.DOTALL)
         return re.sub(r"<[^>]+>", "", cells[-1]).strip()
 
     assert status_of("acme/current") == "Current"

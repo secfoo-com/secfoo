@@ -19,10 +19,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from typer.testing import CliRunner
+
 from secfoo.cli import app
 from secfoo.storage.repository import RunRepository
 from secfoo.web.app import create_app
-from typer.testing import CliRunner
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "reports"
 SKILL_ID = "responsible-ai-compliance"
