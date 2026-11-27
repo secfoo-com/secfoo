@@ -151,11 +151,7 @@ runs:
       run: |
         set -euo pipefail
         python -m pip install --quiet --upgrade pip
-        if [[ -n "$SECFOO_VERSION" ]]; then
-          python -m pip install --quiet "secfoo==$SECFOO_VERSION"
-        else
-          python -m pip install --quiet "git+https://github.com/niharika3715/secfoo.git@pr-comment-demo"
-        fi
+        python -m pip install --quiet "secfoo${SECFOO_VERSION:+==${SECFOO_VERSION}}"
         secfoo --help >/dev/null
 
     - name: Install agent CLI

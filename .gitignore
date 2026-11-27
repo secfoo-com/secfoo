@@ -41,7 +41,3 @@ node_modules/
 # uv writes a lockfile when you `uv run` inside the checkout; the project
 # does not pin dependencies that way.
 uv.lock
-
-# Local IDE and configuration
-.idea/
-config.toml

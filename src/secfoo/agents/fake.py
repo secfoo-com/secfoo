@@ -25,8 +25,10 @@ class FakeAdapter(AgentAdapter):
         prev_commit: str | None = None,
     ) -> AgentResult:
         report_path = (
-            Path(__file__).resolve().parent
+            Path(__file__).resolve().parents[3]
+            / "tests"
             / "fixtures"
+            / "ci"
             / "fake-report.md"
         )
 
