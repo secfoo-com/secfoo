@@ -26,6 +26,9 @@ branding:
   color: blue
 
 inputs:
+  github-token:
+    description: GitHub token for posting PR comments
+    required: false
   skills:
     description: >-
       Comma-separated skill IDs to run concurrently: sast, secret-scanning,
@@ -298,10 +301,10 @@ runs:
         startsWith(github.event_name, 'pull_request') &&
         fromJSON(inputs.comment) == true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO_OWNER: ${{ github.repository_owner }}
-        REPO_NAME: ${{ github.repository }}
+        REPO_NAME: ${{ github.event.repository.name }}
         SARIF_FILE: ${{ inputs.sarif-file }}
         RESULT_FILE: ${{ inputs.result-file }}
       shell: bash
@@ -322,13 +325,17 @@ runs:
         body_lines+=("| Skill | Status | C / H / M / L | Cost |")
         body_lines+=("|---|---|---|---|")
         if [ -f "$RESULT_FILE" ] && [ -s "$RESULT_FILE" ]; then
-          python3 -c "
-import json, sys
-doc = json.load(open(sys.argv[1]))
-for r in doc[\"runs\"]:
-    s = r[\"severity\"]; cost = r.get(\"cost_usd\")
-    print(f'| {r[\"skill_name\"]} | {r[\"status\"]} | {s[\"critical\"]} / {s[\"high\"]} / {s[\"medium\"]} / {s[\"low\"]} | {\"-\" if cost is None else f\"\${cost:.2f}\"} |')
-" 2>/dev/null || true
+          python3 - "$RESULT_FILE" <<'PY'
+        import json, sys
+
+        doc = json.load(open(sys.argv[1]))
+        for r in doc["runs"]:
+            s = r["severity"]
+            cost = r.get("cost_usd")
+            cost_text = "-" if cost is None else f"${cost:.2f}"
+            print(f'| {r["skill_name"]} | {r["status"]} | {s["critical"]} / {s["high"]} / {s["medium"]} / {s["low"]} | {cost_text} |')
+        PY
+
           # Fallback: use the totals from GITHUB_OUTPUT
           body_lines+=("| SAST — Static Code Analysis | success | 1 / 1 / 1 / 1 | \$0.00 |")
         fi

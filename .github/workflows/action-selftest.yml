@@ -18,6 +18,7 @@ jobs:
       - name: Run secfoo with fake agent
         uses: ./
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           agent: fake
           target: tests/fixtures/ci/
         env:
