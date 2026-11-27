@@ -211,6 +211,60 @@ dependency files), so they stay in the SARIF and JSON Lines exports. Full
 job, including merge-request rules and a container-image variant:
 [examples/ci/gitlab-ci.yml](../examples/ci/gitlab-ci.yml).
 
+## CircleCI
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+
+jobs:
+  secfoo:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run: pip install --quiet secfoo
+      - run:
+          name: secfoo security review
+          command: |
+            code=0
+            secfoo run --agent api --target . --depth quick --json --rescan \
+              --project-name "$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" \
+              --skill sast --skill secret-scanning \
+              --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+            secfoo findings export --format sarif -o secfoo.sarif
+            secfoo findings export -o secfoo-findings.jsonl
+            exit $code
+      - store_artifacts:
+          path: secfoo-result.json
+      - store_artifacts:
+          path: secfoo.sarif
+      - store_artifacts:
+          path: secfoo-findings.jsonl
+
+workflows:
+  secfoo:
+    jobs:
+      - secfoo:
+          context: secfoo
+```
+
+Add `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) either as a
+project environment variable (**Project Settings → Environment Variables**) or
+in a context (**Organization Settings → Contexts**) named `secfoo`, which the
+workflow above references; drop the `context:` line if you use a project
+variable. CircleCI masks the value in job output. The `cimg/python` image runs
+as a non-root user and already has git, so no `apt-get` is needed.
+
+The script records `secfoo run`'s exit code so both exports always run before
+the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
+means `--fail-on` tripped, and `3` means `--max-cost` tripped.
+`store_artifacts` runs even when an earlier step failed, so the files appear
+on the job's **Artifacts** tab when a gate trips too.
+CircleCI has no SARIF viewer, so treat `secfoo.sarif` as the hand-off file for
+other tools. Full file:
+[examples/ci/circleci-config.yml](../examples/ci/circleci-config.yml).
+
 ## Bitbucket Pipelines
 
 ```yaml
@@ -396,7 +450,7 @@ choice; build `FROM ghcr.io/secfoo-com/secfoo` and `npm install -g
 `/root/.secfoo`; mount it to keep findings between jobs. See the
 [Distribution](REFERENCE.md#distribution) notes.
 
-## Anything else (Buildkite, CircleCI, ...)
+## Anything else (Buildkite, ...)
 
 ```bash
 pip install secfoo                     # or: uvx secfoo run ...

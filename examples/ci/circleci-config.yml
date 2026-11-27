@@ -1,0 +1,45 @@
+# Add to your repository as .circleci/config.yml (or merge the job into an
+# existing config).
+#
+# AI security review as a CircleCI job, on every push. Set OPENAI_API_KEY (or
+# ANTHROPIC_API_KEY / GEMINI_API_KEY) as an environment variable under
+# Project Settings -> Environment Variables, or in a context (Organization
+# Settings -> Contexts) that the workflow references, as below.
+#
+# The SARIF and JSON Lines files are kept as artifacts for other tools.
+version: 2.1
+
+jobs:
+  secfoo:
+    docker:
+      - image: cimg/python:3.12   # non-root, git preinstalled
+    steps:
+      - checkout
+      - run:
+          name: Install secfoo
+          command: pip install --quiet secfoo
+      - run:
+          name: secfoo security review
+          # Exit codes: 0 clean, 1 a run failed, 2 the --fail-on gate tripped, 3 the --max-cost gate tripped.
+          command: |
+            code=0
+            secfoo run --agent api --target . --depth quick --json --rescan \
+              --project-name "$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" \
+              --skill sast --skill secret-scanning \
+              --fail-on high --max-cost 2.00 > secfoo-result.json || code=$?
+            secfoo findings export --format sarif -o secfoo.sarif
+            secfoo findings export -o secfoo-findings.jsonl
+            exit $code
+      # store_artifacts runs even when the review step failed.
+      - store_artifacts:
+          path: secfoo-result.json
+      - store_artifacts:
+          path: secfoo.sarif
+      - store_artifacts:
+          path: secfoo-findings.jsonl
+
+workflows:
+  secfoo:
+    jobs:
+      - secfoo:
+          context: secfoo   # remove if the key is a project environment variable
