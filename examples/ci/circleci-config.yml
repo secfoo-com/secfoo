@@ -30,16 +30,13 @@ jobs:
             secfoo findings export --format sarif -o secfoo.sarif
             secfoo findings export -o secfoo-findings.jsonl
             exit $code
-      # A failed step skips later steps unless they say `when: always`.
+      # store_artifacts runs even when the review step failed.
       - store_artifacts:
           path: secfoo-result.json
-          when: always
       - store_artifacts:
           path: secfoo.sarif
-          when: always
       - store_artifacts:
           path: secfoo-findings.jsonl
-          when: always
 
 workflows:
   secfoo:

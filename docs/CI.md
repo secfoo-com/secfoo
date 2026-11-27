@@ -237,13 +237,10 @@ jobs:
             exit $code
       - store_artifacts:
           path: secfoo-result.json
-          when: always
       - store_artifacts:
           path: secfoo.sarif
-          when: always
       - store_artifacts:
           path: secfoo-findings.jsonl
-          when: always
 
 workflows:
   secfoo:
@@ -261,9 +258,9 @@ as a non-root user and already has git, so no `apt-get` is needed.
 
 The script records `secfoo run`'s exit code so both exports always run before
 the step fails: `0` is clean, `1` means a skill run failed or timed out, `2`
-means `--fail-on` tripped, and `3` means `--max-cost` tripped. A failed step
-skips the steps after it, so each `store_artifacts` carries `when: always`;
-the files appear on the job's **Artifacts** tab even when a gate fails.
+means `--fail-on` tripped, and `3` means `--max-cost` tripped.
+`store_artifacts` runs even when an earlier step failed, so the files appear
+on the job's **Artifacts** tab when a gate trips too.
 CircleCI has no SARIF viewer, so treat `secfoo.sarif` as the hand-off file for
 other tools. Full file:
 [examples/ci/circleci-config.yml](../examples/ci/circleci-config.yml).
